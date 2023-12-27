@@ -233,32 +233,27 @@ class GoogleSheetConector:
 
     def get_rows_where_column_equals(self, column, value):
         """
-            Obtiene todas las filas de la hoja de cálculo donde una columna específica tiene un valor dado.
+        Obtiene todas las filas de la hoja de cálculo donde una columna específica tiene un valor dado.
+        Además, incluye el número de fila en la hoja de cálculo.
 
-            Esta función busca en todas las filas de la hoja de cálculo conectada y retorna aquellas filas en las que el valor de una columna específica coincide con el valor proporcionado.
+        Parámetros:
+            column (int): Índice de la columna a verificar. El índice comienza en 0 (0 para la primera columna).
+            value: Valor a buscar en la columna especificada.
 
-            Parámetros:
-                column (int): Índice de la columna a verificar. El índice comienza en 0 (0 para la primera columna).
-                value: Valor a buscar en la columna especificada.
+        Devuelve:
+            Una lista de tuplas, donde cada tupla contiene el número de fila (comenzando en 1) y la fila (lista de celdas).
 
-            Devuelve:
-                Una lista de filas (cada fila es una lista de celdas) donde la columna especificada tiene el valor dado.
-
-            Ejemplo:
-                # Obtener todas las filas donde la primera columna (índice 0) tiene el valor "Ejemplo"
-                filas = conector.get_column_with_value(0, "Ejemplo")
-
-            Nota:
-                Si ninguna fila coincide con el valor buscado, la función devolverá una lista vacía.
-            """
-        # Obtener todos los valores de la hoja de cálculo
+        Ejemplo:
+            # Obtener todas las filas donde la primera columna (índice 0) tiene el valor "Ejemplo"
+            filas = conector.get_column_with_value(0, "Ejemplo")
+        """
         data = self.sheet.get_all_values()
         rows_with_value = []
 
-        # Buscar filas donde la columna especificada tiene el valor dado
-        for row in data:
+        # Agregamos 1 al índice porque los índices de las filas en la hoja de cálculo comienzan en 1
+        for index, row in enumerate(data, start=1):
             if len(row) > column and row[column] == value:
-                rows_with_value.append(row)
+                rows_with_value.append((index, row))  # Guarda el número de fila y la fila
 
         return rows_with_value
 

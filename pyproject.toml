@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "gsuite-sdk"
-version = "0.1.1"
+version = "0.1.2"
 description = "Unified Google Workspace SDK - Gmail, Calendar, Drive, Sheets"
 readme = "README.md"
 license = {text = "MIT"}
@@ -39,12 +39,20 @@ dev = [
 ]
 cloudrun = [
     "google-cloud-secret-manager>=2.18.0",
+    "google-cloud-logging>=3.9.0",
 ]
-all = [
+api = [
     "fastapi>=0.109.0",
-    "uvicorn>=0.27.0",
+    "uvicorn[standard]>=0.27.0",
+    "python-multipart>=0.0.6",
+    "email-validator>=2.1.0",
+]
+cli = [
     "typer>=0.9.0",
     "rich>=13.7.0",
+]
+all = [
+    "gsuite-sdk[api,cli,cloudrun]",
 ]
 
 [project.urls]
@@ -85,7 +93,7 @@ testpaths = ["tests", "packages/*/tests"]
 addopts = "-v --tb=short --import-mode=importlib"
 
 [tool.setuptools.packages.find]
-where = ["packages/core/src", "packages/gmail/src", "packages/calendar/src", "packages/drive/src", "packages/sheets/src"]
+where = ["packages/core/src", "packages/gmail/src", "packages/calendar/src", "packages/drive/src", "packages/sheets/src", "api/src"]
 include = ["gsuite_*"]
 
 [tool.setuptools.package-data]

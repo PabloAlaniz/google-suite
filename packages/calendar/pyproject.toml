@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gsuite-calendar"
+version = "0.1.0"
+description = "Google Suite Calendar - Simple Calendar API client"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Pablo Alaniz", email = "alanizpablo@gmail.com"}
+]
+keywords = ["google", "calendar", "events", "api"]
+dependencies = [
+    "gsuite-core>=0.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "ruff>=0.1.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/PabloAlaniz/google-suite"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["gsuite_calendar*"]
+
+[tool.setuptools.package-data]
+gsuite_calendar = ["py.typed"]

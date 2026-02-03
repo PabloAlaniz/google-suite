@@ -1,0 +1,53 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Testing
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.nox/
+
+# Environments
+.env
+.venv
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# mypy / ruff
+.mypy_cache/
+.ruff_cache/
+
+# Secrets - NEVER commit
+credentials.json
+**/credentials.json
+token.json
+**/token.json
+tokens.db
+**/tokens.db
+*.pem
+*.key
+service-account.json
+**/service-account.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+*.db

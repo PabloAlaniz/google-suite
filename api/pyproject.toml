@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gsuite-api"
+version = "0.1.0"
+description = "Google Suite Unified REST API Gateway"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Pablo Alaniz", email = "alanizpablo@gmail.com"}
+]
+dependencies = [
+    "gsuite-core>=0.1.0",
+    "gsuite-gmail>=0.1.0",
+    "gsuite-calendar>=0.1.0",
+    "fastapi>=0.109.0",
+    "uvicorn[standard]>=0.27.0",
+    "email-validator>=2.1.0",
+    "python-multipart>=0.0.6",
+    "google-cloud-logging>=3.9.0",
+]
+
+[project.scripts]
+gsuite-api = "gsuite_api.main:run"
+
+[project.urls]
+Homepage = "https://github.com/PabloAlaniz/google-suite"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["gsuite_api*"]

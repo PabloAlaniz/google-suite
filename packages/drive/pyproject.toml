@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gsuite-drive"
+version = "0.1.0"
+description = "Google Suite Drive - Simple Drive API client"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Pablo Alaniz", email = "alanizpablo@gmail.com"}
+]
+keywords = ["google", "drive", "files", "api"]
+dependencies = [
+    "gsuite-core>=0.1.0",
+]
+
+[project.optional-dependencies]
+fsspec = [
+    "fsspec>=2023.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/PabloAlaniz/google-suite"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["gsuite_drive*"]
+
+[tool.setuptools.package-data]
+gsuite_drive = ["py.typed"]

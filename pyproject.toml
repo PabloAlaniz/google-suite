@@ -1,0 +1,92 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gsuite-sdk"
+version = "0.1.0"
+description = "Unified Google Workspace SDK - Gmail, Calendar, Drive, Sheets"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Pablo Alaniz", email = "alanizpablo@gmail.com"}
+]
+keywords = ["google", "workspace", "gmail", "calendar", "drive", "sheets", "oauth", "api"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+dependencies = [
+    "google-auth>=2.27.0",
+    "google-auth-oauthlib>=1.2.0",
+    "google-api-python-client>=2.114.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+]
+cloudrun = [
+    "google-cloud-secret-manager>=2.18.0",
+]
+all = [
+    "fastapi>=0.109.0",
+    "uvicorn>=0.27.0",
+    "typer>=0.9.0",
+    "rich>=13.7.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/PabloAlaniz/google-suite"
+Repository = "https://github.com/PabloAlaniz/google-suite"
+Documentation = "https://github.com/PabloAlaniz/google-suite#readme"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "C4", "UP"]
+ignore = [
+    "E501",   # Line too long
+    "B008",   # Function call in default argument
+    "B904",   # raise ... from err (too noisy for now)
+    "E741",   # Ambiguous variable name (l, I, O)
+    "F401",   # Imported but unused (conditional imports)
+    "F841",   # Local variable assigned but never used
+    "W293",   # Blank line contains whitespace
+    "E402",   # Module level import not at top
+    "B905",   # zip without strict
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["gsuite_core", "gsuite_gmail", "gsuite_calendar", "gsuite_drive", "gsuite_sheets", "gsuite_api", "gsuite_cli"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests", "packages/*/tests"]
+addopts = "-v --tb=short --import-mode=importlib"
+
+[tool.setuptools.packages.find]
+where = ["packages/core/src", "packages/gmail/src", "packages/calendar/src", "packages/drive/src", "packages/sheets/src"]
+include = ["gsuite_*"]
+
+[tool.setuptools.package-data]
+"*" = ["py.typed"]

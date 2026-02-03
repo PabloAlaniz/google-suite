@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gsuite-sheets"
+version = "0.1.0"
+description = "Google Suite Sheets - Simple Sheets API client"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Pablo Alaniz", email = "alanizpablo@gmail.com"}
+]
+keywords = ["google", "sheets", "spreadsheet", "api"]
+dependencies = [
+    "gsuite-core>=0.1.0",
+]
+
+[project.optional-dependencies]
+pandas = [
+    "pandas>=2.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/PabloAlaniz/google-suite"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["gsuite_sheets*"]
+
+[tool.setuptools.package-data]
+gsuite_sheets = ["py.typed"]

@@ -1,0 +1,51 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gsuite-core"
+version = "0.1.0"
+description = "Google Suite Core - Shared auth, config, and utilities"
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.11"
+authors = [
+    {name = "Pablo Alaniz", email = "alanizpablo@gmail.com"}
+]
+keywords = ["google", "oauth", "authentication", "workspace"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "google-auth>=2.27.0",
+    "google-auth-oauthlib>=1.2.0",
+    "google-api-python-client>=2.114.0",
+    "pydantic>=2.5.0",
+    "pydantic-settings>=2.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-cov>=4.1.0",
+    "ruff>=0.1.0",
+    "mypy>=1.8.0",
+]
+cloudrun = [
+    "google-cloud-secret-manager>=2.18.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/PabloAlaniz/google-suite"
+Repository = "https://github.com/PabloAlaniz/google-suite"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["gsuite_core*"]
+
+[tool.setuptools.package-data]
+gsuite_core = ["py.typed"]

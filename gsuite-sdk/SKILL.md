@@ -1,3 +1,19 @@
+---
+name: gsuite-sdk
+description: Interact with Google Workspace APIs (Gmail, Calendar, Drive, Sheets) using gsuite-sdk.
+metadata:
+  openclaw:
+    requires:
+      env:
+        - GOOGLE_CREDENTIALS_FILE
+    primaryEnv: GOOGLE_CREDENTIALS_FILE
+    install:
+      - kind: pip
+        package: gsuite-sdk
+        bins: [gsuite]
+    homepage: https://github.com/PabloAlaniz/google-suite
+---
+
 # Google Suite Skill
 
 Skill para interactuar con Google Workspace APIs (Gmail, Calendar, Drive, Sheets) usando `gsuite-sdk`.

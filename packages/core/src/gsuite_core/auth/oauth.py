@@ -110,9 +110,16 @@ class GoogleAuth:
         token_data = self.token_store.get_token(self.user_id)
 
         if token_data:
-            self._credentials = Credentials.from_authorized_user_info(
-                token_data,
-                self.scopes,
+            # Use Credentials constructor directly to ensure scopes are set correctly.
+            # from_authorized_user_info() has issues with scope handling that cause
+            # credentials.valid to be False even with valid tokens.
+            self._credentials = Credentials(
+                token=token_data.get("token"),
+                refresh_token=token_data.get("refresh_token"),
+                token_uri=token_data.get("token_uri"),
+                client_id=token_data.get("client_id"),
+                client_secret=token_data.get("client_secret"),
+                scopes=token_data.get("scopes") or self.scopes,
             )
 
     def _save_credentials(self) -> None:

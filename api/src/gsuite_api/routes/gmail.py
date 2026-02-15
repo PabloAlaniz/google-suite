@@ -10,6 +10,7 @@ router = APIRouter()
 
 # ========== Response Models ==========
 
+
 class AttachmentResponse(BaseModel):
     id: str
     filename: str
@@ -72,6 +73,7 @@ class LabelResponse(BaseModel):
 
 # ========== Request Models ==========
 
+
 class SendRequest(BaseModel):
     to: list[EmailStr]
     subject: str
@@ -102,6 +104,7 @@ class ReplyRequest(BaseModel):
 
 
 # ========== Helper Functions ==========
+
 
 def _message_to_response(m) -> MessageResponse:
     return MessageResponse(
@@ -152,6 +155,7 @@ def _message_to_detail(m) -> MessageDetailResponse:
 
 # ========== Messages Routes ==========
 
+
 @router.get("/messages")
 async def list_messages(
     gmail: GmailDep,
@@ -161,7 +165,7 @@ async def list_messages(
 ):
     """
     List messages with optional filters.
-    
+
     Uses Gmail search query syntax:
     - `is:unread` - unread messages
     - `from:someone@example.com` - from specific sender
@@ -228,7 +232,7 @@ async def get_message(message_id: str, gmail: GmailDep):
 async def send_message(request: SendRequest, gmail: GmailDep):
     """
     Send an email.
-    
+
     Set `reply_to` to a message ID to reply to an existing message.
     Set `thread_id` to keep the reply in the same thread.
     """
@@ -247,6 +251,7 @@ async def send_message(request: SendRequest, gmail: GmailDep):
 
 
 # ========== Message Actions ==========
+
 
 @router.post("/messages/{message_id}/read")
 async def mark_as_read(message_id: str, gmail: GmailDep):
@@ -350,21 +355,22 @@ async def move_to_inbox(message_id: str, gmail: GmailDep):
 
 # ========== Labels on Messages ==========
 
+
 @router.post("/messages/{message_id}/labels")
 async def modify_labels(message_id: str, request: ModifyLabelsRequest, gmail: GmailDep):
     """Add or remove labels from a message."""
     message = gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    
+
     if request.add_labels:
         for label in request.add_labels:
             message.add_label(label)
-    
+
     if request.remove_labels:
         for label in request.remove_labels:
             message.remove_label(label)
-    
+
     return {
         "status": "success",
         "labels": message.labels,
@@ -375,17 +381,18 @@ async def modify_labels(message_id: str, request: ModifyLabelsRequest, gmail: Gm
 
 # ========== Batch Operations ==========
 
+
 @router.post("/messages/batch/read")
 async def batch_mark_as_read(request: BatchModifyRequest, gmail: GmailDep):
     """Mark multiple messages as read."""
     if not request.message_ids:
         raise HTTPException(status_code=400, detail="message_ids cannot be empty")
-    
+
     for msg_id in request.message_ids:
         msg = gmail.get_message(msg_id)
         if msg:
             msg.mark_as_read()
-    
+
     return {
         "status": "success",
         "count": len(request.message_ids),
@@ -397,7 +404,7 @@ async def batch_modify_labels(request: BatchModifyRequest, gmail: GmailDep):
     """Modify labels on multiple messages."""
     if not request.message_ids:
         raise HTTPException(status_code=400, detail="message_ids cannot be empty")
-    
+
     for msg_id in request.message_ids:
         msg = gmail.get_message(msg_id)
         if msg:
@@ -407,7 +414,7 @@ async def batch_modify_labels(request: BatchModifyRequest, gmail: GmailDep):
             if request.remove_labels:
                 for label in request.remove_labels:
                     msg.remove_label(label)
-    
+
     return {
         "status": "success",
         "count": len(request.message_ids),
@@ -418,23 +425,25 @@ async def batch_modify_labels(request: BatchModifyRequest, gmail: GmailDep):
 
 # ========== Reply ==========
 
+
 @router.post("/messages/{message_id}/reply")
 async def reply_to_message(message_id: str, request: ReplyRequest, gmail: GmailDep):
     """Reply to a message (keeps thread)."""
     message = gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    
+
     reply = message.reply(
         body=request.body,
         html=request.html,
         signature=request.signature,
     )
-    
+
     return {"id": reply.id, "thread_id": reply.thread_id, "status": "sent"}
 
 
 # ========== Attachments ==========
+
 
 @router.get("/messages/{message_id}/attachments/{attachment_id}")
 async def download_attachment(message_id: str, attachment_id: str, gmail: GmailDep):
@@ -442,23 +451,22 @@ async def download_attachment(message_id: str, attachment_id: str, gmail: GmailD
     message = gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    
+
     attachment = next((a for a in message.attachments if a.id == attachment_id), None)
     if not attachment:
         raise HTTPException(status_code=404, detail="Attachment not found")
-    
+
     content = attachment.download()
-    
+
     return Response(
         content=content,
         media_type=attachment.mime_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{attachment.filename}"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="{attachment.filename}"'},
     )
 
 
 # ========== Threads ==========
+
 
 @router.get("/threads/{thread_id}")
 async def get_thread(thread_id: str, gmail: GmailDep):
@@ -466,7 +474,7 @@ async def get_thread(thread_id: str, gmail: GmailDep):
     thread = gmail.get_thread(thread_id)
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
-    
+
     # Build participants list from all messages
     participants = set()
     has_unread = False
@@ -476,7 +484,7 @@ async def get_thread(thread_id: str, gmail: GmailDep):
             participants.add(m.recipient)
         if m.is_unread:
             has_unread = True
-    
+
     return ThreadResponse(
         id=thread.id,
         subject=thread.messages[0].subject if thread.messages else "",
@@ -502,6 +510,7 @@ async def get_thread(thread_id: str, gmail: GmailDep):
 
 # ========== Labels ==========
 
+
 @router.get("/labels")
 async def list_labels(gmail: GmailDep):
     """List all labels with stats."""
@@ -524,6 +533,7 @@ async def list_labels(gmail: GmailDep):
 
 
 # ========== Profile ==========
+
 
 @router.get("/profile")
 async def get_profile(gmail: GmailDep):

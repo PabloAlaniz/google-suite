@@ -9,16 +9,12 @@ id = "curl-auth-header"
 description = "Curl auth header example (false positive)"
 
 # Allow example/placeholder API keys in documentation
-[[allowlist]]
-description = "Example API keys in documentation"
+[allowlist]
+description = "Example API keys and historical false positives"
 regexTarget = "line"
 regexes = [
     '''your-secret-api-key''',
     '''YOUR_API_KEY''',
     '''your-api-key''',
 ]
-
-# Specific false positive from historical commit
-[[allowlist]]
-description = "Historical example in api/README.md"
 commits = ["24113c891116109abeb73d74c0185f63a00f064c"]

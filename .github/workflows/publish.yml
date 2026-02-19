@@ -4,13 +4,24 @@ on:
   release:
     types: [published]
   workflow_dispatch:
+    inputs:
+      package:
+        description: 'Package to publish'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - sdk
+          - api
 
 jobs:
-  publish:
+  publish-sdk:
+    if: github.event_name == 'release' || inputs.package == 'all' || inputs.package == 'sdk'
     runs-on: ubuntu-latest
     environment: pypi
     permissions:
-      id-token: write  # For trusted publishing
+      id-token: write
     
     steps:
       - uses: actions/checkout@v4
@@ -23,10 +34,38 @@ jobs:
       - name: Install build tools
         run: pip install build twine
       
-      - name: Build package
+      - name: Build SDK package
         run: python -m build
       
-      - name: Publish to PyPI
+      - name: Publish SDK to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
+          skip-existing: true
+
+  publish-api:
+    if: github.event_name == 'release' || inputs.package == 'all' || inputs.package == 'api'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Install build tools
+        run: pip install build twine
+      
+      - name: Build API package
+        working-directory: api
+        run: python -m build
+      
+      - name: Publish API to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: api/dist/
           skip-existing: true

@@ -147,16 +147,15 @@ class TestGoogleAuth:
         }
         token_store.save_token(token_data, user_id="test_user")
 
-        with patch(
-            "gsuite_core.auth.oauth.Credentials.from_authorized_user_info"
-        ) as mock_from_info:
-            mock_creds = Mock(spec=Credentials)
-            mock_from_info.return_value = mock_creds
+        # Implementation uses Credentials() constructor directly (not from_authorized_user_info)
+        # to handle scopes correctly. We verify the credentials are loaded with correct data.
+        creds = auth_instance.credentials
 
-            creds = auth_instance.credentials
-
-            mock_from_info.assert_called_once_with(token_data, Scopes.default())
-            assert creds == mock_creds
+        assert creds is not None
+        assert creds.token == "access_token_123"
+        assert creds.refresh_token == "refresh_token_123"
+        assert creds.client_id == "client_id_123"
+        assert creds.client_secret == "client_secret_123"
 
     def test_credentials_property_returns_cached(self, auth_instance, mock_credentials):
         """Test that credentials property returns cached credentials."""

@@ -123,6 +123,45 @@ calendar.create_event(
 )
 ```
 
+### Sheets
+
+```python
+from gsuite_sheets import Sheets
+
+sheets = Sheets(auth)
+
+# Open spreadsheet by title or URL
+sheet = sheets.open("My Spreadsheet")
+# Or by key
+sheet = sheets.open_by_key("1A2B3C...")
+# Or by URL
+sheet = sheets.open_by_url("https://docs.google.com/spreadsheets/d/...")
+
+# Read values
+values = sheet.get_values("Sheet1!A1:D10")
+print(values)  # [[row1], [row2], ...]
+
+# Write values
+sheet.update_values("Sheet1!A1", [["Name", "Email"], ["John", "john@example.com"]])
+
+# Append rows
+sheet.append_values("Sheet1", [["Jane", "jane@example.com"]])
+
+# Batch operations
+sheet.batch_update([
+    {"range": "Sheet1!A1", "values": [["Header1", "Header2"]]},
+    {"range": "Sheet1!A2", "values": [["Data1", "Data2"]]},
+])
+
+# Create new spreadsheet
+new_sheet = sheets.create("Budget 2026")
+print(f"Created: {new_sheet.url}")
+
+# List all spreadsheets
+for spreadsheet in sheets.list_spreadsheets():
+    print(f"{spreadsheet['name']} - {spreadsheet['id']}")
+```
+
 ### REST API
 
 ```bash
@@ -138,6 +177,8 @@ docker run -p 8080:8080 gsuite-api
 curl http://localhost:8080/gmail/messages/unread
 curl http://localhost:8080/calendar/events/upcoming
 curl http://localhost:8080/drive/files
+curl http://localhost:8080/sheets/list
+curl http://localhost:8080/sheets/{spreadsheet_id}/values/Sheet1!A1:D10
 ```
 
 **Interactive API docs available at `/docs` when server is running.** See [API Documentation](#api-documentation) section below for details.
@@ -164,6 +205,14 @@ gsuite calendar week           # Week view
 gsuite calendar create "Meeting" --start "2026-01-30 10:00"
 gsuite calendar calendars      # List calendars
 
+# Sheets
+gsuite sheets list             # List all spreadsheets
+gsuite sheets open "Budget"    # Open by title
+gsuite sheets read SHEET_ID "Sheet1!A1:D10"  # Read range
+gsuite sheets write SHEET_ID "Sheet1!A1" "Name,Email"
+gsuite sheets append SHEET_ID "Sheet1" "John,john@example.com"
+gsuite sheets create "New Sheet"  # Create spreadsheet
+
 # Server
 gsuite serve --port 8080       # Start REST API
 gsuite status                  # Overall status
@@ -178,7 +227,7 @@ google-suite/
 │   ├── gmail/          # Gmail client + query builder
 │   ├── calendar/       # Calendar client
 │   ├── drive/          # Drive client (upload, download, share)
-│   └── sheets/         # Sheets client (planned)
+│   └── sheets/         # Sheets client (read, write, append, batch operations)
 ├── api/                # Unified FastAPI REST gateway
 ├── cli/                # Unified CLI (Typer + Rich)
 ├── skill/              # AI agent skill (OpenClaw compatible)

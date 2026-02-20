@@ -77,6 +77,7 @@ def api_call(
 
     def decorator(func: Callable[..., T]) -> Callable[..., T]:
         """Apply retry logic and error mapping to the decorated function."""
+
         @wraps(func)
         def wrapper(*args, **kwargs) -> T:
             """Execute the function with retry and error handling."""
@@ -155,6 +156,7 @@ def api_call_optional(
 
     def decorator(func: Callable[..., T | None]) -> Callable[..., T | None]:
         """Apply optional error handling to the decorated function."""
+
         @wraps(func)
         def wrapper(*args, **kwargs) -> T | None:
             """Execute the function, returning None on 404 errors."""

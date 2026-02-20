@@ -242,6 +242,8 @@ google-suite/
 - **Independent Packages** - Install only what you need
 - **Unified Gateway** - Single API/CLI for all services
 
+For detailed architecture decisions and design patterns, see [Architecture Documentation](docs/ARCHITECTURE.md).
+
 ## AI Agent Skill
 
 This repo includes an [OpenClaw](https://openclaw.ai)-compatible skill for AI agents:

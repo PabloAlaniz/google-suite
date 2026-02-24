@@ -1,5 +1,5 @@
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2 import service_account
 from .config import DEFAULT_VALUE_INPUT_OPTION
 import pandas as pd
 
@@ -63,7 +63,10 @@ class GoogleSheetConector:
             Es necesario tener un archivo JSON con las credenciales de la cuenta de servicio de Google correctamente configuradas y accesibles para la instancia de GoogleSheetConector.
         """
         scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
-        creds = ServiceAccountCredentials.from_json_keyfile_name(self.json_google_file, scope)
+        creds = service_account.Credentials.from_service_account_file(
+            self.json_google_file,
+            scopes=scope
+        )
         client = gspread.authorize(creds)
         if sheet_name:
             return client.open(doc_name).worksheet(sheet_name)

@@ -334,3 +334,149 @@ class TestParseMessage:
         assert msg.recipient == "recipient@example.com"
         assert len(msg.cc) == 2
         assert msg.is_unread is True
+
+
+class TestAdditionalConvenienceMethods:
+    """Tests for additional convenience methods."""
+
+    @patch("gsuite_gmail.client.build")
+    def test_get_important(self, mock_build):
+        """Test get_important method."""
+        mock_auth = Mock()
+        mock_auth.credentials = Mock()
+        
+        mock_service = Mock()
+        mock_service.users().messages().list().execute.return_value = {"messages": []}
+        mock_build.return_value = mock_service
+
+        gmail = Gmail(mock_auth)
+        gmail.get_important()
+
+        # Should call with is:important query
+        call_args = mock_service.users().messages().list.call_args
+        assert "is:important" in call_args[1]["q"]
+
+    @patch("gsuite_gmail.client.build")
+    def test_get_drafts(self, mock_build):
+        """Test get_drafts method."""
+        mock_auth = Mock()
+        mock_auth.credentials = Mock()
+        
+        mock_service = Mock()
+        mock_service.users().messages().list().execute.return_value = {"messages": []}
+        mock_build.return_value = mock_service
+
+        gmail = Gmail(mock_auth)
+        gmail.get_drafts()
+
+        # Should call with in:drafts query
+        call_args = mock_service.users().messages().list.call_args
+        assert "in:drafts" in call_args[1]["q"]
+
+
+class TestThreadOperations:
+    """Tests for thread operations."""
+
+    @patch("gsuite_gmail.client.build")
+    def test_get_thread(self, mock_build):
+        """Test get_thread method."""
+        mock_auth = Mock()
+        mock_auth.credentials = Mock()
+        
+        mock_service = Mock()
+        mock_service.users().threads().get().execute.return_value = {
+            "id": "thread123",
+            "snippet": "Thread snippet",
+            "messages": [
+                {
+                    "id": "msg1",
+                    "threadId": "thread123", 
+                    "snippet": "Message 1",
+                    "payload": {
+                        "headers": [
+                            {"name": "Subject", "value": "Test Subject"},
+                            {"name": "From", "value": "sender@example.com"},
+                        ],
+                        "body": {}
+                    }
+                }
+            ]
+        }
+        mock_build.return_value = mock_service
+
+        gmail = Gmail(mock_auth)
+        thread = gmail.get_thread("thread123")
+
+        assert thread.id == "thread123"
+        assert thread.snippet == "Thread snippet"
+        assert len(thread.messages) == 1
+        assert thread.messages[0].id == "msg1"
+
+
+class TestSignatureOperations:
+    """Tests for email signature operations."""
+
+    @patch("gsuite_gmail.client.build")
+    def test_get_signature_success(self, mock_build):
+        """Test getting email signature successfully."""
+        mock_auth = Mock()
+        mock_auth.credentials = Mock()
+        
+        mock_service = Mock()
+        mock_service.users().settings().sendAs().get().execute.return_value = {
+            "signature": "<p>Best regards,<br>Test User</p>"
+        }
+        mock_service.users().getProfile().execute.return_value = {
+            "emailAddress": "test@example.com"
+        }
+        mock_build.return_value = mock_service
+
+        gmail = Gmail(mock_auth)
+        
+        signature = gmail.get_signature()
+
+        assert signature == "<p>Best regards,<br>Test User</p>"
+        call_args = mock_service.users().settings().sendAs().get.call_args
+        assert call_args[1]["sendAsEmail"] == "test@example.com"
+
+    @patch("gsuite_gmail.client.build")
+    def test_get_signature_http_error(self, mock_build):
+        """Test get_signature with HTTP error."""
+        from googleapiclient.errors import HttpError
+        
+        mock_auth = Mock()
+        mock_auth.credentials = Mock()
+        
+        mock_service = Mock()
+        mock_service.users().settings().sendAs().get().execute.side_effect = HttpError(
+            Mock(status=404), b'Not found'
+        )
+        mock_service.users().getProfile().execute.return_value = {
+            "emailAddress": "test@example.com"
+        }
+        mock_build.return_value = mock_service
+
+        gmail = Gmail(mock_auth)
+        
+        signature = gmail.get_signature()
+
+        assert signature is None
+
+    @patch("gsuite_gmail.client.build")
+    def test_get_signature_unexpected_error(self, mock_build):
+        """Test get_signature with unexpected error."""
+        mock_auth = Mock()
+        mock_auth.credentials = Mock()
+        
+        mock_service = Mock()
+        mock_service.users().settings().sendAs().get().execute.side_effect = Exception("Unexpected error")
+        mock_service.users().getProfile().execute.return_value = {
+            "emailAddress": "test@example.com"
+        }
+        mock_build.return_value = mock_service
+
+        gmail = Gmail(mock_auth)
+        
+        signature = gmail.get_signature()
+
+        assert signature is None

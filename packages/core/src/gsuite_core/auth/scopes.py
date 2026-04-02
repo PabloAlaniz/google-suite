@@ -80,5 +80,5 @@ class Scopes:
 
     @classmethod
     def default(cls) -> list[str]:
-        """Default scopes (Gmail + Calendar)."""
-        return cls.gmail() + cls.calendar()
+        """Default scopes (Gmail + Calendar + Sheets)."""
+        return cls.gmail() + cls.calendar() + cls.sheets()

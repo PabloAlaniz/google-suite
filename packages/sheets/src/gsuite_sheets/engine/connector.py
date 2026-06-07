@@ -107,7 +107,7 @@ class GoogleSheetConector:
             )
             return gspread.authorize(creds)
         if self._use_adc:
-            import google.auth
+            import google.auth  # noqa: PLC0415  (carga diferida: solo si se usa ADC)
 
             creds, _ = google.auth.default(scopes=_SCOPES)
             return gspread.authorize(creds)
@@ -146,9 +146,12 @@ class GoogleSheetConector:
         return self
 
     def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
-        """Salida del context manager. Las operaciones se aplican de inmediato, por lo
-        que no hay cambios pendientes que descartar; no se suprime ninguna excepción."""
-        return None
+        """Sale del context manager sin suprimir excepciones.
+
+        Las operaciones se aplican de inmediato, por lo que no hay cambios pendientes
+        que descartar.
+        """
+        return
 
     @retry_on_rate_limit
     def connect_to_sheet(self, doc_name: str, sheet_name: str | None = None) -> gspread.Worksheet:
@@ -314,7 +317,6 @@ class GoogleSheetConector:
             # Leer datos en formato DataFrame de pandas
             datos_df = conector.read_sheet_data('Hoja1', output_format='pandas')
         """
-
         # Conectar a la pestaña especificada
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
@@ -329,9 +331,9 @@ class GoogleSheetConector:
             headers = all_values[0]
             return [dict(zip(headers, row)) for row in all_values[1:]]
 
-        elif output_format == "pandas":
+        if output_format == "pandas":
             try:
-                import pandas as pd
+                import pandas as pd  # noqa: PLC0415  (dependencia opcional, carga diferida)
             except ImportError as exc:
                 raise ImportError(
                     "El formato 'pandas' requiere la dependencia opcional pandas. "
@@ -339,8 +341,8 @@ class GoogleSheetConector:
                 ) from exc
             return pd.DataFrame(all_values[1:], columns=all_values[0])
 
-        else:  # output_format == 'list'
-            return all_values
+        # output_format == 'list'
+        return all_values
 
     @retry_on_rate_limit
     def spreadsheet_append(self, data: list[list[Any]], tab_name: str | None = None) -> Any:
@@ -369,17 +371,16 @@ class GoogleSheetConector:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
 
         # Añadir los datos a la hoja de cálculo
-        result = self.sheet.append_rows(
+        return self.sheet.append_rows(
             data,
             value_input_option=ValueInputOption(DEFAULT_VALUE_INPUT_OPTION),
         )
 
-        return result
-
     @retry_on_rate_limit
     def get_rows_where_column_equals(self, column: int, value: Any) -> list[tuple[int, list[Any]]]:
         """
-        Obtiene todas las filas de la hoja de cálculo donde una columna específica tiene un valor dado.
+        Obtiene las filas donde una columna específica tiene un valor dado.
+
         Además, incluye el número de fila en la hoja de cálculo.
 
         Parámetros:
@@ -543,8 +544,7 @@ class GoogleSheetConector:
         try:
             insert = {"values": data}
             # values_append vive en Spreadsheet; se accede a través de la hoja.
-            result = sheet.spreadsheet.values_append(rango, self.options, insert)
-            return result
+            return sheet.spreadsheet.values_append(rango, self.options, insert)
         except Exception as e:
             raise InsertError(f"Error al insertar datos en {worksheet_name}: {e}") from e
 

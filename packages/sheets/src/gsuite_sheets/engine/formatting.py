@@ -10,6 +10,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+# Longitud esperada de un color hexadecimal sin prefijo (RRGGBB).
+_HEX_RGB_LENGTH = 6
+
 
 def _compact(data: dict[str, Any]) -> dict[str, Any]:
     """Elimina las claves con valor None (la API rechaza nulos en varios campos)."""
@@ -18,7 +21,7 @@ def _compact(data: dict[str, Any]) -> dict[str, Any]:
 
 @dataclass
 class Color:
-    """Color RGBA con componentes en el rango 0.0–1.0."""
+    """Color RGBA con componentes en el rango 0.0-1.0."""
 
     red: float = 0.0
     green: float = 0.0
@@ -26,13 +29,14 @@ class Color:
     alpha: float = 1.0
 
     def to_dict(self) -> dict[str, float]:
+        """Serializa a la forma JSON ``{red, green, blue, alpha}``."""
         return {"red": self.red, "green": self.green, "blue": self.blue, "alpha": self.alpha}
 
     @classmethod
     def from_hex(cls, hex_color: str) -> Color:
         """Crea un Color desde un hex tipo '#RRGGBB' o 'RRGGBB'."""
         h = hex_color.lstrip("#")
-        if len(h) != 6:
+        if len(h) != _HEX_RGB_LENGTH:
             raise ValueError(f"Color hex inválido: {hex_color!r} (se espera RRGGBB).")
         r, g, b = (int(h[i : i + 2], 16) / 255 for i in (0, 2, 4))
         return cls(red=r, green=g, blue=b)
@@ -51,6 +55,7 @@ class TextFormat:
     foreground_color: Color | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serializa al objeto ``textFormat`` de la Sheets API (omite campos None)."""
         return _compact(
             {
                 "bold": self.bold,
@@ -74,6 +79,7 @@ class NumberFormat:
     pattern: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serializa al objeto ``numberFormat`` de la Sheets API."""
         return _compact({"type": self.type, "pattern": self.pattern})
 
 
@@ -85,6 +91,7 @@ class Border:
     color: Color | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serializa al objeto ``border`` de la Sheets API."""
         return _compact(
             {"style": self.style, "color": self.color.to_dict() if self.color else None}
         )
@@ -100,6 +107,7 @@ class Borders:
     right: Border | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serializa al conjunto de bordes de la Sheets API (omite los None)."""
         return _compact(
             {
                 "top": self.top.to_dict() if self.top else None,
@@ -123,6 +131,7 @@ class CellFormat:
     borders: Borders | None = None
 
     def to_dict(self) -> dict[str, Any]:
+        """Serializa al objeto ``cellFormat`` de la Sheets API (omite campos None)."""
         return _compact(
             {
                 "backgroundColor": self.background_color.to_dict()

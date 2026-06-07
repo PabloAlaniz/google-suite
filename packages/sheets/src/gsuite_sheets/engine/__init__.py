@@ -6,15 +6,15 @@ from .formatting import Border, Borders, CellFormat, Color, NumberFormat, TextFo
 __version__ = "1.2.0"
 
 __all__ = [
-    "GoogleSheetConector",
     "DEFAULT_VALUE_INPUT_OPTION",
-    "GSpreadManagerError",
-    "InsertError",
-    "CellFormat",
-    "Color",
-    "TextFormat",
-    "NumberFormat",
     "Border",
     "Borders",
+    "CellFormat",
+    "Color",
+    "GSpreadManagerError",
+    "GoogleSheetConector",
+    "InsertError",
+    "NumberFormat",
+    "TextFormat",
     "__version__",
 ]

@@ -19,9 +19,10 @@ def _status_code(error: APIError) -> int | None:
     """Extrae el código de estado HTTP de un APIError de gspread."""
     response = getattr(error, "response", None)
     status = getattr(response, "status_code", None)
-    if status is not None:
+    if isinstance(status, int):
         return status
-    return getattr(error, "code", None)
+    code = getattr(error, "code", None)
+    return code if isinstance(code, int) else None
 
 
 def retry_on_rate_limit(func: F) -> F:
@@ -41,7 +42,7 @@ def retry_on_rate_limit(func: F) -> F:
         while True:
             try:
                 return func(self, *args, **kwargs)
-            except APIError as exc:
+            except APIError as exc:  # noqa: PERF203  (try/except por intento es inherente al reintento)
                 status = _status_code(exc)
                 if status not in RETRYABLE_STATUS or attempt >= max_retries:
                     raise

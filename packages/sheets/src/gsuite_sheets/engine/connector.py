@@ -71,6 +71,15 @@ class GoogleSheetConector:
             return sheet
         return self.sheet
 
+    def __enter__(self) -> GoogleSheetConector:
+        """Permite usar el conector como context manager (``with ... as conn:``)."""
+        return self
+
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        """Salida del context manager. Las operaciones se aplican de inmediato, por lo
+        que no hay cambios pendientes que descartar; no se suprime ninguna excepción."""
+        return None
+
     @retry_on_rate_limit
     def connect_to_sheet(self, doc_name: str, sheet_name: str | None = None) -> gspread.Worksheet:
         """
@@ -472,3 +481,162 @@ class GoogleSheetConector:
             return result
         except Exception as e:
             raise InsertError(f"Error al insertar datos en {worksheet_name}: {e}") from e
+
+    # ------------------------------------------------------------------
+    # Gestión de hojas (worksheets)
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def create_sheet(
+        self,
+        title: str,
+        rows: int = 100,
+        cols: int = 26,
+        index: int | None = None,
+        activate: bool = False,
+    ) -> gspread.Worksheet:
+        """
+        Crea una nueva hoja (pestaña) dentro del documento actual.
+
+        Parámetros:
+            title (str): Nombre de la nueva hoja.
+            rows (int, opcional): Cantidad de filas iniciales. Por defecto 100.
+            cols (int, opcional): Cantidad de columnas iniciales. Por defecto 26.
+            index (int, opcional): Posición de la pestaña. Si es None, se agrega al final.
+            activate (bool, opcional): Si es True, la nueva hoja pasa a ser la hoja activa del conector.
+
+        Devuelve:
+            El objeto worksheet recién creado.
+
+        Ejemplo:
+            nueva = conector.create_sheet("Reporte 2026", rows=500, cols=10)
+        """
+        worksheet = self.sheet.spreadsheet.add_worksheet(title, rows=rows, cols=cols, index=index)
+        if activate:
+            self.sheet = worksheet
+            self.tab_name = title
+        return worksheet
+
+    @retry_on_rate_limit
+    def delete_sheet(self, title: str) -> None:
+        """
+        Elimina una hoja (pestaña) del documento actual por su nombre.
+
+        Parámetros:
+            title (str): Nombre de la hoja a eliminar.
+
+        Ejemplo:
+            conector.delete_sheet("Hoja temporal")
+        """
+        spreadsheet = self.sheet.spreadsheet
+        worksheet = spreadsheet.worksheet(title)
+        spreadsheet.del_worksheet(worksheet)
+
+    # ------------------------------------------------------------------
+    # Limpieza y búsqueda
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def clear_range(
+        self, ranges: str | list[str] | None = None, tab_name: str | None = None
+    ) -> None:
+        """
+        Limpia el contenido de uno o más rangos, o de toda la hoja.
+
+        Parámetros:
+            ranges (str | list[str], opcional): Rango en notación A1 (ej. 'A1:C10') o lista de
+                rangos. Si es None, se limpia toda la hoja activa.
+            tab_name (str, opcional): Pestaña sobre la que operar. Si se indica, pasa a ser la
+                hoja activa del conector.
+
+        Ejemplo:
+            conector.clear_range('A1:C10')
+            conector.clear_range(['A1:A5', 'C1:C5'])
+            conector.clear_range()  # limpia toda la hoja
+        """
+        if tab_name:
+            self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
+
+        if ranges is None:
+            self.sheet.clear()
+            return
+
+        if isinstance(ranges, str):
+            ranges = [ranges]
+        self.sheet.batch_clear(ranges)
+
+    @retry_on_rate_limit
+    def find_cell(self, query: str, case_sensitive: bool = True) -> gspread.Cell | None:
+        """
+        Busca la primera celda cuyo valor coincide con el texto dado.
+
+        Parámetros:
+            query (str): Texto a buscar.
+            case_sensitive (bool, opcional): Si la búsqueda distingue mayúsculas/minúsculas. Por defecto True.
+
+        Devuelve:
+            El objeto Cell encontrado (con atributos `row`, `col` y `value`), o None si no hay coincidencias.
+
+        Ejemplo:
+            celda = conector.find_cell("Total")
+            if celda:
+                print(celda.row, celda.col, celda.value)
+        """
+        return self.sheet.find(query, case_sensitive=case_sensitive)
+
+    # ------------------------------------------------------------------
+    # Integración con pandas
+    # ------------------------------------------------------------------
+
+    def from_gsheet(self, tab_name: str | None = None, skiprows: int = 0) -> Any:
+        """
+        Lee la hoja como un DataFrame de pandas (atajo de read_sheet_data).
+
+        Requiere la dependencia opcional pandas (`pip install GSpreadManager[pandas]`).
+
+        Parámetros:
+            tab_name (str, opcional): Pestaña a leer. Si no se indica, usa la hoja activa.
+            skiprows (int, opcional): Número de filas iniciales a omitir. Por defecto 0.
+
+        Devuelve:
+            Un DataFrame de pandas con la primera fila como encabezados.
+        """
+        return self.read_sheet_data(tab_name=tab_name, skiprows=skiprows, output_format="pandas")
+
+    @retry_on_rate_limit
+    def to_gsheet(
+        self,
+        df: Any,
+        tab_name: str | None = None,
+        include_header: bool = True,
+        clear: bool = True,
+    ) -> Any:
+        """
+        Escribe un DataFrame de pandas en la hoja, empezando en A1.
+
+        Requiere la dependencia opcional pandas (`pip install GSpreadManager[pandas]`).
+
+        Parámetros:
+            df: DataFrame de pandas a volcar.
+            tab_name (str, opcional): Pestaña destino. Si se indica, pasa a ser la hoja activa.
+            include_header (bool, opcional): Si se escriben los nombres de columna como primera fila. Por defecto True.
+            clear (bool, opcional): Si se limpia la hoja antes de escribir. Por defecto True.
+
+        Devuelve:
+            El resultado de la operación de actualización de gspread.
+
+        Ejemplo:
+            conector.to_gsheet(df, tab_name='Resultados')
+        """
+        if tab_name:
+            self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
+
+        header: list[list[Any]] = [list(df.columns)] if include_header else []
+        values = header + df.values.tolist()
+
+        if clear:
+            self.sheet.clear()
+
+        return self.sheet.update(
+            values, value_input_option=ValueInputOption(DEFAULT_VALUE_INPUT_OPTION)
+        )

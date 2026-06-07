@@ -5,10 +5,11 @@ from typing import Any
 
 import gspread
 from google.oauth2 import service_account
-from gspread.utils import ValueInputOption, rowcol_to_a1
+from gspread.utils import ValueInputOption, a1_range_to_grid_range, rowcol_to_a1
 
 from .config import DEFAULT_VALUE_INPUT_OPTION
 from .exceptions import GSpreadManagerError, InsertError
+from .formatting import CellFormat, Color, NumberFormat, TextFormat
 from .retry import retry_on_rate_limit
 
 _SCOPES = [
@@ -699,3 +700,223 @@ class GoogleSheetConector:
         return self.sheet.update(
             values, value_input_option=ValueInputOption(DEFAULT_VALUE_INPUT_OPTION)
         )
+
+    # ------------------------------------------------------------------
+    # Formato de celdas (implementación propia sobre el transporte de gspread)
+    # ------------------------------------------------------------------
+
+    def _grid(self, range_name: str) -> dict[str, int]:
+        """Convierte un rango A1 en un GridRange para la hoja activa."""
+        return a1_range_to_grid_range(range_name, self.sheet.id)
+
+    def _apply_requests(self, requests: list[dict[str, Any]]) -> Any:
+        """Envía una lista de requests vía spreadsheets.batchUpdate."""
+        return self.sheet.spreadsheet.batch_update({"requests": requests})
+
+    @retry_on_rate_limit
+    def format_range(
+        self,
+        ranges: str | list[str],
+        cell_format: CellFormat,
+        tab_name: str | None = None,
+    ) -> Any:
+        """
+        Aplica un formato a uno o más rangos.
+
+        Parámetros:
+            ranges (str | list[str]): Rango(s) en notación A1 (ej. 'A1:C1').
+            cell_format (CellFormat): Formato a aplicar.
+            tab_name (str, opcional): Pestaña destino; si se indica, pasa a ser la hoja activa.
+
+        Ejemplo:
+            from gspreadmanager import CellFormat, TextFormat, Color
+            fmt = CellFormat(text_format=TextFormat(bold=True),
+                             background_color=Color.from_hex("#D9EAD3"))
+            conector.format_range("A1:C1", fmt)
+        """
+        if tab_name:
+            self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
+        return self.sheet.format(ranges, cell_format.to_dict())
+
+    def format_header(
+        self,
+        range_name: str = "1:1",
+        background_hex: str | None = "#D9EAD3",
+        tab_name: str | None = None,
+    ) -> Any:
+        """
+        Atajo para dar formato de encabezado (negrita + color de fondo) a una fila/rango.
+
+        Parámetros:
+            range_name (str): Rango del encabezado. Por defecto la primera fila ('1:1').
+            background_hex (str, opcional): Color de fondo en hex. None para no aplicar fondo.
+            tab_name (str, opcional): Pestaña destino.
+        """
+        fmt = CellFormat(
+            text_format=TextFormat(bold=True),
+            background_color=Color.from_hex(background_hex) if background_hex else None,
+        )
+        return self.format_range(range_name, fmt, tab_name=tab_name)
+
+    def set_background(
+        self, ranges: str | list[str], color: Color, tab_name: str | None = None
+    ) -> Any:
+        """Aplica un color de fondo a uno o más rangos."""
+        return self.format_range(ranges, CellFormat(background_color=color), tab_name=tab_name)
+
+    def set_text_format(
+        self,
+        ranges: str | list[str],
+        *,
+        bold: bool | None = None,
+        italic: bool | None = None,
+        font_size: int | None = None,
+        color: Color | None = None,
+        tab_name: str | None = None,
+    ) -> Any:
+        """Aplica formato de texto (negrita, itálica, tamaño, color) a uno o más rangos."""
+        text = TextFormat(bold=bold, italic=italic, font_size=font_size, foreground_color=color)
+        return self.format_range(ranges, CellFormat(text_format=text), tab_name=tab_name)
+
+    def set_number_format(
+        self,
+        ranges: str | list[str],
+        pattern: str,
+        number_type: str = "NUMBER",
+        tab_name: str | None = None,
+    ) -> Any:
+        """
+        Aplica un formato numérico a uno o más rangos.
+
+        Parámetros:
+            pattern (str): Patrón (ej. '#,##0.00', '0.00%', 'dd/mm/yyyy').
+            number_type (str): Tipo: NUMBER, CURRENCY, PERCENT, DATE, TIME, DATE_TIME, SCIENTIFIC.
+        """
+        fmt = CellFormat(number_format=NumberFormat(type=number_type, pattern=pattern))
+        return self.format_range(ranges, fmt, tab_name=tab_name)
+
+    @retry_on_rate_limit
+    def freeze(
+        self, rows: int | None = None, cols: int | None = None, tab_name: str | None = None
+    ) -> Any:
+        """Congela ``rows`` filas y/o ``cols`` columnas en la hoja."""
+        if tab_name:
+            self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
+        return self.sheet.freeze(rows=rows, cols=cols)
+
+    @retry_on_rate_limit
+    def merge(
+        self, range_name: str, merge_type: str = "MERGE_ALL", tab_name: str | None = None
+    ) -> Any:
+        """Combina las celdas de un rango. ``merge_type``: MERGE_ALL, MERGE_COLUMNS, MERGE_ROWS."""
+        if tab_name:
+            self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
+        return self.sheet.merge_cells(range_name, merge_type=merge_type)
+
+    # ------------------------------------------------------------------
+    # Validación de datos
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def set_data_validation(
+        self,
+        range_name: str,
+        condition_type: str,
+        values: list[Any] | None = None,
+        strict: bool = True,
+        show_custom_ui: bool = True,
+        tab_name: str | None = None,
+    ) -> Any:
+        """
+        Aplica una regla de validación de datos a un rango.
+
+        Parámetros:
+            condition_type (str): Tipo de condición de la Sheets API (ej. ONE_OF_LIST, BOOLEAN,
+                NUMBER_BETWEEN, TEXT_CONTAINS, …).
+            values (list, opcional): Valores de la condición.
+            strict (bool): Si rechaza entradas inválidas. Por defecto True.
+            show_custom_ui (bool): Si muestra el control (dropdown/checkbox). Por defecto True.
+            tab_name (str, opcional): Pestaña destino.
+        """
+        if tab_name:
+            self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
+
+        condition: dict[str, Any] = {"type": condition_type}
+        if values is not None:
+            condition["values"] = [{"userEnteredValue": str(v)} for v in values]
+
+        request = {
+            "setDataValidation": {
+                "range": self._grid(range_name),
+                "rule": {
+                    "condition": condition,
+                    "strict": strict,
+                    "showCustomUi": show_custom_ui,
+                },
+            }
+        }
+        return self._apply_requests([request])
+
+    def add_dropdown(
+        self,
+        range_name: str,
+        values: list[Any],
+        strict: bool = True,
+        tab_name: str | None = None,
+    ) -> Any:
+        """Agrega un desplegable (lista de opciones) a un rango."""
+        return self.set_data_validation(
+            range_name, "ONE_OF_LIST", values=values, strict=strict, tab_name=tab_name
+        )
+
+    def add_checkbox(self, range_name: str, tab_name: str | None = None) -> Any:
+        """Agrega casillas de verificación (checkbox) a un rango."""
+        return self.set_data_validation(range_name, "BOOLEAN", tab_name=tab_name)
+
+    # ------------------------------------------------------------------
+    # Formato condicional
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def add_conditional_format(
+        self,
+        range_name: str,
+        condition_type: str,
+        values: list[Any],
+        cell_format: CellFormat,
+        index: int = 0,
+        tab_name: str | None = None,
+    ) -> Any:
+        """
+        Agrega una regla de formato condicional (booleana) a un rango.
+
+        Parámetros:
+            condition_type (str): Tipo (ej. NUMBER_GREATER, TEXT_CONTAINS, CUSTOM_FORMULA, …).
+            values (list): Valores de la condición.
+            cell_format (CellFormat): Formato a aplicar cuando se cumple la condición.
+            index (int): Prioridad de la regla. Por defecto 0 (mayor prioridad).
+            tab_name (str, opcional): Pestaña destino.
+
+        Ejemplo:
+            fmt = CellFormat(background_color=Color.from_hex("#F4CCCC"))
+            conector.add_conditional_format("B2:B100", "NUMBER_LESS", [0], fmt)
+        """
+        if tab_name:
+            self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
+
+        request = {
+            "addConditionalFormatRule": {
+                "rule": {
+                    "ranges": [self._grid(range_name)],
+                    "booleanRule": {
+                        "condition": {
+                            "type": condition_type,
+                            "values": [{"userEnteredValue": str(v)} for v in values],
+                        },
+                        "format": cell_format.to_dict(),
+                    },
+                },
+                "index": index,
+            }
+        }
+        return self._apply_requests([request])

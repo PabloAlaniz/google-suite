@@ -128,6 +128,12 @@ class GoogleSheetConector:
             self._spreadsheets[doc_name] = self._get_client().open(doc_name)
         return self._spreadsheets[doc_name]
 
+    def _resolve_spreadsheet(self, doc_name: str | None) -> gspread.Spreadsheet:
+        """Devuelve el documento indicado por nombre, o el documento activo si es None."""
+        if doc_name is not None:
+            return self._get_spreadsheet(doc_name)
+        return self.sheet.spreadsheet
+
     def _resolve_sheet(self, sheet: gspread.Worksheet | None) -> gspread.Worksheet:
         """Devuelve la hoja a usar, advirtiendo si se pasó el parámetro 'sheet' obsoleto."""
         if sheet is not None:
@@ -920,3 +926,143 @@ class GoogleSheetConector:
             }
         }
         return self._apply_requests([request])
+
+    # ------------------------------------------------------------------
+    # Operaciones a nivel documento (Drive)
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def create_spreadsheet(self, title: str, folder_id: str | None = None) -> gspread.Spreadsheet:
+        """
+        Crea un nuevo documento de Google Sheets.
+
+        Parámetros:
+            title (str): Título del nuevo documento.
+            folder_id (str, opcional): ID de la carpeta de Drive donde crearlo.
+
+        Devuelve:
+            El objeto Spreadsheet recién creado.
+        """
+        return self._get_client().create(title, folder_id=folder_id)
+
+    @retry_on_rate_limit
+    def delete_spreadsheet(self, file_id: str) -> None:
+        """
+        Elimina un documento de Google Sheets por su ID.
+
+        Parámetros:
+            file_id (str): ID del documento a eliminar.
+        """
+        self._get_client().del_spreadsheet(file_id)
+
+    @retry_on_rate_limit
+    def copy_spreadsheet(
+        self,
+        file_id: str,
+        title: str | None = None,
+        copy_permissions: bool = False,
+        folder_id: str | None = None,
+    ) -> gspread.Spreadsheet:
+        """
+        Crea una copia de un documento existente.
+
+        Parámetros:
+            file_id (str): ID del documento a copiar.
+            title (str, opcional): Título de la copia.
+            copy_permissions (bool, opcional): Si copia también los permisos. Por defecto False.
+            folder_id (str, opcional): ID de la carpeta de Drive destino.
+
+        Devuelve:
+            El objeto Spreadsheet de la copia.
+        """
+        return self._get_client().copy(
+            file_id, title=title, copy_permissions=copy_permissions, folder_id=folder_id
+        )
+
+    @retry_on_rate_limit
+    def list_spreadsheets(
+        self, title: str | None = None, folder_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """
+        Lista los documentos de Google Sheets accesibles (vía Drive).
+
+        Parámetros:
+            title (str, opcional): Filtra por título.
+            folder_id (str, opcional): Filtra por carpeta de Drive.
+
+        Devuelve:
+            Una lista de diccionarios con metadatos de cada documento (id, name, etc.).
+        """
+        return self._get_client().list_spreadsheet_files(title=title, folder_id=folder_id)
+
+    # ------------------------------------------------------------------
+    # Permisos / compartir
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def share(
+        self,
+        email_address: str,
+        role: str = "reader",
+        perm_type: str = "user",
+        notify: bool = True,
+        email_message: str | None = None,
+        with_link: bool = False,
+        doc_name: str | None = None,
+    ) -> Any:
+        """
+        Comparte el documento con un usuario, grupo, dominio o con cualquiera.
+
+        Parámetros:
+            email_address (str): Email del usuario/grupo/dominio (ignorado si perm_type='anyone').
+            role (str): Rol: 'reader', 'writer', 'commenter' u 'owner'. Por defecto 'reader'.
+            perm_type (str): Tipo: 'user', 'group', 'domain' o 'anyone'. Por defecto 'user'.
+            notify (bool): Si notifica por email. Por defecto True.
+            email_message (str, opcional): Mensaje del email de notificación.
+            with_link (bool, opcional): Si comparte con enlace. Por defecto False.
+            doc_name (str, opcional): Documento sobre el que operar; por defecto el activo.
+
+        Devuelve:
+            La respuesta de la API de Drive.
+        """
+        spreadsheet = self._resolve_spreadsheet(doc_name)
+        return spreadsheet.share(
+            email_address,
+            perm_type=perm_type,
+            role=role,
+            notify=notify,
+            email_message=email_message,
+            with_link=with_link,
+        )
+
+    @retry_on_rate_limit
+    def list_permissions(self, doc_name: str | None = None) -> list[dict[str, Any]]:
+        """
+        Lista los permisos del documento.
+
+        Parámetros:
+            doc_name (str, opcional): Documento sobre el que operar; por defecto el activo.
+
+        Devuelve:
+            Una lista de diccionarios, uno por permiso.
+        """
+        spreadsheet = self._resolve_spreadsheet(doc_name)
+        return spreadsheet.list_permissions()
+
+    @retry_on_rate_limit
+    def remove_permission(
+        self, value: str, role: str = "any", doc_name: str | None = None
+    ) -> list[str]:
+        """
+        Quita el permiso de un usuario/grupo/dominio del documento.
+
+        Parámetros:
+            value (str): Email o dominio cuyo permiso se quita.
+            role (str): Rol a quitar ('any' para cualquiera). Por defecto 'any'.
+            doc_name (str, opcional): Documento sobre el que operar; por defecto el activo.
+
+        Devuelve:
+            Lista de IDs de permisos eliminados.
+        """
+        spreadsheet = self._resolve_spreadsheet(doc_name)
+        return spreadsheet.remove_permissions(value, role=role)

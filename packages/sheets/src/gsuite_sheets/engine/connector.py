@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import Any
+
 import gspread
 from google.oauth2 import service_account
 
@@ -25,7 +29,7 @@ class GoogleSheetConector:
         # Aquí se pueden realizar operaciones con el conector, como leer o escribir datos.
     """
 
-    def __init__(self, doc_name, json_google_file, sheet_name=None):
+    def __init__(self, doc_name: str, json_google_file: str, sheet_name: str | None = None) -> None:
         """
         Inicializa un nuevo objeto GoogleSheetConector.
 
@@ -34,13 +38,13 @@ class GoogleSheetConector:
             json_google_file (str): Ruta al archivo JSON con las credenciales de Google.
             sheet_name (str, opcional): Nombre de la hoja específica en el documento. Por defecto es None y toma la primer hoja.
         """
-        self.sheet_title = doc_name
-        self.json_google_file = json_google_file
-        self.tab_name = sheet_name
-        self.sheet = self.connect_to_sheet(self.sheet_title, self.tab_name)
-        self.options = {"valueInputOption": "USER_ENTERED"}
+        self.sheet_title: str = doc_name
+        self.json_google_file: str = json_google_file
+        self.tab_name: str | None = sheet_name
+        self.sheet: gspread.Worksheet = self.connect_to_sheet(self.sheet_title, self.tab_name)
+        self.options: dict[str, str] = {"valueInputOption": "USER_ENTERED"}
 
-    def connect_to_sheet(self, doc_name, sheet_name=None):
+    def connect_to_sheet(self, doc_name: str, sheet_name: str | None = None) -> gspread.Worksheet:
         """
         Establece una conexión con una hoja específica en un documento de Google Sheets.
 
@@ -73,7 +77,9 @@ class GoogleSheetConector:
         else:
             return client.open(doc_name).sheet1
 
-    def update_cell(self, sheet, row_index, col_index, value):
+    def update_cell(
+        self, sheet: gspread.Worksheet, row_index: int, col_index: int, value: Any
+    ) -> None:
         """
         Actualiza el valor de una celda específica en la hoja de cálculo dada.
 
@@ -95,7 +101,13 @@ class GoogleSheetConector:
         """
         sheet.update_cell(row_index, col_index, value)
 
-    def update_row(self, sheet, row_index, data, start_column=None):
+    def update_row(
+        self,
+        sheet: gspread.Worksheet,
+        row_index: int,
+        data: list[Any],
+        start_column: int | None = None,
+    ) -> None:
         """
         Actualiza una fila completa o una parte de ella en la hoja de cálculo especificada.
 
@@ -119,8 +131,14 @@ class GoogleSheetConector:
             sheet.update_cell(row_index, index, value)
 
     def spreadsheet_read_range(
-        self, sheet, tab_name, fila_start, fila_end, column_start, column_end
-    ):
+        self,
+        sheet: gspread.Worksheet,
+        tab_name: str,
+        fila_start: int,
+        fila_end: int,
+        column_start: str,
+        column_end: str,
+    ) -> list[dict[str, Any]]:
         """
         Lee un rango específico de celdas desde una hoja de cálculo de Google Sheets.
 
@@ -152,8 +170,9 @@ class GoogleSheetConector:
         data_range = (
             tab_name + "!" + column_start + fila_start_str + ":" + column_end + fila_end_str
         )
-        data = sheet.values_get(data_range)
-        content = []
+        # TODO(sprint-3): values_get vive en Spreadsheet, no en Worksheet; revisar API.
+        data = sheet.values_get(data_range)  # type: ignore[attr-defined]
+        content: list[dict[str, Any]] = []
 
         # Procesamiento de los datos obtenidos
         if "values" in data:
@@ -164,7 +183,9 @@ class GoogleSheetConector:
 
         return content
 
-    def read_sheet_data(self, tab_name=None, skiprows=0, output_format="list"):
+    def read_sheet_data(
+        self, tab_name: str | None = None, skiprows: int = 0, output_format: str = "list"
+    ) -> Any:
         """
         Lee datos de una pestaña específica de una hoja de cálculo de Google Sheets y los devuelve en varios formatos.
 
@@ -214,7 +235,7 @@ class GoogleSheetConector:
         else:  # output_format == 'list'
             return all_values
 
-    def spreadsheet_append(self, data, tab_name=None):
+    def spreadsheet_append(self, data: list[list[Any]], tab_name: str | None = None) -> Any:
         """
         Agrega una o más filas de datos al final de la hoja de cálculo especificada.
 
@@ -240,11 +261,14 @@ class GoogleSheetConector:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
 
         # Añadir los datos a la hoja de cálculo
-        result = self.sheet.append_rows(data, value_input_option=DEFAULT_VALUE_INPUT_OPTION)
+        result = self.sheet.append_rows(
+            data,
+            value_input_option=DEFAULT_VALUE_INPUT_OPTION,  # type: ignore[arg-type]
+        )
 
         return result
 
-    def get_rows_where_column_equals(self, column, value):
+    def get_rows_where_column_equals(self, column: int, value: Any) -> list[tuple[int, list[Any]]]:
         """
         Obtiene todas las filas de la hoja de cálculo donde una columna específica tiene un valor dado.
         Además, incluye el número de fila en la hoja de cálculo.
@@ -270,7 +294,9 @@ class GoogleSheetConector:
 
         return rows_with_value
 
-    def batch_update(self, range_data, value_input_option=DEFAULT_VALUE_INPUT_OPTION):
+    def batch_update(
+        self, range_data: list[dict[str, Any]], value_input_option: str = DEFAULT_VALUE_INPUT_OPTION
+    ) -> None:
         """
         Realiza actualizaciones en lote en la hoja de cálculo de Google Sheets.
 
@@ -292,9 +318,12 @@ class GoogleSheetConector:
             La clave 'range' en cada diccionario debe seguir el formato de notación A1 de Google Sheets.
         """
         # Realizar las actualizaciones en lote
-        self.sheet.batch_update(range_data, value_input_option=value_input_option)
+        self.sheet.batch_update(
+            range_data,
+            value_input_option=value_input_option,  # type: ignore[arg-type]
+        )
 
-    def get_last_row(self, tab_name=None):
+    def get_last_row(self, tab_name: str | None = None) -> int:
         """
         Obtiene el índice de la última fila con datos en una pestaña específica de una hoja de cálculo de Google Sheets.
 
@@ -323,7 +352,9 @@ class GoogleSheetConector:
         # Devolver el índice de la última fila con datos
         return len(all_values)
 
-    def get_row_with_empty_in_column(self, sheet, column_letter):
+    def get_row_with_empty_in_column(
+        self, sheet: gspread.Worksheet, column_letter: str
+    ) -> tuple[list[Any] | None, int | None]:
         """
         Encuentra la primera fila con una celda vacía en una columna específica.
 
@@ -342,17 +373,23 @@ class GoogleSheetConector:
         """
         # Obtener el rango de la columna especificada hasta la última fila con datos
         total_rows = len(sheet.col_values(1))
-        target_column_values = sheet.range(f"{column_letter}1:{column_letter}{total_rows}")
-        target_column_values = [cell.value for cell in target_column_values]
+        cells = sheet.range(f"{column_letter}1:{column_letter}{total_rows}")
+        column_values = [cell.value for cell in cells]
 
         # Buscar el primer valor vacío en la columna
         try:
-            empty_index = target_column_values.index("") + 1
+            empty_index = column_values.index("") + 1
             return sheet.row_values(empty_index), empty_index
         except ValueError:
             return None, None
 
-    def spreadsheet_insert(self, sheet_name, worksheet_name, data, fila=None):
+    def spreadsheet_insert(
+        self,
+        sheet_name: str,
+        worksheet_name: str,
+        data: list[list[Any]],
+        fila: int | None = None,
+    ) -> Any:
         """
         Inserta un conjunto de datos en una hoja de cálculo de Google Sheets, en la fila especificada o al final.
 
@@ -389,7 +426,8 @@ class GoogleSheetConector:
 
         try:
             insert = {"values": data}
-            result = sheet.values_append(rango, self.options, insert)
+            # TODO(sprint-3): values_append vive en Spreadsheet, no en Worksheet; revisar API.
+            result = sheet.values_append(rango, self.options, insert)  # type: ignore[attr-defined]
             return result
         except Exception as e:
             raise Exception(f"Error al insertar datos en {worksheet_name}: {e}") from e

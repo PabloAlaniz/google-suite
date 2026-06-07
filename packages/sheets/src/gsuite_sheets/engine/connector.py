@@ -8,8 +8,13 @@ from google.oauth2 import service_account
 from gspread.utils import ValueInputOption, rowcol_to_a1
 
 from .config import DEFAULT_VALUE_INPUT_OPTION
-from .exceptions import InsertError
+from .exceptions import GSpreadManagerError, InsertError
 from .retry import retry_on_rate_limit
+
+_SCOPES = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive",
+]
 
 _SHEET_DEPRECATION_MSG = (
     "El parámetro 'sheet' está obsoleto y se eliminará en una versión futura. "
@@ -41,28 +46,86 @@ class GoogleSheetConector:
     def __init__(
         self,
         doc_name: str,
-        json_google_file: str,
+        json_google_file: str | None = None,
         sheet_name: str | None = None,
         max_retries: int = 3,
         retry_backoff: float = 1.0,
+        *,
+        credentials: Any = None,
+        client: Any = None,
+        service_account_info: dict[str, Any] | None = None,
+        use_adc: bool = False,
     ) -> None:
         """
         Inicializa un nuevo objeto GoogleSheetConector.
 
+        Acepta múltiples métodos de autenticación (se usa el primero que se proporcione, en
+        este orden): `client` ya autorizado, `credentials` de google-auth,
+        `service_account_info` (dict), `json_google_file` (ruta a un service account) o
+        `use_adc=True` (Application Default Credentials).
+
+        El cliente y el documento se cachean: cambiar de pestaña ya no re-autentica ni
+        reabre el documento.
+
         Parámetros:
             doc_name (str): Nombre del documento de Google Sheets a conectar.
-            json_google_file (str): Ruta al archivo JSON con las credenciales de Google.
-            sheet_name (str, opcional): Nombre de la hoja específica en el documento. Por defecto es None y toma la primer hoja.
-            max_retries (int, opcional): Número de reintentos ante errores transitorios de la API (cuota/sobrecarga). Por defecto 3. Usar 0 para desactivar.
-            retry_backoff (float, opcional): Tiempo base en segundos para el backoff exponencial entre reintentos. Por defecto 1.0.
+            json_google_file (str, opcional): Ruta al archivo JSON de un service account.
+            sheet_name (str, opcional): Nombre de la hoja específica. Por defecto la primera.
+            max_retries (int, opcional): Reintentos ante errores transitorios (429/500/503). Por defecto 3.
+            retry_backoff (float, opcional): Backoff exponencial base en segundos. Por defecto 1.0.
+            credentials (opcional): Objeto de credenciales de google-auth ya construido.
+            client (opcional): Cliente de gspread ya autorizado.
+            service_account_info (dict, opcional): Credenciales de service account como diccionario.
+            use_adc (bool, opcional): Si es True, usa Application Default Credentials.
         """
         self.max_retries: int = max_retries
         self.retry_backoff: float = retry_backoff
         self.sheet_title: str = doc_name
-        self.json_google_file: str = json_google_file
+        self.json_google_file: str | None = json_google_file
+        self._credentials: Any = credentials
+        self._service_account_info: dict[str, Any] | None = service_account_info
+        self._use_adc: bool = use_adc
+        self._client: Any = client
+        self._spreadsheets: dict[str, gspread.Spreadsheet] = {}
         self.tab_name: str | None = sheet_name
         self.sheet: gspread.Worksheet = self.connect_to_sheet(self.sheet_title, self.tab_name)
         self.options: dict[str, Any] = {"valueInputOption": "USER_ENTERED"}
+
+    def _build_client(self) -> Any:
+        """Construye el cliente de gspread según el método de autenticación configurado."""
+        if self._credentials is not None:
+            return gspread.authorize(self._credentials)
+        if self._service_account_info is not None:
+            creds = service_account.Credentials.from_service_account_info(
+                self._service_account_info, scopes=_SCOPES
+            )
+            return gspread.authorize(creds)
+        if self.json_google_file is not None:
+            creds = service_account.Credentials.from_service_account_file(
+                self.json_google_file, scopes=_SCOPES
+            )
+            return gspread.authorize(creds)
+        if self._use_adc:
+            import google.auth
+
+            creds, _ = google.auth.default(scopes=_SCOPES)
+            return gspread.authorize(creds)
+        raise GSpreadManagerError(
+            "No se proporcionaron credenciales. Pasá uno de: json_google_file, "
+            "credentials, service_account_info, client o use_adc=True."
+        )
+
+    def _get_client(self) -> Any:
+        """Devuelve el cliente de gspread, construyéndolo (y cacheándolo) la primera vez."""
+        if self._client is None:
+            self._client = self._build_client()
+        return self._client
+
+    def _get_spreadsheet(self, doc_name: str) -> gspread.Spreadsheet:
+        """Devuelve el documento abierto, cacheándolo por nombre para evitar reabrirlo."""
+        if doc_name not in self._spreadsheets:
+            self._spreadsheets[doc_name] = self._get_client().open(doc_name)
+        return self._spreadsheets[doc_name]
 
     def _resolve_sheet(self, sheet: gspread.Worksheet | None) -> gspread.Worksheet:
         """Devuelve la hoja a usar, advirtiendo si se pasó el parámetro 'sheet' obsoleto."""
@@ -102,17 +165,13 @@ class GoogleSheetConector:
             hoja_especifica = conector.connect_to_sheet("MiDocumento", "HojaEspecifica")
 
         Nota:
-            Es necesario tener un archivo JSON con las credenciales de la cuenta de servicio de Google correctamente configuradas y accesibles para la instancia de GoogleSheetConector.
+            El cliente y el documento se reutilizan entre llamadas (caché), por lo que
+            cambiar de pestaña no vuelve a autenticar ni a reabrir el documento.
         """
-        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-        creds = service_account.Credentials.from_service_account_file(
-            self.json_google_file, scopes=scope
-        )
-        client = gspread.authorize(creds)
+        spreadsheet = self._get_spreadsheet(doc_name)
         if sheet_name:
-            return client.open(doc_name).worksheet(sheet_name)
-        else:
-            return client.open(doc_name).sheet1
+            return spreadsheet.worksheet(sheet_name)
+        return spreadsheet.sheet1
 
     @retry_on_rate_limit
     def update_cell(

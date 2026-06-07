@@ -1,7 +1,8 @@
 import gspread
 from google.oauth2 import service_account
+
 from .config import DEFAULT_VALUE_INPUT_OPTION
-import pandas as pd
+
 
 class GoogleSheetConector:
     """
@@ -37,7 +38,7 @@ class GoogleSheetConector:
         self.json_google_file = json_google_file
         self.tab_name = sheet_name
         self.sheet = self.connect_to_sheet(self.sheet_title, self.tab_name)
-        self.options = {'valueInputOption': 'USER_ENTERED'}
+        self.options = {"valueInputOption": "USER_ENTERED"}
 
     def connect_to_sheet(self, doc_name, sheet_name=None):
         """
@@ -62,17 +63,15 @@ class GoogleSheetConector:
         Nota:
             Es necesario tener un archivo JSON con las credenciales de la cuenta de servicio de Google correctamente configuradas y accesibles para la instancia de GoogleSheetConector.
         """
-        scope = ['https://spreadsheets.google.com/feeds', 'https://www.googleapis.com/auth/drive']
+        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
         creds = service_account.Credentials.from_service_account_file(
-            self.json_google_file,
-            scopes=scope
+            self.json_google_file, scopes=scope
         )
         client = gspread.authorize(creds)
         if sheet_name:
             return client.open(doc_name).worksheet(sheet_name)
         else:
             return client.open(doc_name).sheet1
-
 
     def update_cell(self, sheet, row_index, col_index, value):
         """
@@ -119,7 +118,9 @@ class GoogleSheetConector:
         for index, value in enumerate(data, start=(start_column or 1)):
             sheet.update_cell(row_index, index, value)
 
-    def spreadsheet_read_range(self, sheet, tab_name, fila_start, fila_end, column_start, column_end):
+    def spreadsheet_read_range(
+        self, sheet, tab_name, fila_start, fila_end, column_start, column_end
+    ):
         """
         Lee un rango específico de celdas desde una hoja de cálculo de Google Sheets.
 
@@ -148,20 +149,22 @@ class GoogleSheetConector:
         fila_end_str = str(fila_end)
 
         # Obtención de datos del rango especificado
-        data_range = tab_name + "!" + column_start + fila_start_str + ":" + column_end + fila_end_str
+        data_range = (
+            tab_name + "!" + column_start + fila_start_str + ":" + column_end + fila_end_str
+        )
         data = sheet.values_get(data_range)
         content = []
 
         # Procesamiento de los datos obtenidos
         if "values" in data:
-            for row_values in data['values']:
+            for row_values in data["values"]:
                 row_data = {"fila": fila_start, "values": row_values}
                 content.append(row_data)
                 fila_start += 1
 
         return content
 
-    def read_sheet_data(self, tab_name=None, skiprows=0, output_format='list'):
+    def read_sheet_data(self, tab_name=None, skiprows=0, output_format="list"):
         """
         Lee datos de una pestaña específica de una hoja de cálculo de Google Sheets y los devuelve en varios formatos.
 
@@ -192,13 +195,20 @@ class GoogleSheetConector:
         all_values = self.sheet.get_all_values()[skiprows:]
 
         # Devolver los datos en el formato especificado
-        if output_format == 'dict':
+        if output_format == "dict":
             if not all_values:
                 return []
             headers = all_values[0]
             return [dict(zip(headers, row)) for row in all_values[1:]]
 
-        elif output_format == 'pandas':
+        elif output_format == "pandas":
+            try:
+                import pandas as pd
+            except ImportError as exc:
+                raise ImportError(
+                    "El formato 'pandas' requiere la dependencia opcional pandas. "
+                    "Instalala con: pip install GSpreadManager[pandas]"
+                ) from exc
             return pd.DataFrame(all_values[1:], columns=all_values[0])
 
         else:  # output_format == 'list'
@@ -332,12 +342,12 @@ class GoogleSheetConector:
         """
         # Obtener el rango de la columna especificada hasta la última fila con datos
         total_rows = len(sheet.col_values(1))
-        target_column_values = sheet.range(f'{column_letter}1:{column_letter}{total_rows}')
+        target_column_values = sheet.range(f"{column_letter}1:{column_letter}{total_rows}")
         target_column_values = [cell.value for cell in target_column_values]
 
         # Buscar el primer valor vacío en la columna
         try:
-            empty_index = target_column_values.index('') + 1
+            empty_index = target_column_values.index("") + 1
             return sheet.row_values(empty_index), empty_index
         except ValueError:
             return None, None
@@ -372,12 +382,14 @@ class GoogleSheetConector:
             # Si la fila no se especifica, insertar al final
             fila = len(sheet.get_all_values()) + 1
         fila_end = fila + len(data) - 1
-        column_end_letter = chr(ord('A') + len(data[0]) - 1)  # Asumiendo que data[0] representa el ancho de los datos
-        rango = f'{worksheet_name}!A{fila}:{column_end_letter}{fila_end}'
+        column_end_letter = chr(
+            ord("A") + len(data[0]) - 1
+        )  # Asumiendo que data[0] representa el ancho de los datos
+        rango = f"{worksheet_name}!A{fila}:{column_end_letter}{fila_end}"
 
         try:
-            insert = {'values': data}
+            insert = {"values": data}
             result = sheet.values_append(rango, self.options, insert)
             return result
         except Exception as e:
-            raise Exception(f"Error al insertar datos en {worksheet_name}: {e}")
+            raise Exception(f"Error al insertar datos en {worksheet_name}: {e}") from e

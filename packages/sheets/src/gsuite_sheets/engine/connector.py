@@ -7,6 +7,7 @@ import gspread
 from gspread.utils import ValueInputOption
 
 from .application.data_service import DataService
+from .application.formatting_service import FormattingService
 from .config import DEFAULT_VALUE_INPUT_OPTION
 from .domain.values import (
     CellFormat,
@@ -14,8 +15,6 @@ from .domain.values import (
     Condition,
     ConditionalFormatRule,
     DataValidationRule,
-    NumberFormat,
-    TextFormat,
 )
 from .infrastructure.auth import build_auth_strategy
 from .infrastructure.gspread_client import GspreadClientAdapter
@@ -101,6 +100,7 @@ class GoogleSheetConector:
         )
         self._gspread_client = GspreadClientAdapter(auth)
         self._data_service = DataService()
+        self._formatting_service = FormattingService()
         self.sheet: gspread.Worksheet = self.connect_to_sheet(self.sheet_title, self.tab_name)
         self.options: dict[str, Any] = {"valueInputOption": "USER_ENTERED"}
 
@@ -655,7 +655,7 @@ class GoogleSheetConector:
         """
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
-        return self.sheet.format(ranges, cell_format.to_dict())
+        return self._formatting_service.apply(self.sheet, ranges, cell_format)
 
     def format_header(
         self,
@@ -671,10 +671,7 @@ class GoogleSheetConector:
             background_hex (str, opcional): Color de fondo en hex. None para no aplicar fondo.
             tab_name (str, opcional): Pestaña destino.
         """
-        fmt = CellFormat(
-            text_format=TextFormat(bold=True),
-            background_color=Color.from_hex(background_hex) if background_hex else None,
-        )
+        fmt = self._formatting_service.header_format(background_hex)
         return self.format_range(range_name, fmt, tab_name=tab_name)
 
     def set_background(
@@ -694,8 +691,10 @@ class GoogleSheetConector:
         tab_name: str | None = None,
     ) -> Any:
         """Aplica formato de texto (negrita, itálica, tamaño, color) a uno o más rangos."""
-        text = TextFormat(bold=bold, italic=italic, font_size=font_size, foreground_color=color)
-        return self.format_range(ranges, CellFormat(text_format=text), tab_name=tab_name)
+        fmt = self._formatting_service.text_format(
+            bold=bold, italic=italic, font_size=font_size, color=color
+        )
+        return self.format_range(ranges, fmt, tab_name=tab_name)
 
     def set_number_format(
         self,
@@ -711,7 +710,7 @@ class GoogleSheetConector:
             pattern (str): Patrón (ej. '#,##0.00', '0.00%', 'dd/mm/yyyy').
             number_type (str): Tipo: NUMBER, CURRENCY, PERCENT, DATE, TIME, DATE_TIME, SCIENTIFIC.
         """
-        fmt = CellFormat(number_format=NumberFormat(type=number_type, pattern=pattern))
+        fmt = self._formatting_service.number_format(pattern, number_type)
         return self.format_range(ranges, fmt, tab_name=tab_name)
 
     @retry_on_rate_limit
@@ -721,7 +720,7 @@ class GoogleSheetConector:
         """Congela ``rows`` filas y/o ``cols`` columnas en la hoja."""
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
-        return self.sheet.freeze(rows=rows, cols=cols)
+        return self._formatting_service.freeze(self.sheet, rows, cols)
 
     @retry_on_rate_limit
     def merge(
@@ -730,7 +729,7 @@ class GoogleSheetConector:
         """Combina las celdas de un rango. ``merge_type``: MERGE_ALL, MERGE_COLUMNS, MERGE_ROWS."""
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
-        return self.sheet.merge_cells(range_name, merge_type=merge_type)
+        return self._formatting_service.merge(self.sheet, range_name, merge_type)
 
     # ------------------------------------------------------------------
     # Validación de datos

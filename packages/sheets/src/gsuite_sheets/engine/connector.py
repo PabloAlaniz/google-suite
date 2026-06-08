@@ -4,18 +4,14 @@ import warnings
 from typing import Any
 
 import gspread
-from google.oauth2 import service_account
 from gspread.utils import ValueInputOption, a1_range_to_grid_range, rowcol_to_a1
 
 from .config import DEFAULT_VALUE_INPUT_OPTION
-from .domain.errors import GSpreadManagerError, InsertError
+from .domain.errors import InsertError
 from .domain.values import CellFormat, Color, NumberFormat, TextFormat
+from .infrastructure.auth import build_auth_strategy
+from .infrastructure.gspread_client import GspreadClientAdapter
 from .retry import retry_on_rate_limit
-
-_SCOPES = [
-    "https://spreadsheets.google.com/feeds",
-    "https://www.googleapis.com/auth/drive",
-]
 
 _SHEET_DEPRECATION_MSG = (
     "El parámetro 'sheet' está obsoleto y se eliminará en una versión futura. "
@@ -83,50 +79,25 @@ class GoogleSheetConector:
         self.retry_backoff: float = retry_backoff
         self.sheet_title: str = doc_name
         self.json_google_file: str | None = json_google_file
-        self._credentials: Any = credentials
-        self._service_account_info: dict[str, Any] | None = service_account_info
-        self._use_adc: bool = use_adc
-        self._client: Any = client
-        self._spreadsheets: dict[str, gspread.Spreadsheet] = {}
         self.tab_name: str | None = sheet_name
+        auth = build_auth_strategy(
+            credentials=credentials,
+            service_account_info=service_account_info,
+            json_google_file=json_google_file,
+            client=client,
+            use_adc=use_adc,
+        )
+        self._gspread_client = GspreadClientAdapter(auth)
         self.sheet: gspread.Worksheet = self.connect_to_sheet(self.sheet_title, self.tab_name)
         self.options: dict[str, Any] = {"valueInputOption": "USER_ENTERED"}
 
-    def _build_client(self) -> Any:
-        """Construye el cliente de gspread según el método de autenticación configurado."""
-        if self._credentials is not None:
-            return gspread.authorize(self._credentials)
-        if self._service_account_info is not None:
-            creds = service_account.Credentials.from_service_account_info(
-                self._service_account_info, scopes=_SCOPES
-            )
-            return gspread.authorize(creds)
-        if self.json_google_file is not None:
-            creds = service_account.Credentials.from_service_account_file(
-                self.json_google_file, scopes=_SCOPES
-            )
-            return gspread.authorize(creds)
-        if self._use_adc:
-            import google.auth  # noqa: PLC0415  (carga diferida: solo si se usa ADC)
-
-            creds, _ = google.auth.default(scopes=_SCOPES)
-            return gspread.authorize(creds)
-        raise GSpreadManagerError(
-            "No se proporcionaron credenciales. Pasá uno de: json_google_file, "
-            "credentials, service_account_info, client o use_adc=True."
-        )
-
     def _get_client(self) -> Any:
-        """Devuelve el cliente de gspread, construyéndolo (y cacheándolo) la primera vez."""
-        if self._client is None:
-            self._client = self._build_client()
-        return self._client
+        """Devuelve el cliente de gspread (autorizado y cacheado por el adaptador)."""
+        return self._gspread_client.client()
 
     def _get_spreadsheet(self, doc_name: str) -> gspread.Spreadsheet:
-        """Devuelve el documento abierto, cacheándolo por nombre para evitar reabrirlo."""
-        if doc_name not in self._spreadsheets:
-            self._spreadsheets[doc_name] = self._get_client().open(doc_name)
-        return self._spreadsheets[doc_name]
+        """Devuelve el documento abierto, cacheado por nombre por el adaptador."""
+        return self._gspread_client.open(doc_name)
 
     def _resolve_spreadsheet(self, doc_name: str | None) -> gspread.Spreadsheet:
         """Devuelve el documento indicado por nombre, o el documento activo si es None."""

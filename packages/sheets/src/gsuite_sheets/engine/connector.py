@@ -8,20 +8,12 @@ from gspread.utils import ValueInputOption
 
 from .application.data_service import DataService
 from .application.formatting_service import FormattingService
+from .application.validation_service import ValidationService
 from .config import DEFAULT_VALUE_INPUT_OPTION
-from .domain.values import (
-    CellFormat,
-    Color,
-    Condition,
-    ConditionalFormatRule,
-    DataValidationRule,
-)
+from .domain.values import CellFormat, Color
 from .infrastructure.auth import build_auth_strategy
 from .infrastructure.gspread_client import GspreadClientAdapter
-from .infrastructure.request_builders import (
-    conditional_format_request,
-    data_validation_request,
-)
+from .infrastructure.request_builders import grid_range
 from .retry import retry_on_rate_limit
 
 _SHEET_DEPRECATION_MSG = (
@@ -101,6 +93,7 @@ class GoogleSheetConector:
         self._gspread_client = GspreadClientAdapter(auth)
         self._data_service = DataService()
         self._formatting_service = FormattingService()
+        self._validation_service = ValidationService()
         self.sheet: gspread.Worksheet = self.connect_to_sheet(self.sheet_title, self.tab_name)
         self.options: dict[str, Any] = {"valueInputOption": "USER_ENTERED"}
 
@@ -628,10 +621,6 @@ class GoogleSheetConector:
     # Formato de celdas (implementación propia sobre el transporte de gspread)
     # ------------------------------------------------------------------
 
-    def _apply_requests(self, requests: list[dict[str, Any]]) -> Any:
-        """Envía una lista de requests vía spreadsheets.batchUpdate."""
-        return self.sheet.spreadsheet.batch_update({"requests": requests})
-
     @retry_on_rate_limit
     def format_range(
         self,
@@ -759,13 +748,10 @@ class GoogleSheetConector:
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
 
-        rule = DataValidationRule(
-            condition=Condition.of(condition_type, values),
-            strict=strict,
-            show_custom_ui=show_custom_ui,
+        grid = grid_range(range_name, self.sheet.id)
+        return self._validation_service.set_data_validation(
+            self.sheet, grid, condition_type, values, strict, show_custom_ui
         )
-        request = data_validation_request(rule, range_name, self.sheet.id)
-        return self._apply_requests([request])
 
     def add_dropdown(
         self,
@@ -814,13 +800,10 @@ class GoogleSheetConector:
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
 
-        rule = ConditionalFormatRule(
-            condition=Condition.of(condition_type, values),
-            cell_format=cell_format,
-            index=index,
+        grid = grid_range(range_name, self.sheet.id)
+        return self._validation_service.add_conditional_format(
+            self.sheet, grid, condition_type, values, cell_format, index
         )
-        request = conditional_format_request(rule, range_name, self.sheet.id)
-        return self._apply_requests([request])
 
     # ------------------------------------------------------------------
     # Operaciones a nivel documento (Drive)

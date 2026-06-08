@@ -7,6 +7,7 @@ import gspread
 from gspread.utils import ValueInputOption
 
 from .application.data_service import DataService
+from .application.dataframe_service import DataframeService
 from .application.document_service import DocumentService
 from .application.formatting_service import FormattingService
 from .application.sharing_service import SharingService
@@ -16,6 +17,7 @@ from .config import DEFAULT_VALUE_INPUT_OPTION
 from .domain.values import CellFormat, Color
 from .infrastructure.auth import build_auth_strategy
 from .infrastructure.gspread_client import GspreadClientAdapter
+from .infrastructure.pandas_adapter import PandasDataFrameAdapter
 from .infrastructure.request_builders import grid_range
 from .retry import retry_on_rate_limit
 
@@ -100,6 +102,7 @@ class GoogleSheetConector:
         self._worksheet_service = WorksheetService()
         self._document_service = DocumentService()
         self._sharing_service = SharingService()
+        self._dataframe_service = DataframeService(PandasDataFrameAdapter())
         self.sheet: gspread.Worksheet = self.connect_to_sheet(self.sheet_title, self.tab_name)
         self.options: dict[str, Any] = {"valueInputOption": "USER_ENTERED"}
 
@@ -298,14 +301,7 @@ class GoogleSheetConector:
             return self._data_service.as_dicts(all_values)
 
         if output_format == "pandas":
-            try:
-                import pandas as pd  # noqa: PLC0415  (dependencia opcional, carga diferida)
-            except ImportError as exc:
-                raise ImportError(
-                    "El formato 'pandas' requiere la dependencia opcional pandas. "
-                    "Instalala con: pip install GSpreadManager[pandas]"
-                ) from exc
-            return pd.DataFrame(all_values[1:], columns=all_values[0])
+            return self._dataframe_service.from_rows(all_values[0], all_values[1:])
 
         # output_format == 'list'
         return all_values
@@ -604,14 +600,12 @@ class GoogleSheetConector:
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
 
-        header: list[list[Any]] = [list(df.columns)] if include_header else []
-        values = header + df.values.tolist()
-
-        if clear:
-            self.sheet.clear()
-
-        return self.sheet.update(
-            values, value_input_option=ValueInputOption(DEFAULT_VALUE_INPUT_OPTION)
+        return self._dataframe_service.write(
+            self.sheet,
+            df,
+            include_header,
+            clear,
+            ValueInputOption(DEFAULT_VALUE_INPUT_OPTION),
         )
 
     # ------------------------------------------------------------------

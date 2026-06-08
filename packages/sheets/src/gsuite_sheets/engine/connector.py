@@ -8,8 +8,8 @@ from google.oauth2 import service_account
 from gspread.utils import ValueInputOption, a1_range_to_grid_range, rowcol_to_a1
 
 from .config import DEFAULT_VALUE_INPUT_OPTION
-from .exceptions import GSpreadManagerError, InsertError
-from .formatting import CellFormat, Color, NumberFormat, TextFormat
+from .domain.errors import GSpreadManagerError, InsertError
+from .domain.values import CellFormat, Color, NumberFormat, TextFormat
 from .retry import retry_on_rate_limit
 
 _SCOPES = [

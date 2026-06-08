@@ -9,6 +9,7 @@ from gspread.utils import ValueInputOption
 from .application.data_service import DataService
 from .application.formatting_service import FormattingService
 from .application.validation_service import ValidationService
+from .application.worksheet_service import WorksheetService
 from .config import DEFAULT_VALUE_INPUT_OPTION
 from .domain.values import CellFormat, Color
 from .infrastructure.auth import build_auth_strategy
@@ -94,6 +95,7 @@ class GoogleSheetConector:
         self._data_service = DataService()
         self._formatting_service = FormattingService()
         self._validation_service = ValidationService()
+        self._worksheet_service = WorksheetService()
         self.sheet: gspread.Worksheet = self.connect_to_sheet(self.sheet_title, self.tab_name)
         self.options: dict[str, Any] = {"valueInputOption": "USER_ENTERED"}
 
@@ -487,7 +489,7 @@ class GoogleSheetConector:
         Ejemplo:
             nueva = conector.create_sheet("Reporte 2026", rows=500, cols=10)
         """
-        worksheet = self.sheet.spreadsheet.add_worksheet(title, rows=rows, cols=cols, index=index)
+        worksheet = self._worksheet_service.create(self.sheet.spreadsheet, title, rows, cols, index)
         if activate:
             self.sheet = worksheet
             self.tab_name = title
@@ -504,9 +506,7 @@ class GoogleSheetConector:
         Ejemplo:
             conector.delete_sheet("Hoja temporal")
         """
-        spreadsheet = self.sheet.spreadsheet
-        worksheet = spreadsheet.worksheet(title)
-        spreadsheet.del_worksheet(worksheet)
+        self._worksheet_service.delete(self.sheet.spreadsheet, title)
 
     # ------------------------------------------------------------------
     # Limpieza y búsqueda
@@ -532,14 +532,7 @@ class GoogleSheetConector:
         """
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
-
-        if ranges is None:
-            self.sheet.clear()
-            return
-
-        if isinstance(ranges, str):
-            ranges = [ranges]
-        self.sheet.batch_clear(ranges)
+        self._worksheet_service.clear(self.sheet, ranges)
 
     @retry_on_rate_limit
     def find_cell(self, query: str, case_sensitive: bool = True) -> gspread.Cell | None:
@@ -558,7 +551,7 @@ class GoogleSheetConector:
             if celda:
                 print(celda.row, celda.col, celda.value)
         """
-        return self.sheet.find(query, case_sensitive=case_sensitive)
+        return self._worksheet_service.find(self.sheet, query, case_sensitive)
 
     # ------------------------------------------------------------------
     # Integración con pandas

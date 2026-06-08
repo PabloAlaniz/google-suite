@@ -14,7 +14,7 @@ def service():
 def test_create(service):
     client = Mock()
     result = service.create(client, "Nuevo", "folder123")
-    client.create.assert_called_once_with("Nuevo", folder_id="folder123")
+    client.create.assert_called_once_with("Nuevo", "folder123")
     assert result is client.create.return_value
 
 
@@ -27,14 +27,12 @@ def test_delete(service):
 def test_copy(service):
     client = Mock()
     service.copy(client, "file123", "Copia", True, "folder456")
-    client.copy.assert_called_once_with(
-        "file123", title="Copia", copy_permissions=True, folder_id="folder456"
-    )
+    client.copy.assert_called_once_with("file123", "Copia", True, "folder456")
 
 
 def test_list(service):
     client = Mock()
     client.list_spreadsheet_files.return_value = [{"id": "1", "name": "A"}]
     result = service.list(client, "A", None)
-    client.list_spreadsheet_files.assert_called_once_with(title="A", folder_id=None)
+    client.list_spreadsheet_files.assert_called_once_with("A", None)
     assert result == [{"id": "1", "name": "A"}]

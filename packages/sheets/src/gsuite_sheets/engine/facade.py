@@ -5,15 +5,14 @@ operaciones a nivel documento (Drive, permisos, crear/eliminar hojas). ``workshe
 devuelve un ``WorksheetContext`` atado a una pestaña concreta, sin "hoja activa" global:
 dos handles son independientes y ninguna operación muta el estado de otro.
 
-Este módulo es el *borde* que prepara los valores específicos de gspread (ej.
-``ValueInputOption``) y delega la orquestación en los servicios de la capa de aplicación.
+El facade opera contra los puertos (``ClientPort`` / ``SpreadsheetPort`` / ``WorksheetPort``)
+y delega la orquestación en los servicios de la capa de aplicación; los detalles de gspread
+viven en los adaptadores de infraestructura.
 """
 
 from __future__ import annotations
 
 from typing import Any
-
-from gspread.utils import ValueInputOption
 
 from .application.data_service import DataService
 from .application.dataframe_service import DataframeService
@@ -28,6 +27,7 @@ from .infrastructure.auth import build_auth_strategy
 from .infrastructure.gspread_client import GspreadClientAdapter
 from .infrastructure.pandas_adapter import PandasDataFrameAdapter
 from .infrastructure.request_builders import grid_range
+from .ports.sheets import WorksheetPort
 from .retry import retry_on_rate_limit
 
 
@@ -53,7 +53,7 @@ class SheetManager:
         service_account_info: dict[str, Any] | None = None,
         use_adc: bool = False,
     ) -> None:
-        """Configura autenticación (igual que antes) y los servicios de aplicación."""
+        """Configura la autenticación y los servicios de aplicación."""
         self.doc_name = doc_name
         self.max_retries = max_retries
         self.retry_backoff = retry_backoff
@@ -113,12 +113,12 @@ class SheetManager:
     @retry_on_rate_limit
     def create_spreadsheet(self, title: str, folder_id: str | None = None) -> Any:
         """Crea un nuevo documento de Google Sheets."""
-        return self._document.create(self._client.client(), title, folder_id)
+        return self._document.create(self._client, title, folder_id)
 
     @retry_on_rate_limit
     def delete_spreadsheet(self, file_id: str) -> None:
         """Elimina un documento por su ID."""
-        self._document.delete(self._client.client(), file_id)
+        self._document.delete(self._client, file_id)
 
     @retry_on_rate_limit
     def copy_spreadsheet(
@@ -129,16 +129,14 @@ class SheetManager:
         folder_id: str | None = None,
     ) -> Any:
         """Crea una copia de un documento existente."""
-        return self._document.copy(
-            self._client.client(), file_id, title, copy_permissions, folder_id
-        )
+        return self._document.copy(self._client, file_id, title, copy_permissions, folder_id)
 
     @retry_on_rate_limit
     def list_spreadsheets(
         self, title: str | None = None, folder_id: str | None = None
     ) -> list[dict[str, Any]]:
         """Lista los documentos accesibles (filtrando por título/carpeta si se indica)."""
-        return self._document.list(self._client.client(), title, folder_id)
+        return self._document.list(self._client, title, folder_id)
 
     # ------------------------------------------------------------------
     # Permisos / compartir
@@ -183,8 +181,8 @@ class WorksheetContext:
     con ``SheetManager.worksheet(name)`` y queda atado a esa pestaña.
     """
 
-    def __init__(self, worksheet: Any, manager: SheetManager) -> None:
-        """Recibe la hoja (objeto de gspread) y el gestor que provee los servicios."""
+    def __init__(self, worksheet: WorksheetPort, manager: SheetManager) -> None:
+        """Recibe la hoja (puerto) y el gestor que provee los servicios."""
         self._ws = worksheet
         self._m = manager
         # Para que el decorador de reintentos lea la configuración de esta instancia.
@@ -192,12 +190,12 @@ class WorksheetContext:
         self.retry_backoff = manager.retry_backoff
 
     @property
-    def worksheet(self) -> Any:
-        """Devuelve el objeto de hoja subyacente (gspread) por si se necesita acceso directo."""
+    def worksheet(self) -> WorksheetPort:
+        """Devuelve el puerto de hoja subyacente por si se necesita acceso directo."""
         return self._ws
 
     @property
-    def title(self) -> Any:
+    def title(self) -> str:
         """Nombre de la pestaña."""
         return self._ws.title
 
@@ -236,7 +234,7 @@ class WorksheetContext:
     @retry_on_rate_limit
     def append(self, data: list[list[Any]]) -> Any:
         """Añade filas al final de la hoja."""
-        return self._m._data.append(self._ws, data, ValueInputOption(DEFAULT_VALUE_INPUT_OPTION))
+        return self._m._data.append(self._ws, data, DEFAULT_VALUE_INPUT_OPTION)
 
     @retry_on_rate_limit
     def insert(self, data: list[list[Any]], fila: int | None = None) -> Any:
@@ -248,7 +246,7 @@ class WorksheetContext:
         self, range_data: list[dict[str, Any]], value_input_option: str = DEFAULT_VALUE_INPUT_OPTION
     ) -> None:
         """Actualiza varios rangos en una sola petición."""
-        self._m._data.batch_update(self._ws, range_data, ValueInputOption(value_input_option))
+        self._m._data.batch_update(self._ws, range_data, value_input_option)
 
     @retry_on_rate_limit
     def rows_where_column_equals(self, column: int, value: Any) -> list[tuple[int, list[str]]]:
@@ -381,5 +379,5 @@ class WorksheetContext:
     def write_dataframe(self, df: Any, include_header: bool = True, clear: bool = True) -> Any:
         """Escribe un DataFrame de pandas en la hoja desde A1 (limpiándola antes si ``clear``)."""
         return self._m._dataframe.write(
-            self._ws, df, include_header, clear, ValueInputOption(DEFAULT_VALUE_INPUT_OPTION)
+            self._ws, df, include_header, clear, DEFAULT_VALUE_INPUT_OPTION
         )

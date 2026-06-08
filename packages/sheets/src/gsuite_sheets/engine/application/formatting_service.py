@@ -9,22 +9,25 @@ from __future__ import annotations
 from typing import Any
 
 from gspreadmanager.domain.values import CellFormat, Color, NumberFormat, TextFormat
+from gspreadmanager.ports.sheets import WorksheetPort
 
 
 class FormattingService:
     """Casos de uso de formato de celdas sobre una hoja."""
 
-    def apply(self, worksheet: Any, ranges: str | list[str], cell_format: CellFormat) -> Any:
+    def apply(
+        self, worksheet: WorksheetPort, ranges: str | list[str], cell_format: CellFormat
+    ) -> Any:
         """Aplica ``cell_format`` a uno o más rangos."""
         return worksheet.format(ranges, cell_format.to_dict())
 
-    def freeze(self, worksheet: Any, rows: int | None, cols: int | None) -> Any:
+    def freeze(self, worksheet: WorksheetPort, rows: int | None, cols: int | None) -> Any:
         """Congela ``rows`` filas y/o ``cols`` columnas."""
-        return worksheet.freeze(rows=rows, cols=cols)
+        return worksheet.freeze(rows, cols)
 
-    def merge(self, worksheet: Any, range_name: str, merge_type: str) -> Any:
+    def merge(self, worksheet: WorksheetPort, range_name: str, merge_type: str) -> Any:
         """Combina las celdas de un rango (``MERGE_ALL``/``MERGE_COLUMNS``/``MERGE_ROWS``)."""
-        return worksheet.merge_cells(range_name, merge_type=merge_type)
+        return worksheet.merge_cells(range_name, merge_type)
 
     def header_format(self, background_hex: str | None) -> CellFormat:
         """Construye el formato de encabezado (negrita + color de fondo opcional)."""

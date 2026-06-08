@@ -14,17 +14,14 @@ def service():
 def test_create(service):
     spreadsheet = Mock()
     result = service.create(spreadsheet, "Nueva", 100, 26, None)
-    spreadsheet.add_worksheet.assert_called_once_with("Nueva", rows=100, cols=26, index=None)
+    spreadsheet.add_worksheet.assert_called_once_with("Nueva", 100, 26, None)
     assert result is spreadsheet.add_worksheet.return_value
 
 
 def test_delete(service):
     spreadsheet = Mock()
-    ws = Mock()
-    spreadsheet.worksheet.return_value = ws
     service.delete(spreadsheet, "Vieja")
-    spreadsheet.worksheet.assert_called_once_with("Vieja")
-    spreadsheet.del_worksheet.assert_called_once_with(ws)
+    spreadsheet.delete_worksheet.assert_called_once_with("Vieja")
 
 
 def test_clear_whole_sheet(service):
@@ -49,5 +46,5 @@ def test_clear_multiple_ranges(service):
 def test_find(service):
     ws = Mock()
     result = service.find(ws, "Total", True)
-    ws.find.assert_called_once_with("Total", case_sensitive=True)
+    ws.find.assert_called_once_with("Total", True)
     assert result is ws.find.return_value

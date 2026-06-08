@@ -22,13 +22,13 @@ def test_apply_serializes_cell_format(service):
 def test_freeze(service):
     ws = Mock()
     service.freeze(ws, 1, 2)
-    ws.freeze.assert_called_once_with(rows=1, cols=2)
+    ws.freeze.assert_called_once_with(1, 2)
 
 
 def test_merge(service):
     ws = Mock()
     service.merge(ws, "A1:B2", "MERGE_ALL")
-    ws.merge_cells.assert_called_once_with("A1:B2", merge_type="MERGE_ALL")
+    ws.merge_cells.assert_called_once_with("A1:B2", "MERGE_ALL")
 
 
 def test_header_format_with_background():

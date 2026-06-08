@@ -9,6 +9,7 @@ from __future__ import annotations
 from typing import Any
 
 from gspreadmanager.ports.dataframe import DataFramePort
+from gspreadmanager.ports.sheets import WorksheetPort
 
 
 class DataframeService:
@@ -24,14 +25,14 @@ class DataframeService:
 
     def write(
         self,
-        worksheet: Any,
+        worksheet: WorksheetPort,
         df: Any,
         include_header: bool,
         clear: bool,
-        value_input_option: Any,
+        value_input_option: str,
     ) -> Any:
         """Escribe ``df`` en la hoja desde A1 (limpiándola antes si ``clear``)."""
         values = self._frames.to_rows(df, include_header)
         if clear:
             worksheet.clear()
-        return worksheet.update(values, value_input_option=value_input_option)
+        return worksheet.update(values, value_input_option)

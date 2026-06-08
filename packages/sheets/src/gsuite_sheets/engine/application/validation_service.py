@@ -16,6 +16,7 @@ from gspreadmanager.domain.values import (
     DataValidationRule,
     GridRange,
 )
+from gspreadmanager.ports.sheets import WorksheetPort
 
 
 class ValidationService:
@@ -23,7 +24,7 @@ class ValidationService:
 
     def set_data_validation(
         self,
-        worksheet: Any,
+        worksheet: WorksheetPort,
         grid_range: GridRange,
         condition_type: str,
         values: list[Any] | None,
@@ -40,7 +41,7 @@ class ValidationService:
 
     def add_conditional_format(
         self,
-        worksheet: Any,
+        worksheet: WorksheetPort,
         grid_range: GridRange,
         condition_type: str,
         values: list[Any],
@@ -55,6 +56,6 @@ class ValidationService:
         )
         return self._apply(worksheet, rule.to_request(grid_range))
 
-    def _apply(self, worksheet: Any, request: dict[str, Any]) -> Any:
+    def _apply(self, worksheet: WorksheetPort, request: dict[str, Any]) -> Any:
         """Envía una petición vía ``spreadsheets.batchUpdate``."""
         return worksheet.spreadsheet.batch_update({"requests": [request]})

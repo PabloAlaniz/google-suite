@@ -20,20 +20,19 @@ class TestDataframeService:
         frames = Mock()
         frames.to_rows.return_value = [["a"], ["1"]]
         ws = Mock()
-        vio = object()
         service = DataframeService(frames)
 
-        service.write(ws, df="DF", include_header=True, clear=True, value_input_option=vio)
+        service.write(ws, df="DF", include_header=True, clear=True, value_input_option="RAW")
 
         frames.to_rows.assert_called_once_with("DF", True)
         ws.clear.assert_called_once_with()
-        ws.update.assert_called_once_with([["a"], ["1"]], value_input_option=vio)
+        ws.update.assert_called_once_with([["a"], ["1"]], "RAW")
 
     def test_write_without_clear(self):
         frames = Mock()
         frames.to_rows.return_value = [["x"]]
         ws = Mock()
-        DataframeService(frames).write(ws, "DF", False, False, object())
+        DataframeService(frames).write(ws, "DF", False, False, "USER_ENTERED")
         ws.clear.assert_not_called()
         ws.update.assert_called_once()
 

@@ -59,18 +59,14 @@ def test_rows_where_column_equals(service):
 
 def test_append_forwards_value_input_option(service):
     ws = Mock()
-    sentinel = object()
-    service.append(ws, [["a"]], sentinel)
-    ws.append_rows.assert_called_once_with([["a"]], value_input_option=sentinel)
+    service.append(ws, [["a"]], "RAW")
+    ws.append_rows.assert_called_once_with([["a"]], "RAW")
 
 
 def test_batch_update_forwards(service):
     ws = Mock()
-    sentinel = object()
-    service.batch_update(ws, [{"range": "A1", "values": [["x"]]}], sentinel)
-    ws.batch_update.assert_called_once_with(
-        [{"range": "A1", "values": [["x"]]}], value_input_option=sentinel
-    )
+    service.batch_update(ws, [{"range": "A1", "values": [["x"]]}], "RAW")
+    ws.batch_update.assert_called_once_with([{"range": "A1", "values": [["x"]]}], "RAW")
 
 
 def test_read_range_numbers_rows(service):

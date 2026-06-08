@@ -1,9 +1,8 @@
-"""Decorador de reintento (transitorio/compat).
+"""Decorador de reintento para los métodos del facade.
 
-La lógica vive ahora en ``infrastructure.retry.ExponentialBackoffRetry`` (una
-``RetryPolicy``). Este decorador se conserva para los métodos de ``GoogleSheetConector``
-que aún leen ``max_retries``/``retry_backoff`` de la instancia; se reemplazará por una
-``RetryPolicy`` inyectada cuando el conector se descomponga en servicios (Sprint 5).
+La lógica vive en ``infrastructure.retry.ExponentialBackoffRetry`` (una ``RetryPolicy``).
+Este decorador la aplica a los métodos de ``SheetManager`` / ``WorksheetContext``, que
+exponen ``max_retries``/``retry_backoff`` en la instancia.
 """
 
 from __future__ import annotations
@@ -22,8 +21,8 @@ __all__ = ["RETRYABLE_STATUS", "ExponentialBackoffRetry", "_status_code", "retry
 def retry_on_rate_limit(func: F) -> F:
     """Reintenta el método decorado delegando en una ``ExponentialBackoffRetry``.
 
-    Construye la política a partir de ``max_retries`` y ``retry_backoff`` de la
-    instancia, por lo que está pensado para métodos de ``GoogleSheetConector``.
+    Construye la política a partir de ``max_retries`` y ``retry_backoff`` de la instancia
+    (``SheetManager`` / ``WorksheetContext``).
     """
 
     @wraps(func)

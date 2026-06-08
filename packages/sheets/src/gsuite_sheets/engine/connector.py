@@ -9,6 +9,7 @@ from gspread.utils import ValueInputOption
 from .application.data_service import DataService
 from .application.document_service import DocumentService
 from .application.formatting_service import FormattingService
+from .application.sharing_service import SharingService
 from .application.validation_service import ValidationService
 from .application.worksheet_service import WorksheetService
 from .config import DEFAULT_VALUE_INPUT_OPTION
@@ -98,6 +99,7 @@ class GoogleSheetConector:
         self._validation_service = ValidationService()
         self._worksheet_service = WorksheetService()
         self._document_service = DocumentService()
+        self._sharing_service = SharingService()
         self.sheet: gspread.Worksheet = self.connect_to_sheet(self.sheet_title, self.tab_name)
         self.options: dict[str, Any] = {"valueInputOption": "USER_ENTERED"}
 
@@ -899,13 +901,8 @@ class GoogleSheetConector:
             La respuesta de la API de Drive.
         """
         spreadsheet = self._resolve_spreadsheet(doc_name)
-        return spreadsheet.share(
-            email_address,
-            perm_type=perm_type,
-            role=role,
-            notify=notify,
-            email_message=email_message,
-            with_link=with_link,
+        return self._sharing_service.share(
+            spreadsheet, email_address, role, perm_type, notify, email_message, with_link
         )
 
     @retry_on_rate_limit
@@ -920,7 +917,7 @@ class GoogleSheetConector:
             Una lista de diccionarios, uno por permiso.
         """
         spreadsheet = self._resolve_spreadsheet(doc_name)
-        return spreadsheet.list_permissions()
+        return self._sharing_service.list_permissions(spreadsheet)
 
     @retry_on_rate_limit
     def remove_permission(
@@ -938,4 +935,4 @@ class GoogleSheetConector:
             Lista de IDs de permisos eliminados.
         """
         spreadsheet = self._resolve_spreadsheet(doc_name)
-        return spreadsheet.remove_permissions(value, role=role)
+        return self._sharing_service.remove_permission(spreadsheet, value, role)

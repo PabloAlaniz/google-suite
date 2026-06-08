@@ -1,0 +1,385 @@
+"""API 2.0: ``SheetManager`` + ``WorksheetContext`` (inmutable, sin estado de pestaña).
+
+``SheetManager`` es el punto de entrada: autentica, cachea el cliente/documento y expone
+operaciones a nivel documento (Drive, permisos, crear/eliminar hojas). ``worksheet(name)``
+devuelve un ``WorksheetContext`` atado a una pestaña concreta, sin "hoja activa" global:
+dos handles son independientes y ninguna operación muta el estado de otro.
+
+Este módulo es el *borde* que prepara los valores específicos de gspread (ej.
+``ValueInputOption``) y delega la orquestación en los servicios de la capa de aplicación.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+from gspread.utils import ValueInputOption
+
+from .application.data_service import DataService
+from .application.dataframe_service import DataframeService
+from .application.document_service import DocumentService
+from .application.formatting_service import FormattingService
+from .application.sharing_service import SharingService
+from .application.validation_service import ValidationService
+from .application.worksheet_service import WorksheetService
+from .config import DEFAULT_VALUE_INPUT_OPTION
+from .domain.values import CellFormat, Color
+from .infrastructure.auth import build_auth_strategy
+from .infrastructure.gspread_client import GspreadClientAdapter
+from .infrastructure.pandas_adapter import PandasDataFrameAdapter
+from .infrastructure.request_builders import grid_range
+from .retry import retry_on_rate_limit
+
+
+class SheetManager:
+    """Gestor de un documento de Google Sheets (API 2.0, sin estado de pestaña mutable).
+
+    Ejemplo:
+        mgr = SheetManager("MiDoc", json_google_file="creds.json")
+        ws = mgr.worksheet("Hoja1")
+        ws.append([["Ana", "ana@example.com"]])
+        ws2 = mgr.worksheet("Hoja2")  # handle independiente
+    """
+
+    def __init__(
+        self,
+        doc_name: str,
+        json_google_file: str | None = None,
+        *,
+        max_retries: int = 3,
+        retry_backoff: float = 1.0,
+        credentials: Any = None,
+        client: Any = None,
+        service_account_info: dict[str, Any] | None = None,
+        use_adc: bool = False,
+    ) -> None:
+        """Configura autenticación (igual que antes) y los servicios de aplicación."""
+        self.doc_name = doc_name
+        self.max_retries = max_retries
+        self.retry_backoff = retry_backoff
+        auth = build_auth_strategy(
+            credentials=credentials,
+            service_account_info=service_account_info,
+            json_google_file=json_google_file,
+            client=client,
+            use_adc=use_adc,
+        )
+        self._client = GspreadClientAdapter(auth)
+        self._data = DataService()
+        self._formatting = FormattingService()
+        self._validation = ValidationService()
+        self._worksheet = WorksheetService()
+        self._document = DocumentService()
+        self._sharing = SharingService()
+        self._dataframe = DataframeService(PandasDataFrameAdapter())
+
+    def __enter__(self) -> SheetManager:
+        """Permite usar el gestor como context manager."""
+        return self
+
+    def __exit__(self, exc_type: object, exc_val: object, exc_tb: object) -> None:
+        """Salida del context manager (las operaciones se aplican de inmediato)."""
+        return
+
+    @retry_on_rate_limit
+    def worksheet(self, tab_name: str | None = None) -> WorksheetContext:
+        """Devuelve un handle inmutable a una pestaña (la primera si ``tab_name`` es None)."""
+        spreadsheet = self._client.open(self.doc_name)
+        ws = spreadsheet.worksheet(tab_name) if tab_name else spreadsheet.sheet1
+        return WorksheetContext(ws, self)
+
+    # ------------------------------------------------------------------
+    # Gestión de hojas
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def create_sheet(
+        self, title: str, rows: int = 100, cols: int = 26, index: int | None = None
+    ) -> WorksheetContext:
+        """Crea una nueva pestaña y devuelve su handle (sin cambiar ninguna 'hoja activa')."""
+        spreadsheet = self._client.open(self.doc_name)
+        ws = self._worksheet.create(spreadsheet, title, rows, cols, index)
+        return WorksheetContext(ws, self)
+
+    @retry_on_rate_limit
+    def delete_sheet(self, title: str) -> None:
+        """Elimina la pestaña con el nombre dado."""
+        self._worksheet.delete(self._client.open(self.doc_name), title)
+
+    # ------------------------------------------------------------------
+    # Operaciones a nivel documento (Drive)
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def create_spreadsheet(self, title: str, folder_id: str | None = None) -> Any:
+        """Crea un nuevo documento de Google Sheets."""
+        return self._document.create(self._client.client(), title, folder_id)
+
+    @retry_on_rate_limit
+    def delete_spreadsheet(self, file_id: str) -> None:
+        """Elimina un documento por su ID."""
+        self._document.delete(self._client.client(), file_id)
+
+    @retry_on_rate_limit
+    def copy_spreadsheet(
+        self,
+        file_id: str,
+        title: str | None = None,
+        copy_permissions: bool = False,
+        folder_id: str | None = None,
+    ) -> Any:
+        """Crea una copia de un documento existente."""
+        return self._document.copy(
+            self._client.client(), file_id, title, copy_permissions, folder_id
+        )
+
+    @retry_on_rate_limit
+    def list_spreadsheets(
+        self, title: str | None = None, folder_id: str | None = None
+    ) -> list[dict[str, Any]]:
+        """Lista los documentos accesibles (filtrando por título/carpeta si se indica)."""
+        return self._document.list(self._client.client(), title, folder_id)
+
+    # ------------------------------------------------------------------
+    # Permisos / compartir
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def share(
+        self,
+        email_address: str,
+        role: str = "reader",
+        perm_type: str = "user",
+        notify: bool = True,
+        email_message: str | None = None,
+        with_link: bool = False,
+        doc_name: str | None = None,
+    ) -> Any:
+        """Comparte el documento (por defecto el de este gestor) con un destinatario."""
+        spreadsheet = self._client.open(doc_name or self.doc_name)
+        return self._sharing.share(
+            spreadsheet, email_address, role, perm_type, notify, email_message, with_link
+        )
+
+    @retry_on_rate_limit
+    def list_permissions(self, doc_name: str | None = None) -> list[dict[str, Any]]:
+        """Lista los permisos del documento."""
+        return self._sharing.list_permissions(self._client.open(doc_name or self.doc_name))
+
+    @retry_on_rate_limit
+    def remove_permission(
+        self, value: str, role: str = "any", doc_name: str | None = None
+    ) -> list[str]:
+        """Quita el permiso de un usuario/grupo/dominio; devuelve los IDs eliminados."""
+        return self._sharing.remove_permission(
+            self._client.open(doc_name or self.doc_name), value, role
+        )
+
+
+class WorksheetContext:
+    """Handle inmutable a una pestaña concreta. Todas las operaciones actúan sobre ella.
+
+    No tiene parámetros ``tab_name`` ni efectos colaterales sobre otros handles: se obtiene
+    con ``SheetManager.worksheet(name)`` y queda atado a esa pestaña.
+    """
+
+    def __init__(self, worksheet: Any, manager: SheetManager) -> None:
+        """Recibe la hoja (objeto de gspread) y el gestor que provee los servicios."""
+        self._ws = worksheet
+        self._m = manager
+        # Para que el decorador de reintentos lea la configuración de esta instancia.
+        self.max_retries = manager.max_retries
+        self.retry_backoff = manager.retry_backoff
+
+    @property
+    def worksheet(self) -> Any:
+        """Devuelve el objeto de hoja subyacente (gspread) por si se necesita acceso directo."""
+        return self._ws
+
+    @property
+    def title(self) -> Any:
+        """Nombre de la pestaña."""
+        return self._ws.title
+
+    # ------------------------------------------------------------------
+    # Lectura / escritura de datos
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def update_cell(self, row: int, col: int, value: Any) -> None:
+        """Actualiza una celda (índices 1-based)."""
+        self._m._data.update_cell(self._ws, row, col, value)
+
+    @retry_on_rate_limit
+    def update_row(self, row: int, data: list[Any], start_column: int | None = None) -> None:
+        """Actualiza una fila celda por celda desde ``start_column`` (o la primera)."""
+        self._m._data.update_row(self._ws, row, data, start_column)
+
+    @retry_on_rate_limit
+    def read(self, skiprows: int = 0, output_format: str = "list") -> Any:
+        """Lee la hoja como ``list``, ``dict`` o ``pandas`` (según ``output_format``)."""
+        rows = self._m._data.read_values(self._ws, skiprows)
+        if output_format == "dict":
+            return self._m._data.as_dicts(rows)
+        if output_format == "pandas":
+            return self._m._dataframe.from_rows(rows[0], rows[1:])
+        return rows
+
+    @retry_on_rate_limit
+    def read_range(
+        self, fila_start: int, fila_end: int, column_start: str, column_end: str
+    ) -> list[dict[str, Any]]:
+        """Lee un rango por índices de fila/columna; devuelve ``{'fila': nro, 'values': [...]}``."""
+        a1 = f"{self._ws.title}!{column_start}{fila_start}:{column_end}{fila_end}"
+        return self._m._data.read_range(self._ws.spreadsheet, a1, fila_start)
+
+    @retry_on_rate_limit
+    def append(self, data: list[list[Any]]) -> Any:
+        """Añade filas al final de la hoja."""
+        return self._m._data.append(self._ws, data, ValueInputOption(DEFAULT_VALUE_INPUT_OPTION))
+
+    @retry_on_rate_limit
+    def insert(self, data: list[list[Any]], fila: int | None = None) -> Any:
+        """Inserta ``data`` en ``fila`` (o al final), validando lista de listas homogénea."""
+        return self._m._data.insert(self._ws, self._ws.title, data, fila)
+
+    @retry_on_rate_limit
+    def batch_update(
+        self, range_data: list[dict[str, Any]], value_input_option: str = DEFAULT_VALUE_INPUT_OPTION
+    ) -> None:
+        """Actualiza varios rangos en una sola petición."""
+        self._m._data.batch_update(self._ws, range_data, ValueInputOption(value_input_option))
+
+    @retry_on_rate_limit
+    def rows_where_column_equals(self, column: int, value: Any) -> list[tuple[int, list[str]]]:
+        """Devuelve ``(nro_fila, fila)`` para las filas cuya columna ``column`` es ``value``."""
+        return self._m._data.rows_where_column_equals(self._ws, column, value)
+
+    @retry_on_rate_limit
+    def last_row(self) -> int:
+        """Devuelve el índice (1-based) de la última fila con datos; 0 si está vacía."""
+        return self._m._data.last_row(self._ws)
+
+    @retry_on_rate_limit
+    def row_with_empty_in_column(self, column_letter: str) -> tuple[list[Any] | None, int | None]:
+        """Encuentra la primera fila con celda vacía en una columna; ``(None, None)`` si no hay."""
+        return self._m._data.row_with_empty_in_column(self._ws, column_letter)
+
+    # ------------------------------------------------------------------
+    # Formato
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def format_range(self, ranges: str | list[str], cell_format: CellFormat) -> Any:
+        """Aplica un formato a uno o más rangos."""
+        return self._m._formatting.apply(self._ws, ranges, cell_format)
+
+    def format_header(self, range_name: str = "1:1", background_hex: str | None = "#D9EAD3") -> Any:
+        """Atajo de formato de encabezado (negrita + color de fondo)."""
+        return self.format_range(range_name, self._m._formatting.header_format(background_hex))
+
+    def set_background(self, ranges: str | list[str], color: Color) -> Any:
+        """Aplica un color de fondo a uno o más rangos."""
+        return self.format_range(ranges, CellFormat(background_color=color))
+
+    def set_text_format(
+        self,
+        ranges: str | list[str],
+        *,
+        bold: bool | None = None,
+        italic: bool | None = None,
+        font_size: int | None = None,
+        color: Color | None = None,
+    ) -> Any:
+        """Aplica formato de texto (negrita, itálica, tamaño, color)."""
+        fmt = self._m._formatting.text_format(
+            bold=bold, italic=italic, font_size=font_size, color=color
+        )
+        return self.format_range(ranges, fmt)
+
+    def set_number_format(
+        self, ranges: str | list[str], pattern: str, number_type: str = "NUMBER"
+    ) -> Any:
+        """Aplica un formato numérico a uno o más rangos."""
+        return self.format_range(ranges, self._m._formatting.number_format(pattern, number_type))
+
+    @retry_on_rate_limit
+    def freeze(self, rows: int | None = None, cols: int | None = None) -> Any:
+        """Congela ``rows`` filas y/o ``cols`` columnas."""
+        return self._m._formatting.freeze(self._ws, rows, cols)
+
+    @retry_on_rate_limit
+    def merge(self, range_name: str, merge_type: str = "MERGE_ALL") -> Any:
+        """Combina las celdas de un rango."""
+        return self._m._formatting.merge(self._ws, range_name, merge_type)
+
+    # ------------------------------------------------------------------
+    # Validación de datos / formato condicional
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def set_data_validation(
+        self,
+        range_name: str,
+        condition_type: str,
+        values: list[Any] | None = None,
+        strict: bool = True,
+        show_custom_ui: bool = True,
+    ) -> Any:
+        """Aplica una regla de validación de datos a un rango."""
+        grid = grid_range(range_name, self._ws.id)
+        return self._m._validation.set_data_validation(
+            self._ws, grid, condition_type, values, strict, show_custom_ui
+        )
+
+    def add_dropdown(self, range_name: str, values: list[Any], strict: bool = True) -> Any:
+        """Agrega un desplegable (lista de opciones) a un rango."""
+        return self.set_data_validation(range_name, "ONE_OF_LIST", values=values, strict=strict)
+
+    def add_checkbox(self, range_name: str) -> Any:
+        """Agrega casillas de verificación (checkbox) a un rango."""
+        return self.set_data_validation(range_name, "BOOLEAN")
+
+    @retry_on_rate_limit
+    def add_conditional_format(
+        self,
+        range_name: str,
+        condition_type: str,
+        values: list[Any],
+        cell_format: CellFormat,
+        index: int = 0,
+    ) -> Any:
+        """Agrega una regla de formato condicional booleana a un rango."""
+        grid = grid_range(range_name, self._ws.id)
+        return self._m._validation.add_conditional_format(
+            self._ws, grid, condition_type, values, cell_format, index
+        )
+
+    # ------------------------------------------------------------------
+    # Limpieza / búsqueda
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def clear(self, ranges: str | list[str] | None = None) -> None:
+        """Limpia uno o más rangos, o toda la hoja si ``ranges`` es None."""
+        self._m._worksheet.clear(self._ws, ranges)
+
+    @retry_on_rate_limit
+    def find(self, query: str, case_sensitive: bool = True) -> Any:
+        """Busca la primera celda cuyo valor coincide con ``query``; None si no hay."""
+        return self._m._worksheet.find(self._ws, query, case_sensitive)
+
+    # ------------------------------------------------------------------
+    # Integración con pandas
+    # ------------------------------------------------------------------
+
+    def read_dataframe(self, skiprows: int = 0) -> Any:
+        """Lee la hoja como un DataFrame de pandas (requiere la extra ``pandas``)."""
+        return self.read(skiprows=skiprows, output_format="pandas")
+
+    @retry_on_rate_limit
+    def write_dataframe(self, df: Any, include_header: bool = True, clear: bool = True) -> Any:
+        """Escribe un DataFrame de pandas en la hoja desde A1 (limpiándola antes si ``clear``)."""
+        return self._m._dataframe.write(
+            self._ws, df, include_header, clear, ValueInputOption(DEFAULT_VALUE_INPUT_OPTION)
+        )

@@ -83,6 +83,13 @@ class GoogleSheetConector:
             service_account_info (dict, opcional): Credenciales de service account como diccionario.
             use_adc (bool, opcional): Si es True, usa Application Default Credentials.
         """
+        warnings.warn(
+            "GoogleSheetConector está obsoleto y se eliminará en la 3.0. Usá SheetManager: "
+            "mgr = SheetManager(doc); ws = mgr.worksheet('Hoja1'); ws.append(...). "
+            "SheetManager no tiene 'hoja activa' mutable ni el parámetro 'sheet'.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.max_retries: int = max_retries
         self.retry_backoff: float = retry_backoff
         self.sheet_title: str = doc_name

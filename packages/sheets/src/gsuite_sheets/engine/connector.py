@@ -4,10 +4,10 @@ import warnings
 from typing import Any
 
 import gspread
-from gspread.utils import ValueInputOption, rowcol_to_a1
+from gspread.utils import ValueInputOption
 
+from .application.data_service import DataService
 from .config import DEFAULT_VALUE_INPUT_OPTION
-from .domain.errors import InsertError
 from .domain.values import (
     CellFormat,
     Color,
@@ -100,6 +100,7 @@ class GoogleSheetConector:
             use_adc=use_adc,
         )
         self._gspread_client = GspreadClientAdapter(auth)
+        self._data_service = DataService()
         self.sheet: gspread.Worksheet = self.connect_to_sheet(self.sheet_title, self.tab_name)
         self.options: dict[str, Any] = {"valueInputOption": "USER_ENTERED"}
 
@@ -191,7 +192,7 @@ class GoogleSheetConector:
             conector.update_cell(2, 3, "Hola Mundo")
         """
         target = self._resolve_sheet(sheet)
-        target.update_cell(row_index, col_index, value)
+        self._data_service.update_cell(target, row_index, col_index, value)
 
     @retry_on_rate_limit
     def update_row(
@@ -221,8 +222,7 @@ class GoogleSheetConector:
             Ten en cuenta que esta función actualizará cada celda en la fila de forma individual, lo que puede resultar en múltiples llamadas a la API de Google Sheets.
         """
         target = self._resolve_sheet(sheet)
-        for index, value in enumerate(data, start=(start_column or 1)):
-            target.update_cell(row_index, index, value)
+        self._data_service.update_row(target, row_index, data, start_column)
 
     @retry_on_rate_limit
     def spreadsheet_read_range(
@@ -259,21 +259,9 @@ class GoogleSheetConector:
             Asegúrate de que las letras de columna y los índices de fila proporcionados correspondan a un rango válido en la hoja de cálculo.
         """
         target = self._resolve_sheet(sheet)
-
         # Construir el rango en notación A1 (ej. 'Hoja1!A1:D5')
         data_range = f"{tab_name}!{column_start}{fila_start}:{column_end}{fila_end}"
-        # values_get vive en Spreadsheet; se accede a través de la hoja activa.
-        data = target.spreadsheet.values_get(data_range)
-        content: list[dict[str, Any]] = []
-
-        # Procesamiento de los datos obtenidos
-        if "values" in data:
-            for row_values in data["values"]:
-                row_data = {"fila": fila_start, "values": row_values}
-                content.append(row_data)
-                fila_start += 1
-
-        return content
+        return self._data_service.read_range(target.spreadsheet, data_range, fila_start)
 
     @retry_on_rate_limit
     def read_sheet_data(
@@ -304,15 +292,11 @@ class GoogleSheetConector:
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
 
-        # Obtener todos los valores de la hoja de cálculo
-        all_values = self.sheet.get_all_values()[skiprows:]
+        all_values = self._data_service.read_values(self.sheet, skiprows)
 
         # Devolver los datos en el formato especificado
         if output_format == "dict":
-            if not all_values:
-                return []
-            headers = all_values[0]
-            return [dict(zip(headers, row)) for row in all_values[1:]]
+            return self._data_service.as_dicts(all_values)
 
         if output_format == "pandas":
             try:
@@ -353,10 +337,8 @@ class GoogleSheetConector:
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
 
-        # Añadir los datos a la hoja de cálculo
-        return self.sheet.append_rows(
-            data,
-            value_input_option=ValueInputOption(DEFAULT_VALUE_INPUT_OPTION),
+        return self._data_service.append(
+            self.sheet, data, ValueInputOption(DEFAULT_VALUE_INPUT_OPTION)
         )
 
     @retry_on_rate_limit
@@ -377,15 +359,7 @@ class GoogleSheetConector:
             # Obtener todas las filas donde la primera columna (índice 0) tiene el valor "Ejemplo"
             filas = conector.get_column_with_value(0, "Ejemplo")
         """
-        data = self.sheet.get_all_values()
-        rows_with_value = []
-
-        # Agregamos 1 al índice porque los índices de las filas en la hoja de cálculo comienzan en 1
-        for index, row in enumerate(data, start=1):
-            if len(row) > column and row[column] == value:
-                rows_with_value.append((index, row))  # Guarda el número de fila y la fila
-
-        return rows_with_value
+        return self._data_service.rows_where_column_equals(self.sheet, column, value)
 
     @retry_on_rate_limit
     def batch_update(
@@ -411,10 +385,8 @@ class GoogleSheetConector:
         Nota:
             La clave 'range' en cada diccionario debe seguir el formato de notación A1 de Google Sheets.
         """
-        # Realizar las actualizaciones en lote
-        self.sheet.batch_update(
-            range_data,
-            value_input_option=ValueInputOption(value_input_option),
+        self._data_service.batch_update(
+            self.sheet, range_data, ValueInputOption(value_input_option)
         )
 
     @retry_on_rate_limit
@@ -441,11 +413,7 @@ class GoogleSheetConector:
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
 
-        # Obtener todos los valores de la hoja
-        all_values = self.sheet.get_all_values()
-
-        # Devolver el índice de la última fila con datos
-        return len(all_values)
+        return self._data_service.last_row(self.sheet)
 
     @retry_on_rate_limit
     def get_row_with_empty_in_column(
@@ -468,18 +436,7 @@ class GoogleSheetConector:
             Si no se encuentra una celda vacía en la columna especificada, se devuelve (None, None).
         """
         target = self._resolve_sheet(sheet)
-
-        # Obtener el rango de la columna especificada hasta la última fila con datos
-        total_rows = len(target.col_values(1))
-        cells = target.range(f"{column_letter}1:{column_letter}{total_rows}")
-        column_values = [cell.value for cell in cells]
-
-        # Buscar el primer valor vacío en la columna
-        try:
-            empty_index = column_values.index("") + 1
-            return target.row_values(empty_index), empty_index
-        except ValueError:
-            return None, None
+        return self._data_service.row_with_empty_in_column(target, column_letter)
 
     @retry_on_rate_limit
     def spreadsheet_insert(
@@ -506,30 +463,7 @@ class GoogleSheetConector:
             conector.spreadsheet_insert("MiDocumento", "Hoja1", datos, fila=5)
         """
         sheet = self.connect_to_sheet(sheet_name, worksheet_name)
-
-        # Validar la entrada de datos
-        if not all(isinstance(row, list) for row in data):
-            raise ValueError("Los datos deben ser una lista de listas.")
-        if not all(len(row) == len(data[0]) for row in data):
-            raise ValueError("Todas las filas de datos deben tener la misma longitud.")
-
-        # Calcular la fila de inicio y el rango de inserción.
-        # Usamos rowcol_to_a1 para soportar correctamente más de 26 columnas (más allá de Z).
-        if fila is None:
-            # Si la fila no se especifica, insertar al final
-            fila = len(sheet.get_all_values()) + 1
-        fila_end = fila + len(data) - 1
-        num_cols = len(data[0])
-        start_cell = rowcol_to_a1(fila, 1)
-        end_cell = rowcol_to_a1(fila_end, num_cols)
-        rango = f"{worksheet_name}!{start_cell}:{end_cell}"
-
-        try:
-            insert = {"values": data}
-            # values_append vive en Spreadsheet; se accede a través de la hoja.
-            return sheet.spreadsheet.values_append(rango, self.options, insert)
-        except Exception as e:
-            raise InsertError(f"Error al insertar datos en {worksheet_name}: {e}") from e
+        return self._data_service.insert(sheet, worksheet_name, data, fila)
 
     # ------------------------------------------------------------------
     # Gestión de hojas (worksheets)

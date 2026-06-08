@@ -4,13 +4,25 @@ import warnings
 from typing import Any
 
 import gspread
-from gspread.utils import ValueInputOption, a1_range_to_grid_range, rowcol_to_a1
+from gspread.utils import ValueInputOption, rowcol_to_a1
 
 from .config import DEFAULT_VALUE_INPUT_OPTION
 from .domain.errors import InsertError
-from .domain.values import CellFormat, Color, NumberFormat, TextFormat
+from .domain.values import (
+    CellFormat,
+    Color,
+    Condition,
+    ConditionalFormatRule,
+    DataValidationRule,
+    NumberFormat,
+    TextFormat,
+)
 from .infrastructure.auth import build_auth_strategy
 from .infrastructure.gspread_client import GspreadClientAdapter
+from .infrastructure.request_builders import (
+    conditional_format_request,
+    data_validation_request,
+)
 from .retry import retry_on_rate_limit
 
 _SHEET_DEPRECATION_MSG = (
@@ -682,10 +694,6 @@ class GoogleSheetConector:
     # Formato de celdas (implementación propia sobre el transporte de gspread)
     # ------------------------------------------------------------------
 
-    def _grid(self, range_name: str) -> dict[str, int]:
-        """Convierte un rango A1 en un GridRange para la hoja activa."""
-        return a1_range_to_grid_range(range_name, self.sheet.id)
-
     def _apply_requests(self, requests: list[dict[str, Any]]) -> Any:
         """Envía una lista de requests vía spreadsheets.batchUpdate."""
         return self.sheet.spreadsheet.batch_update({"requests": requests})
@@ -818,20 +826,12 @@ class GoogleSheetConector:
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
 
-        condition: dict[str, Any] = {"type": condition_type}
-        if values is not None:
-            condition["values"] = [{"userEnteredValue": str(v)} for v in values]
-
-        request = {
-            "setDataValidation": {
-                "range": self._grid(range_name),
-                "rule": {
-                    "condition": condition,
-                    "strict": strict,
-                    "showCustomUi": show_custom_ui,
-                },
-            }
-        }
+        rule = DataValidationRule(
+            condition=Condition.of(condition_type, values),
+            strict=strict,
+            show_custom_ui=show_custom_ui,
+        )
+        request = data_validation_request(rule, range_name, self.sheet.id)
         return self._apply_requests([request])
 
     def add_dropdown(
@@ -881,21 +881,12 @@ class GoogleSheetConector:
         if tab_name:
             self.sheet = self.connect_to_sheet(self.sheet_title, tab_name)
 
-        request = {
-            "addConditionalFormatRule": {
-                "rule": {
-                    "ranges": [self._grid(range_name)],
-                    "booleanRule": {
-                        "condition": {
-                            "type": condition_type,
-                            "values": [{"userEnteredValue": str(v)} for v in values],
-                        },
-                        "format": cell_format.to_dict(),
-                    },
-                },
-                "index": index,
-            }
-        }
+        rule = ConditionalFormatRule(
+            condition=Condition.of(condition_type, values),
+            cell_format=cell_format,
+            index=index,
+        )
+        request = conditional_format_request(rule, range_name, self.sheet.id)
         return self._apply_requests([request])
 
     # ------------------------------------------------------------------

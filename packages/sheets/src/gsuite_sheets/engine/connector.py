@@ -7,6 +7,7 @@ import gspread
 from gspread.utils import ValueInputOption
 
 from .application.data_service import DataService
+from .application.document_service import DocumentService
 from .application.formatting_service import FormattingService
 from .application.validation_service import ValidationService
 from .application.worksheet_service import WorksheetService
@@ -96,6 +97,7 @@ class GoogleSheetConector:
         self._formatting_service = FormattingService()
         self._validation_service = ValidationService()
         self._worksheet_service = WorksheetService()
+        self._document_service = DocumentService()
         self.sheet: gspread.Worksheet = self.connect_to_sheet(self.sheet_title, self.tab_name)
         self.options: dict[str, Any] = {"valueInputOption": "USER_ENTERED"}
 
@@ -814,7 +816,7 @@ class GoogleSheetConector:
         Devuelve:
             El objeto Spreadsheet recién creado.
         """
-        return self._get_client().create(title, folder_id=folder_id)
+        return self._document_service.create(self._get_client(), title, folder_id)
 
     @retry_on_rate_limit
     def delete_spreadsheet(self, file_id: str) -> None:
@@ -824,7 +826,7 @@ class GoogleSheetConector:
         Parámetros:
             file_id (str): ID del documento a eliminar.
         """
-        self._get_client().del_spreadsheet(file_id)
+        self._document_service.delete(self._get_client(), file_id)
 
     @retry_on_rate_limit
     def copy_spreadsheet(
@@ -846,8 +848,8 @@ class GoogleSheetConector:
         Devuelve:
             El objeto Spreadsheet de la copia.
         """
-        return self._get_client().copy(
-            file_id, title=title, copy_permissions=copy_permissions, folder_id=folder_id
+        return self._document_service.copy(
+            self._get_client(), file_id, title, copy_permissions, folder_id
         )
 
     @retry_on_rate_limit
@@ -864,7 +866,7 @@ class GoogleSheetConector:
         Devuelve:
             Una lista de diccionarios con metadatos de cada documento (id, name, etc.).
         """
-        return self._get_client().list_spreadsheet_files(title=title, folder_id=folder_id)
+        return self._document_service.list(self._get_client(), title, folder_id)
 
     # ------------------------------------------------------------------
     # Permisos / compartir

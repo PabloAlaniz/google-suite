@@ -2,8 +2,8 @@
 
 Opera sobre objetos *hoja* y *documento* duck-typed (la forma de ``gspread.Worksheet`` /
 ``gspread.Spreadsheet``), sin importar gspread salvo utilidades puras (``rowcol_to_a1``).
-La resolución de la pestaña activa y la construcción del ``ValueInputOption`` quedan en el
-conector; aquí vive la orquestación y la lógica de transformación, testeable con fakes.
+La construcción del ``ValueInputOption`` y la elección de la hoja quedan en el facade;
+aquí vive la orquestación y la lógica de transformación, testeable con fakes.
 """
 
 from __future__ import annotations

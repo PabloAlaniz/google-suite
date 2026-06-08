@@ -1,6 +1,6 @@
 """Servicio de permisos: compartir, listar permisos y quitar permisos.
 
-Opera sobre un documento duck-typed (el conector resuelve el documento activo o por nombre).
+Opera sobre un documento duck-typed (el facade resuelve el documento por nombre).
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
 """Servicio de gestión de hojas: crear, eliminar, limpiar y buscar.
 
-Opera sobre hoja/documento duck-typed. El efecto de "activar" la hoja recién creada
-(mutar la hoja activa del conector) queda en el conector, no aquí.
+Opera sobre hoja/documento duck-typed. Qué hacer con la hoja recién creada (envolverla en
+un handle) queda en el facade, no aquí.
 """
 
 from __future__ import annotations

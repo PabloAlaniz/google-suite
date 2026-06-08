@@ -1,6 +1,6 @@
 """Servicio de documentos (Drive): crear, eliminar, copiar y listar.
 
-Opera sobre un cliente de gspread duck-typed (el adaptador con caché del conector).
+Opera sobre un cliente de gspread duck-typed (el adaptador con caché del facade).
 """
 
 from __future__ import annotations

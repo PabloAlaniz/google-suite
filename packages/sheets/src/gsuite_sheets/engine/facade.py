@@ -29,6 +29,7 @@ from .domain.export import ExportFormat
 from .domain.numericise import numericise_all, numericise_records
 from .domain.values import CellFormat, Color, SpreadsheetId
 from .infrastructure.auth import build_auth_strategy
+from .infrastructure.cache import CachingClient
 from .infrastructure.dataframe_backend import build_dataframe_adapter
 from .infrastructure.gspread_client import GspreadClientAdapter
 from .infrastructure.request_builders import grid_range
@@ -60,6 +61,7 @@ class SheetManager:
         use_adc: bool = False,
         dataframe_backend: str = "pandas",
         sheets_client: ClientPort | None = None,
+        cache: bool = False,
     ) -> None:
         """Configura la autenticación y los servicios de aplicación.
 
@@ -69,6 +71,9 @@ class SheetManager:
 
         ``sheets_client`` inyecta un ``ClientPort`` propio (ej. el backend en memoria de
         ``gspreadmanager.testing``), salteando la autenticación con gspread.
+
+        ``cache=True`` activa una caché de lecturas que se invalida con cada escritura propia
+        (no detecta cambios de otros procesos); usá :meth:`clear_cache` para forzar el refresco.
         """
         if doc_name is None and key is None:
             raise GSpreadManagerError("Indicá 'doc_name' o 'key' al crear SheetManager.")
@@ -77,7 +82,7 @@ class SheetManager:
         self.max_retries = max_retries
         self.retry_backoff = retry_backoff
         if sheets_client is not None:
-            self._client: ClientPort = sheets_client
+            base_client: ClientPort = sheets_client
         else:
             auth = build_auth_strategy(
                 credentials=credentials,
@@ -86,7 +91,9 @@ class SheetManager:
                 client=client,
                 use_adc=use_adc,
             )
-            self._client = GspreadClientAdapter(auth)
+            base_client = GspreadClientAdapter(auth)
+        self._cache = CachingClient(base_client) if cache else None
+        self._client: ClientPort = self._cache or base_client
         self._data = DataService()
         self._formatting = FormattingService()
         self._validation = ValidationService()
@@ -120,6 +127,11 @@ class SheetManager:
         return cls(
             key=SpreadsheetId.from_url(url).value, json_google_file=json_google_file, **kwargs
         )
+
+    def clear_cache(self) -> None:
+        """Invalida la caché de lecturas (no-op si se creó con ``cache=False``)."""
+        if self._cache is not None:
+            self._cache.clear()
 
     def _spreadsheet(self, doc_name: str | None = None) -> Any:
         """Abre el documento: por ``doc_name`` explícito, o por la key/nombre del gestor."""

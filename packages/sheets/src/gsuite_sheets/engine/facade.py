@@ -405,6 +405,86 @@ class WorksheetContext:
         return self._m._worksheet.find(self._ws, query, case_sensitive)
 
     # ------------------------------------------------------------------
+    # Filas / columnas (posiciones 1-based)
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def insert_rows(self, at: int, number: int = 1, inherit_from_before: bool = False) -> None:
+        """Inserta ``number`` filas en blanco antes de la fila ``at`` (1-based)."""
+        self._m._worksheet.insert_dimension(
+            self._ws, "ROWS", at - 1, at - 1 + number, inherit_from_before
+        )
+
+    @retry_on_rate_limit
+    def insert_cols(self, at: int, number: int = 1, inherit_from_before: bool = False) -> None:
+        """Inserta ``number`` columnas en blanco antes de la columna ``at`` (1-based)."""
+        self._m._worksheet.insert_dimension(
+            self._ws, "COLUMNS", at - 1, at - 1 + number, inherit_from_before
+        )
+
+    @retry_on_rate_limit
+    def delete_rows(self, start: int, end: int | None = None) -> None:
+        """Elimina las filas ``start..end`` (1-based, inclusivo); ``end=None`` borra una."""
+        self._m._worksheet.delete_dimension(self._ws, "ROWS", start - 1, end or start)
+
+    @retry_on_rate_limit
+    def delete_cols(self, start: int, end: int | None = None) -> None:
+        """Elimina las columnas ``start..end`` (1-based, inclusivo); ``end=None`` borra una."""
+        self._m._worksheet.delete_dimension(self._ws, "COLUMNS", start - 1, end or start)
+
+    @retry_on_rate_limit
+    def add_rows(self, number: int) -> None:
+        """Agrega ``number`` filas al final de la hoja."""
+        self._m._worksheet.append_dimension(self._ws, "ROWS", number)
+
+    @retry_on_rate_limit
+    def add_cols(self, number: int) -> None:
+        """Agrega ``number`` columnas al final de la hoja."""
+        self._m._worksheet.append_dimension(self._ws, "COLUMNS", number)
+
+    @retry_on_rate_limit
+    def resize_rows(self, start: int, end: int, pixels: int) -> None:
+        """Fija la altura (en píxeles) de las filas ``start..end`` (1-based, inclusivo)."""
+        self._m._worksheet.update_dimension(
+            self._ws, "ROWS", start - 1, end, {"pixelSize": pixels}, "pixelSize"
+        )
+
+    @retry_on_rate_limit
+    def resize_cols(self, start: int, end: int, pixels: int) -> None:
+        """Fija el ancho (en píxeles) de las columnas ``start..end`` (1-based, inclusivo)."""
+        self._m._worksheet.update_dimension(
+            self._ws, "COLUMNS", start - 1, end, {"pixelSize": pixels}, "pixelSize"
+        )
+
+    @retry_on_rate_limit
+    def hide_rows(self, start: int, end: int | None = None) -> None:
+        """Oculta las filas ``start..end`` (1-based, inclusivo)."""
+        self._m._worksheet.update_dimension(
+            self._ws, "ROWS", start - 1, end or start, {"hiddenByUser": True}, "hiddenByUser"
+        )
+
+    @retry_on_rate_limit
+    def unhide_rows(self, start: int, end: int | None = None) -> None:
+        """Muestra las filas ``start..end`` (1-based, inclusivo)."""
+        self._m._worksheet.update_dimension(
+            self._ws, "ROWS", start - 1, end or start, {"hiddenByUser": False}, "hiddenByUser"
+        )
+
+    @retry_on_rate_limit
+    def hide_cols(self, start: int, end: int | None = None) -> None:
+        """Oculta las columnas ``start..end`` (1-based, inclusivo)."""
+        self._m._worksheet.update_dimension(
+            self._ws, "COLUMNS", start - 1, end or start, {"hiddenByUser": True}, "hiddenByUser"
+        )
+
+    @retry_on_rate_limit
+    def unhide_cols(self, start: int, end: int | None = None) -> None:
+        """Muestra las columnas ``start..end`` (1-based, inclusivo)."""
+        self._m._worksheet.update_dimension(
+            self._ws, "COLUMNS", start - 1, end or start, {"hiddenByUser": False}, "hiddenByUser"
+        )
+
+    # ------------------------------------------------------------------
     # Integración con pandas
     # ------------------------------------------------------------------
 

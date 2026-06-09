@@ -35,3 +35,92 @@ class WorksheetService:
     def find(self, worksheet: WorksheetPort, query: str, case_sensitive: bool) -> Any:
         """Busca la primera celda cuyo valor coincide con ``query``; None si no hay."""
         return worksheet.find(query, case_sensitive)
+
+    # ------------------------------------------------------------------
+    # Manipulación de dimensiones (filas / columnas) vía batchUpdate.
+    # ``dimension`` es "ROWS" o "COLUMNS"; los índices son 0-based, fin exclusivo.
+    # ------------------------------------------------------------------
+
+    def _apply(self, worksheet: WorksheetPort, request: dict[str, Any]) -> None:
+        worksheet.spreadsheet.batch_update({"requests": [request]})
+
+    def insert_dimension(
+        self,
+        worksheet: WorksheetPort,
+        dimension: str,
+        start: int,
+        end: int,
+        inherit_from_before: bool,
+    ) -> None:
+        """Inserta filas/columnas en blanco en ``[start, end)`` (``insertDimension``)."""
+        self._apply(
+            worksheet,
+            {
+                "insertDimension": {
+                    "range": {
+                        "sheetId": worksheet.id,
+                        "dimension": dimension,
+                        "startIndex": start,
+                        "endIndex": end,
+                    },
+                    "inheritFromBefore": inherit_from_before,
+                }
+            },
+        )
+
+    def delete_dimension(
+        self, worksheet: WorksheetPort, dimension: str, start: int, end: int
+    ) -> None:
+        """Elimina filas/columnas en ``[start, end)`` (``deleteDimension``)."""
+        self._apply(
+            worksheet,
+            {
+                "deleteDimension": {
+                    "range": {
+                        "sheetId": worksheet.id,
+                        "dimension": dimension,
+                        "startIndex": start,
+                        "endIndex": end,
+                    }
+                }
+            },
+        )
+
+    def append_dimension(self, worksheet: WorksheetPort, dimension: str, length: int) -> None:
+        """Agrega ``length`` filas/columnas al final (``appendDimension``)."""
+        self._apply(
+            worksheet,
+            {
+                "appendDimension": {
+                    "sheetId": worksheet.id,
+                    "dimension": dimension,
+                    "length": length,
+                }
+            },
+        )
+
+    def update_dimension(
+        self,
+        worksheet: WorksheetPort,
+        dimension: str,
+        start: int,
+        end: int,
+        properties: dict[str, Any],
+        fields: str,
+    ) -> None:
+        """Actualiza propiedades de dimensión (tamaño/oculto) en ``[start, end)``."""
+        self._apply(
+            worksheet,
+            {
+                "updateDimensionProperties": {
+                    "range": {
+                        "sheetId": worksheet.id,
+                        "dimension": dimension,
+                        "startIndex": start,
+                        "endIndex": end,
+                    },
+                    "properties": properties,
+                    "fields": fields,
+                }
+            },
+        )

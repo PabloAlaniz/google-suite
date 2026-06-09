@@ -35,3 +35,10 @@ class InvalidIdentifierError(GSpreadManagerError, ValueError):
 
     Subclase de ``ValueError`` por compatibilidad.
     """
+
+
+class SchemaError(GSpreadManagerError, ValueError):
+    """Se lanza cuando una fila no encaja con el modelo tipado (columna faltante o valor inválido).
+
+    Subclase de ``ValueError`` por compatibilidad.
+    """

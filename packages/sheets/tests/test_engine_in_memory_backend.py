@@ -1,8 +1,17 @@
 """Tests del backend en memoria (``gspreadmanager.testing``) vía el API público."""
 
+from dataclasses import dataclass
+
 import pytest
-from gspreadmanager import Color, ExportFormat, GSpreadManagerError, SheetManager
+from gspreadmanager import Color, ExportFormat, GSpreadManagerError, SchemaError, SheetManager
 from gspreadmanager.testing import InMemoryBackend, InMemoryClient, InMemorySpreadsheet
+
+
+@dataclass
+class Persona:
+    nombre: str
+    edad: int
+    activo: bool
 
 
 @pytest.fixture
@@ -171,6 +180,34 @@ class TestDocumentAndDataframe:
         assert {"Nuevo", "Copia"} <= names
         mgr.delete_spreadsheet(created.id)
         assert "Nuevo" not in {f["name"] for f in mgr.list_spreadsheets()}
+
+
+class TestTypedRowModels:
+    @pytest.fixture
+    def ws(self):
+        backend = InMemoryBackend()
+        backend.add_spreadsheet(
+            "Doc",
+            {"H": [["nombre", "edad", "activo"], ["Ana", "30", "TRUE"], ["Bob", "25", "FALSE"]]},
+        )
+        return backend.manager("Doc").worksheet("H")
+
+    def test_read_as(self, ws):
+        assert ws.read_as(Persona) == [Persona("Ana", 30, True), Persona("Bob", 25, False)]
+
+    def test_append_models(self, ws):
+        ws.append_models([Persona("Cora", 40, True)])
+        assert ws.read_as(Persona)[-1] == Persona("Cora", 40, True)
+
+    def test_write_models_replaces(self, ws):
+        ws.write_models([Persona("Z", 1, False)])
+        assert ws.read() == [["nombre", "edad", "activo"], ["Z", "1", "FALSE"]]
+
+    def test_read_as_invalid_value_raises(self):
+        backend = InMemoryBackend()
+        backend.add_spreadsheet("D", {"H": [["nombre", "edad", "activo"], ["Ana", "x", "TRUE"]]})
+        with pytest.raises(SchemaError, match="edad"):
+            backend.manager("D").worksheet("H").read_as(Persona)
 
 
 class TestWiringAndErrors:

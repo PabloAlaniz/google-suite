@@ -19,6 +19,7 @@ from .application.dataframe_service import DataframeService
 from .application.document_service import DocumentService
 from .application.formatting_service import FormattingService
 from .application.metadata_service import MetadataService
+from .application.row_model_service import RowModelService
 from .application.sharing_service import SharingService
 from .application.validation_service import ValidationService
 from .application.worksheet_service import WorksheetService
@@ -93,6 +94,7 @@ class SheetManager:
         self._document = DocumentService()
         self._sharing = SharingService()
         self._metadata = MetadataService()
+        self._rows = RowModelService()
         self._dataframe = DataframeService(build_dataframe_adapter(dataframe_backend))
 
     def __enter__(self) -> SheetManager:
@@ -661,4 +663,31 @@ class WorksheetContext:
             DEFAULT_VALUE_INPUT_OPTION,
             include_index=include_index,
             start_cell=start_cell,
+        )
+
+    # ------------------------------------------------------------------
+    # Modelos de fila tipados (dataclasses)
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def read_as(self, model: type, skiprows: int = 0) -> list[Any]:
+        """Lee la hoja como una lista de instancias de ``model`` (un ``@dataclass``).
+
+        El encabezado (1ª fila tras ``skiprows``) mapea a los campos del modelo por nombre, o
+        por ``field(metadata={"column": ...})``. Los valores se convierten al tipo anotado.
+        """
+        return self._m._rows.read(self._ws, model, skiprows)
+
+    @retry_on_rate_limit
+    def append_models(self, models: list[Any]) -> Any:
+        """Añade instancias de dataclass como filas al final (sin reescribir el encabezado)."""
+        return self._m._rows.append(self._ws, models, DEFAULT_VALUE_INPUT_OPTION)
+
+    @retry_on_rate_limit
+    def write_models(
+        self, models: list[Any], include_header: bool = True, clear: bool = True
+    ) -> Any:
+        """Escribe instancias de dataclass desde A1 (encabezado opcional), limpiando si ``clear``."""
+        return self._m._rows.write(
+            self._ws, models, include_header, clear, DEFAULT_VALUE_INPUT_OPTION
         )

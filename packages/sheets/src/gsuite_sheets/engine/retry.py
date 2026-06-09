@@ -1,51 +1,40 @@
-"""Utilidades de reintento con backoff exponencial ante límites de cuota de la API."""
+"""Decorador de reintento para los métodos del facade.
+
+La lógica vive en ``infrastructure.retry.ExponentialBackoffRetry`` (una ``RetryPolicy``).
+Este decorador la aplica a los métodos de ``SheetManager`` / ``WorksheetContext``, que
+exponen ``max_retries``/``retry_backoff`` en la instancia.
+"""
 
 from __future__ import annotations
 
-import time
 from collections.abc import Callable
 from functools import wraps
 from typing import Any, TypeVar
 
-from gspread.exceptions import APIError
+from .infrastructure.retry import RETRYABLE_STATUS, ExponentialBackoffRetry, _status_code
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-# Códigos HTTP que justifican un reintento (cuota / sobrecarga temporal).
-RETRYABLE_STATUS = {429, 500, 503}
-
-
-def _status_code(error: APIError) -> int | None:
-    """Extrae el código de estado HTTP de un APIError de gspread."""
-    response = getattr(error, "response", None)
-    status = getattr(response, "status_code", None)
-    if status is not None:
-        return status
-    return getattr(error, "code", None)
+__all__ = ["RETRYABLE_STATUS", "ExponentialBackoffRetry", "_status_code", "retry_on_rate_limit"]
 
 
 def retry_on_rate_limit(func: F) -> F:
-    """Reintenta el método decorado ante errores transitorios de la API.
+    """Aplica freno de tasa proactivo + reintento reactivo al método decorado.
 
-    Lee la configuración (`max_retries` y `retry_backoff`) de la instancia, por lo
-    que está pensado para métodos de `GoogleSheetConector`. Solo reintenta ante
-    códigos de estado considerados transitorios (ver ``RETRYABLE_STATUS``); cualquier
-    otro error se propaga inmediatamente.
+    Si la instancia (``SheetManager`` / ``WorksheetContext``) tiene un ``_rate_limiter``,
+    pide un permiso antes de operar (token bucket). Luego ejecuta a través de una
+    ``ExponentialBackoffRetry`` construida con ``max_retries`` y ``retry_backoff``.
     """
 
     @wraps(func)
     def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-        max_retries: int = getattr(self, "max_retries", 0)
-        backoff: float = getattr(self, "retry_backoff", 1.0)
-        attempt = 0
-        while True:
-            try:
-                return func(self, *args, **kwargs)
-            except APIError as exc:
-                status = _status_code(exc)
-                if status not in RETRYABLE_STATUS or attempt >= max_retries:
-                    raise
-                time.sleep(backoff * (2**attempt))
-                attempt += 1
+        limiter = getattr(self, "_rate_limiter", None)
+        if limiter is not None:
+            limiter.acquire()
+        policy = ExponentialBackoffRetry(
+            max_retries=getattr(self, "max_retries", 0),
+            backoff=getattr(self, "retry_backoff", 1.0),
+        )
+        return policy.run(lambda: func(self, *args, **kwargs))
 
     return wrapper  # type: ignore[return-value]

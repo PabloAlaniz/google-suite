@@ -1,20 +1,24 @@
 from .config import DEFAULT_VALUE_INPUT_OPTION
-from .connector import GoogleSheetConector
-from .exceptions import GSpreadManagerError, InsertError
-from .formatting import Border, Borders, CellFormat, Color, NumberFormat, TextFormat
+from .domain.errors import GSpreadManagerError, InsertError, SchemaError
+from .domain.export import ExportFormat
+from .domain.values import Border, Borders, CellFormat, Color, NumberFormat, TextFormat
+from .facade import SheetManager, WorksheetContext
 
-__version__ = "1.2.0"
+__version__ = "2.1.0"
 
 __all__ = [
-    "GoogleSheetConector",
     "DEFAULT_VALUE_INPUT_OPTION",
-    "GSpreadManagerError",
-    "InsertError",
-    "CellFormat",
-    "Color",
-    "TextFormat",
-    "NumberFormat",
     "Border",
     "Borders",
+    "CellFormat",
+    "Color",
+    "ExportFormat",
+    "GSpreadManagerError",
+    "InsertError",
+    "NumberFormat",
+    "SchemaError",
+    "SheetManager",
+    "TextFormat",
+    "WorksheetContext",
     "__version__",
 ]

@@ -19,14 +19,18 @@ __all__ = ["RETRYABLE_STATUS", "ExponentialBackoffRetry", "_status_code", "retry
 
 
 def retry_on_rate_limit(func: F) -> F:
-    """Reintenta el método decorado delegando en una ``ExponentialBackoffRetry``.
+    """Aplica freno de tasa proactivo + reintento reactivo al método decorado.
 
-    Construye la política a partir de ``max_retries`` y ``retry_backoff`` de la instancia
-    (``SheetManager`` / ``WorksheetContext``).
+    Si la instancia (``SheetManager`` / ``WorksheetContext``) tiene un ``_rate_limiter``,
+    pide un permiso antes de operar (token bucket). Luego ejecuta a través de una
+    ``ExponentialBackoffRetry`` construida con ``max_retries`` y ``retry_backoff``.
     """
 
     @wraps(func)
     def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+        limiter = getattr(self, "_rate_limiter", None)
+        if limiter is not None:
+            limiter.acquire()
         policy = ExponentialBackoffRetry(
             max_retries=getattr(self, "max_retries", 0),
             backoff=getattr(self, "retry_backoff", 1.0),

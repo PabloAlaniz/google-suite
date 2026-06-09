@@ -32,7 +32,9 @@ from .infrastructure.auth import build_auth_strategy
 from .infrastructure.cache import CachingClient
 from .infrastructure.dataframe_backend import build_dataframe_adapter
 from .infrastructure.gspread_client import GspreadClientAdapter
+from .infrastructure.rate_limit import TokenBucketRateLimiter
 from .infrastructure.request_builders import grid_range
+from .ports.rate_limit import RateLimiter
 from .ports.sheets import ClientPort, WorksheetPort
 from .retry import retry_on_rate_limit
 
@@ -62,6 +64,8 @@ class SheetManager:
         dataframe_backend: str = "pandas",
         sheets_client: ClientPort | None = None,
         cache: bool = False,
+        rate_limit: float | None = None,
+        rate_limit_burst: float | None = None,
     ) -> None:
         """Configura la autenticación y los servicios de aplicación.
 
@@ -74,6 +78,9 @@ class SheetManager:
 
         ``cache=True`` activa una caché de lecturas que se invalida con cada escritura propia
         (no detecta cambios de otros procesos); usá :meth:`clear_cache` para forzar el refresco.
+
+        ``rate_limit`` (operaciones por segundo) activa un freno proactivo de cuota (token
+        bucket); ``rate_limit_burst`` fija la ráfaga máxima (por defecto ``max(1, rate_limit)``).
         """
         if doc_name is None and key is None:
             raise GSpreadManagerError("Indicá 'doc_name' o 'key' al crear SheetManager.")
@@ -81,6 +88,9 @@ class SheetManager:
         self._key = key
         self.max_retries = max_retries
         self.retry_backoff = retry_backoff
+        self._rate_limiter: RateLimiter | None = (
+            TokenBucketRateLimiter(rate_limit, rate_limit_burst) if rate_limit is not None else None
+        )
         if sheets_client is not None:
             base_client: ClientPort = sheets_client
         else:
@@ -269,9 +279,10 @@ class WorksheetContext:
         """Recibe la hoja (puerto) y el gestor que provee los servicios."""
         self._ws = worksheet
         self._m = manager
-        # Para que el decorador de reintentos lea la configuración de esta instancia.
+        # Para que el decorador de reintentos/rate-limit lea la configuración de esta instancia.
         self.max_retries = manager.max_retries
         self.retry_backoff = manager.retry_backoff
+        self._rate_limiter = manager._rate_limiter
 
     @property
     def worksheet(self) -> WorksheetPort:

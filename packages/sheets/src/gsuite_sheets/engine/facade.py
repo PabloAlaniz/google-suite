@@ -18,6 +18,7 @@ from .application.data_service import DataService
 from .application.dataframe_service import DataframeService
 from .application.document_service import DocumentService
 from .application.formatting_service import FormattingService
+from .application.metadata_service import MetadataService
 from .application.sharing_service import SharingService
 from .application.validation_service import ValidationService
 from .application.worksheet_service import WorksheetService
@@ -81,6 +82,7 @@ class SheetManager:
         self._worksheet = WorksheetService()
         self._document = DocumentService()
         self._sharing = SharingService()
+        self._metadata = MetadataService()
         self._dataframe = DataframeService(PandasDataFrameAdapter())
 
     def __enter__(self) -> SheetManager:
@@ -204,6 +206,20 @@ class SheetManager:
     ) -> list[str]:
         """Quita el permiso de un usuario/grupo/dominio; devuelve los IDs eliminados."""
         return self._sharing.remove_permission(self._spreadsheet(doc_name), value, role)
+
+    # ------------------------------------------------------------------
+    # Named ranges (a nivel documento)
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def list_named_ranges(self) -> list[dict[str, Any]]:
+        """Lista los named ranges del documento."""
+        return self._metadata.list_named_ranges(self._spreadsheet())
+
+    @retry_on_rate_limit
+    def delete_named_range(self, named_range_id: str) -> None:
+        """Elimina un named range por su id (obtenido de ``list_named_ranges``)."""
+        self._metadata.delete_named_range(self._spreadsheet(), named_range_id)
 
 
 class WorksheetContext:
@@ -483,6 +499,53 @@ class WorksheetContext:
         self._m._worksheet.update_dimension(
             self._ws, "COLUMNS", start - 1, end or start, {"hiddenByUser": False}, "hiddenByUser"
         )
+
+    # ------------------------------------------------------------------
+    # Notas de celda
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def update_note(self, cell: str, text: str) -> None:
+        """Fija la nota de una celda (ej. ``update_note("B2", "revisar")``)."""
+        self._m._metadata.set_note(self._ws, grid_range(cell, self._ws.id), text)
+
+    @retry_on_rate_limit
+    def clear_note(self, cell: str) -> None:
+        """Quita la nota de una celda."""
+        self._m._metadata.set_note(self._ws, grid_range(cell, self._ws.id), "")
+
+    @retry_on_rate_limit
+    def get_note(self, cell: str) -> str:
+        """Devuelve la nota de una celda (cadena vacía si no tiene)."""
+        return self._m._metadata.get_note(self._ws, f"{self._ws.title}!{cell}")
+
+    # ------------------------------------------------------------------
+    # Named ranges / protected ranges
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def define_named_range(self, name: str, range_name: str) -> None:
+        """Define un named range que apunta a un rango A1 de esta hoja."""
+        self._m._metadata.define_named_range(self._ws, name, grid_range(range_name, self._ws.id))
+
+    @retry_on_rate_limit
+    def add_protected_range(
+        self, range_name: str, description: str | None = None, warning_only: bool = False
+    ) -> None:
+        """Protege un rango A1 de esta hoja (``warning_only`` solo advierte)."""
+        self._m._metadata.add_protected_range(
+            self._ws, grid_range(range_name, self._ws.id), description, warning_only
+        )
+
+    @retry_on_rate_limit
+    def list_protected_ranges(self) -> list[dict[str, Any]]:
+        """Lista los rangos protegidos de esta hoja."""
+        return self._m._metadata.list_protected_ranges(self._ws)
+
+    @retry_on_rate_limit
+    def delete_protected_range(self, protected_range_id: str) -> None:
+        """Quita la protección de un rango por su id (de ``list_protected_ranges``)."""
+        self._m._metadata.delete_protected_range(self._ws.spreadsheet, protected_range_id)
 
     # ------------------------------------------------------------------
     # Integración con pandas

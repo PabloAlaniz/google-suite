@@ -120,6 +120,10 @@ class SpreadsheetPort(Protocol):
         """Envía una petición ``spreadsheets.batchUpdate``."""
         ...
 
+    def get_metadata(self, ranges: list[str] | None, fields: str) -> dict[str, Any]:
+        """Lee metadata del documento (``spreadsheets.get``) filtrando por ranges/fields."""
+        ...
+
     def share(
         self,
         email_address: str,

@@ -223,3 +223,13 @@ class TestRequestEquivalence:
             }
         }
         assert rule.to_request(GridRange.from_dict(grid)) == expected
+
+
+class TestSpreadsheetIdFromUrl:
+    def test_extracts_key(self):
+        url = "https://docs.google.com/spreadsheets/d/1AbC-dEf_123/edit#gid=0"
+        assert SpreadsheetId.from_url(url).value == "1AbC-dEf_123"
+
+    def test_invalid_url_raises(self):
+        with pytest.raises(InvalidIdentifierError):
+            SpreadsheetId.from_url("https://example.com/nope")

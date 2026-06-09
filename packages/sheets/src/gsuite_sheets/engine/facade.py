@@ -22,7 +22,9 @@ from .application.sharing_service import SharingService
 from .application.validation_service import ValidationService
 from .application.worksheet_service import WorksheetService
 from .config import DEFAULT_VALUE_INPUT_OPTION
-from .domain.values import CellFormat, Color
+from .domain.errors import GSpreadManagerError
+from .domain.numericise import numericise_all, numericise_records
+from .domain.values import CellFormat, Color, SpreadsheetId
 from .infrastructure.auth import build_auth_strategy
 from .infrastructure.gspread_client import GspreadClientAdapter
 from .infrastructure.pandas_adapter import PandasDataFrameAdapter
@@ -43,9 +45,10 @@ class SheetManager:
 
     def __init__(
         self,
-        doc_name: str,
+        doc_name: str | None = None,
         json_google_file: str | None = None,
         *,
+        key: str | None = None,
         max_retries: int = 3,
         retry_backoff: float = 1.0,
         credentials: Any = None,
@@ -53,8 +56,15 @@ class SheetManager:
         service_account_info: dict[str, Any] | None = None,
         use_adc: bool = False,
     ) -> None:
-        """Configura la autenticación y los servicios de aplicación."""
+        """Configura la autenticación y los servicios de aplicación.
+
+        Indicá ``doc_name`` (abrir por nombre) o ``key`` (abrir por id de Drive). Para abrir
+        por URL usá el classmethod :meth:`open_by_url`.
+        """
+        if doc_name is None and key is None:
+            raise GSpreadManagerError("Indicá 'doc_name' o 'key' al crear SheetManager.")
         self.doc_name = doc_name
+        self._key = key
         self.max_retries = max_retries
         self.retry_backoff = retry_backoff
         auth = build_auth_strategy(
@@ -81,10 +91,34 @@ class SheetManager:
         """Salida del context manager (las operaciones se aplican de inmediato)."""
         return
 
+    @classmethod
+    def open_by_key(
+        cls, key: str, json_google_file: str | None = None, **kwargs: Any
+    ) -> SheetManager:
+        """Crea un gestor para el documento con ``key`` (id de Drive)."""
+        return cls(key=key, json_google_file=json_google_file, **kwargs)
+
+    @classmethod
+    def open_by_url(
+        cls, url: str, json_google_file: str | None = None, **kwargs: Any
+    ) -> SheetManager:
+        """Crea un gestor para el documento de una URL de Google Sheets."""
+        return cls(
+            key=SpreadsheetId.from_url(url).value, json_google_file=json_google_file, **kwargs
+        )
+
+    def _spreadsheet(self, doc_name: str | None = None) -> Any:
+        """Abre el documento: por ``doc_name`` explícito, o por la key/nombre del gestor."""
+        name = doc_name if doc_name is not None else self.doc_name
+        if name is not None:
+            return self._client.open(name)
+        assert self._key is not None  # garantizado por __init__  # noqa: S101
+        return self._client.open_by_key(self._key)
+
     @retry_on_rate_limit
     def worksheet(self, tab_name: str | None = None) -> WorksheetContext:
         """Devuelve un handle inmutable a una pestaña (la primera si ``tab_name`` es None)."""
-        spreadsheet = self._client.open(self.doc_name)
+        spreadsheet = self._spreadsheet()
         ws = spreadsheet.worksheet(tab_name) if tab_name else spreadsheet.sheet1
         return WorksheetContext(ws, self)
 
@@ -97,14 +131,14 @@ class SheetManager:
         self, title: str, rows: int = 100, cols: int = 26, index: int | None = None
     ) -> WorksheetContext:
         """Crea una nueva pestaña y devuelve su handle (sin cambiar ninguna 'hoja activa')."""
-        spreadsheet = self._client.open(self.doc_name)
+        spreadsheet = self._spreadsheet()
         ws = self._worksheet.create(spreadsheet, title, rows, cols, index)
         return WorksheetContext(ws, self)
 
     @retry_on_rate_limit
     def delete_sheet(self, title: str) -> None:
         """Elimina la pestaña con el nombre dado."""
-        self._worksheet.delete(self._client.open(self.doc_name), title)
+        self._worksheet.delete(self._spreadsheet(), title)
 
     # ------------------------------------------------------------------
     # Operaciones a nivel documento (Drive)
@@ -154,7 +188,7 @@ class SheetManager:
         doc_name: str | None = None,
     ) -> Any:
         """Comparte el documento (por defecto el de este gestor) con un destinatario."""
-        spreadsheet = self._client.open(doc_name or self.doc_name)
+        spreadsheet = self._spreadsheet(doc_name)
         return self._sharing.share(
             spreadsheet, email_address, role, perm_type, notify, email_message, with_link
         )
@@ -162,16 +196,14 @@ class SheetManager:
     @retry_on_rate_limit
     def list_permissions(self, doc_name: str | None = None) -> list[dict[str, Any]]:
         """Lista los permisos del documento."""
-        return self._sharing.list_permissions(self._client.open(doc_name or self.doc_name))
+        return self._sharing.list_permissions(self._spreadsheet(doc_name))
 
     @retry_on_rate_limit
     def remove_permission(
         self, value: str, role: str = "any", doc_name: str | None = None
     ) -> list[str]:
         """Quita el permiso de un usuario/grupo/dominio; devuelve los IDs eliminados."""
-        return self._sharing.remove_permission(
-            self._client.open(doc_name or self.doc_name), value, role
-        )
+        return self._sharing.remove_permission(self._spreadsheet(doc_name), value, role)
 
 
 class WorksheetContext:
@@ -214,14 +246,19 @@ class WorksheetContext:
         self._m._data.update_row(self._ws, row, data, start_column)
 
     @retry_on_rate_limit
-    def read(self, skiprows: int = 0, output_format: str = "list") -> Any:
-        """Lee la hoja como ``list``, ``dict`` o ``pandas`` (según ``output_format``)."""
+    def read(self, skiprows: int = 0, output_format: str = "list", numericise: bool = False) -> Any:
+        """Lee la hoja como ``list``, ``dict`` o ``pandas`` (según ``output_format``).
+
+        Si ``numericise`` es True, convierte los valores a int/float cuando corresponde
+        (no aplica al formato ``pandas``, que infiere tipos por su cuenta).
+        """
         rows = self._m._data.read_values(self._ws, skiprows)
         if output_format == "dict":
-            return self._m._data.as_dicts(rows)
+            records = self._m._data.as_dicts(rows)
+            return numericise_records(records) if numericise else records
         if output_format == "pandas":
             return self._m._dataframe.from_rows(rows[0], rows[1:])
-        return rows
+        return numericise_all(rows) if numericise else rows
 
     @retry_on_rate_limit
     def read_range(

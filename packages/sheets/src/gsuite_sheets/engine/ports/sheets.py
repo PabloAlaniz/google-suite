@@ -148,6 +148,10 @@ class ClientPort(Protocol):
         """Abre un documento por nombre."""
         ...
 
+    def open_by_key(self, key: str) -> SpreadsheetPort:
+        """Abre un documento por su key (id de Drive)."""
+        ...
+
     def create(self, title: str, folder_id: str | None) -> Any:
         """Crea un nuevo documento."""
         ...

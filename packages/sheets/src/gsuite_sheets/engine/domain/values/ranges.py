@@ -73,6 +73,9 @@ class GridRange:
         )
 
 
+_URL_KEY_PATTERN = re.compile(r"/spreadsheets/d/([a-zA-Z0-9-_]+)")
+
+
 @dataclass(frozen=True)
 class SpreadsheetId:
     """Identificador (fileId de Drive) de un documento de Google Sheets."""
@@ -83,6 +86,14 @@ class SpreadsheetId:
         """Valida que el identificador no esté vacío."""
         if not self.value.strip():
             raise InvalidIdentifierError("SpreadsheetId no puede estar vacío.")
+
+    @classmethod
+    def from_url(cls, url: str) -> SpreadsheetId:
+        """Extrae el id de una URL tipo ``https://docs.google.com/spreadsheets/d/<id>/edit``."""
+        match = _URL_KEY_PATTERN.search(url)
+        if not match:
+            raise InvalidIdentifierError(f"No se pudo extraer el id de la URL: {url!r}.")
+        return cls(match.group(1))
 
     def __str__(self) -> str:
         """Devuelve el identificador crudo."""

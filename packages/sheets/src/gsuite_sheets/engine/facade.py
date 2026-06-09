@@ -24,6 +24,7 @@ from .application.validation_service import ValidationService
 from .application.worksheet_service import WorksheetService
 from .config import DEFAULT_VALUE_INPUT_OPTION
 from .domain.errors import GSpreadManagerError
+from .domain.export import ExportFormat
 from .domain.numericise import numericise_all, numericise_records
 from .domain.values import CellFormat, Color, SpreadsheetId
 from .infrastructure.auth import build_auth_strategy
@@ -220,6 +221,18 @@ class SheetManager:
     def delete_named_range(self, named_range_id: str) -> None:
         """Elimina un named range por su id (obtenido de ``list_named_ranges``)."""
         self._metadata.delete_named_range(self._spreadsheet(), named_range_id)
+
+    # ------------------------------------------------------------------
+    # Exportación del documento
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def export(self, export_format: str = ExportFormat.PDF) -> bytes:
+        """Exporta el documento en el formato dado (ver ``ExportFormat``); devuelve bytes."""
+        mime_type = (
+            export_format.value if isinstance(export_format, ExportFormat) else export_format
+        )
+        return self._spreadsheet().export(mime_type)
 
 
 class WorksheetContext:
@@ -546,6 +559,48 @@ class WorksheetContext:
     def delete_protected_range(self, protected_range_id: str) -> None:
         """Quita la protección de un rango por su id (de ``list_protected_ranges``)."""
         self._m._metadata.delete_protected_range(self._ws.spreadsheet, protected_range_id)
+
+    # ------------------------------------------------------------------
+    # Orden / filtro / merge / color de pestaña
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def sort_range(self, range_name: str, *specs: tuple[int, str]) -> None:
+        """Ordena un rango por columnas. Cada spec es ``(columna_1based, 'asc'|'desc')``."""
+        sort_specs = [
+            {
+                "dimensionIndex": col - 1,
+                "sortOrder": "DESCENDING" if order.lower().startswith("desc") else "ASCENDING",
+            }
+            for col, order in specs
+        ]
+        self._m._worksheet.sort_range(self._ws, grid_range(range_name, self._ws.id), sort_specs)
+
+    @retry_on_rate_limit
+    def set_basic_filter(self, range_name: str | None = None) -> None:
+        """Activa un filtro básico sobre un rango (o toda la hoja si ``range_name`` es None)."""
+        grid = grid_range(range_name, self._ws.id) if range_name else None
+        self._m._worksheet.set_basic_filter(self._ws, grid)
+
+    @retry_on_rate_limit
+    def clear_basic_filter(self) -> None:
+        """Quita el filtro básico de la hoja."""
+        self._m._worksheet.clear_basic_filter(self._ws)
+
+    @retry_on_rate_limit
+    def unmerge(self, range_name: str) -> None:
+        """Deshace la combinación de celdas de un rango."""
+        self._m._worksheet.unmerge(self._ws, grid_range(range_name, self._ws.id))
+
+    @retry_on_rate_limit
+    def set_tab_color(self, color: Color) -> None:
+        """Fija el color de la pestaña."""
+        self._m._worksheet.set_tab_color(self._ws, color)
+
+    @retry_on_rate_limit
+    def clear_tab_color(self) -> None:
+        """Quita el color de la pestaña."""
+        self._m._worksheet.clear_tab_color(self._ws)
 
     # ------------------------------------------------------------------
     # Integración con pandas

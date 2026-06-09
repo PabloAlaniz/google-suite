@@ -124,6 +124,10 @@ class SpreadsheetPort(Protocol):
         """Lee metadata del documento (``spreadsheets.get``) filtrando por ranges/fields."""
         ...
 
+    def export(self, mime_type: str) -> bytes:
+        """Exporta el documento al ``mime_type`` dado (PDF/CSV/XLSX...) y devuelve los bytes."""
+        ...
+
     def share(
         self,
         email_address: str,

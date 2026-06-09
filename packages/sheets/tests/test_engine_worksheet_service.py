@@ -5,6 +5,7 @@ from unittest.mock import Mock
 
 import pytest
 from gspreadmanager.application.worksheet_service import WorksheetService
+from gspreadmanager.domain.values import Color, GridRange
 
 
 @pytest.fixture
@@ -97,4 +98,72 @@ class TestDimensions:
                 "properties": {"hiddenByUser": True},
                 "fields": "hiddenByUser",
             }
+        }
+
+
+class TestSortFilterMergeTab:
+    def _ws(self) -> Any:
+        ws = Mock()
+        ws.id = 7
+        return ws
+
+    def _request(self, ws: Any) -> Any:
+        return ws.spreadsheet.batch_update.call_args[0][0]["requests"][0]
+
+    def _grid(self) -> GridRange:
+        return GridRange(sheet_id=7, start_row_index=0, end_row_index=10)
+
+    def test_sort_range(self):
+        ws = self._ws()
+        specs = [{"dimensionIndex": 0, "sortOrder": "ASCENDING"}]
+        WorksheetService().sort_range(ws, self._grid(), specs)
+        assert self._request(ws) == {
+            "sortRange": {
+                "range": {"sheetId": 7, "startRowIndex": 0, "endRowIndex": 10},
+                "sortSpecs": specs,
+            }
+        }
+
+    def test_set_basic_filter_with_range(self):
+        ws = self._ws()
+        WorksheetService().set_basic_filter(ws, self._grid())
+        assert self._request(ws) == {
+            "setBasicFilter": {
+                "filter": {"range": {"sheetId": 7, "startRowIndex": 0, "endRowIndex": 10}}
+            }
+        }
+
+    def test_set_basic_filter_whole_sheet(self):
+        ws = self._ws()
+        WorksheetService().set_basic_filter(ws, None)
+        assert self._request(ws) == {"setBasicFilter": {"filter": {"range": {"sheetId": 7}}}}
+
+    def test_clear_basic_filter(self):
+        ws = self._ws()
+        WorksheetService().clear_basic_filter(ws)
+        assert self._request(ws) == {"clearBasicFilter": {"sheetId": 7}}
+
+    def test_unmerge(self):
+        ws = self._ws()
+        WorksheetService().unmerge(ws, self._grid())
+        assert self._request(ws) == {
+            "unmergeCells": {"range": {"sheetId": 7, "startRowIndex": 0, "endRowIndex": 10}}
+        }
+
+    def test_set_tab_color(self):
+        ws = self._ws()
+        color = Color(1.0, 0.0, 0.0)
+        WorksheetService().set_tab_color(ws, color)
+        assert self._request(ws) == {
+            "updateSheetProperties": {
+                "properties": {"sheetId": 7, "tabColor": color.to_dict()},
+                "fields": "tabColor",
+            }
+        }
+
+    def test_clear_tab_color(self):
+        ws = self._ws()
+        WorksheetService().clear_tab_color(ws)
+        assert self._request(ws) == {
+            "updateSheetProperties": {"properties": {"sheetId": 7}, "fields": "tabColor"}
         }

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from gspreadmanager.domain.values import Color, GridRange
 from gspreadmanager.ports.sheets import SpreadsheetPort, WorksheetPort
 
 
@@ -121,6 +122,55 @@ class WorksheetService:
                     },
                     "properties": properties,
                     "fields": fields,
+                }
+            },
+        )
+
+    # ------------------------------------------------------------------
+    # Orden / filtro / merge / color de pestaña (vía batchUpdate)
+    # ------------------------------------------------------------------
+
+    def sort_range(
+        self, worksheet: WorksheetPort, grid_range: GridRange, sort_specs: list[dict[str, Any]]
+    ) -> None:
+        """Ordena un rango según ``sort_specs`` (``sortRange``)."""
+        self._apply(
+            worksheet, {"sortRange": {"range": grid_range.to_dict(), "sortSpecs": sort_specs}}
+        )
+
+    def set_basic_filter(self, worksheet: WorksheetPort, grid_range: GridRange | None) -> None:
+        """Activa un filtro básico sobre un rango (o toda la hoja si ``grid_range`` es None)."""
+        filter_range = grid_range.to_dict() if grid_range else {"sheetId": worksheet.id}
+        self._apply(worksheet, {"setBasicFilter": {"filter": {"range": filter_range}}})
+
+    def clear_basic_filter(self, worksheet: WorksheetPort) -> None:
+        """Quita el filtro básico de la hoja."""
+        self._apply(worksheet, {"clearBasicFilter": {"sheetId": worksheet.id}})
+
+    def unmerge(self, worksheet: WorksheetPort, grid_range: GridRange) -> None:
+        """Deshace la combinación de celdas de un rango (``unmergeCells``)."""
+        self._apply(worksheet, {"unmergeCells": {"range": grid_range.to_dict()}})
+
+    def set_tab_color(self, worksheet: WorksheetPort, color: Color) -> None:
+        """Fija el color de la pestaña (``updateSheetProperties`` campo ``tabColor``)."""
+        self._apply(
+            worksheet,
+            {
+                "updateSheetProperties": {
+                    "properties": {"sheetId": worksheet.id, "tabColor": color.to_dict()},
+                    "fields": "tabColor",
+                }
+            },
+        )
+
+    def clear_tab_color(self, worksheet: WorksheetPort) -> None:
+        """Quita el color de la pestaña."""
+        self._apply(
+            worksheet,
+            {
+                "updateSheetProperties": {
+                    "properties": {"sheetId": worksheet.id},
+                    "fields": "tabColor",
                 }
             },
         )

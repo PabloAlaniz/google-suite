@@ -28,8 +28,8 @@ from .domain.export import ExportFormat
 from .domain.numericise import numericise_all, numericise_records
 from .domain.values import CellFormat, Color, SpreadsheetId
 from .infrastructure.auth import build_auth_strategy
+from .infrastructure.dataframe_backend import build_dataframe_adapter
 from .infrastructure.gspread_client import GspreadClientAdapter
-from .infrastructure.pandas_adapter import PandasDataFrameAdapter
 from .infrastructure.request_builders import grid_range
 from .ports.sheets import WorksheetPort
 from .retry import retry_on_rate_limit
@@ -57,11 +57,13 @@ class SheetManager:
         client: Any = None,
         service_account_info: dict[str, Any] | None = None,
         use_adc: bool = False,
+        dataframe_backend: str = "pandas",
     ) -> None:
         """Configura la autenticación y los servicios de aplicación.
 
         Indicá ``doc_name`` (abrir por nombre) o ``key`` (abrir por id de Drive). Para abrir
-        por URL usá el classmethod :meth:`open_by_url`.
+        por URL usá el classmethod :meth:`open_by_url`. ``dataframe_backend`` elige el motor de
+        DataFrame ('pandas' o 'polars') para ``read_dataframe`` / ``write_dataframe``.
         """
         if doc_name is None and key is None:
             raise GSpreadManagerError("Indicá 'doc_name' o 'key' al crear SheetManager.")
@@ -84,7 +86,7 @@ class SheetManager:
         self._document = DocumentService()
         self._sharing = SharingService()
         self._metadata = MetadataService()
-        self._dataframe = DataframeService(PandasDataFrameAdapter())
+        self._dataframe = DataframeService(build_dataframe_adapter(dataframe_backend))
 
     def __enter__(self) -> SheetManager:
         """Permite usar el gestor como context manager."""
@@ -606,13 +608,50 @@ class WorksheetContext:
     # Integración con pandas
     # ------------------------------------------------------------------
 
-    def read_dataframe(self, skiprows: int = 0) -> Any:
-        """Lee la hoja como un DataFrame de pandas (requiere la extra ``pandas``)."""
-        return self.read(skiprows=skiprows, output_format="pandas")
+    @retry_on_rate_limit
+    def read_dataframe(
+        self,
+        skiprows: int = 0,
+        *,
+        drop_empty_rows: bool = False,
+        drop_empty_cols: bool = False,
+        index_col: str | None = None,
+    ) -> Any:
+        """Lee la hoja como un DataFrame (backend del gestor: pandas o polars).
+
+        ``drop_empty_rows``/``drop_empty_cols`` descartan filas/columnas totalmente vacías;
+        ``index_col`` fija una columna como índice (solo pandas).
+        """
+        rows = self._m._data.read_values(self._ws, skiprows)
+        header = rows[0] if rows else []
+        return self._m._dataframe.from_rows(
+            header,
+            rows[1:],
+            index_col=index_col,
+            drop_empty_rows=drop_empty_rows,
+            drop_empty_cols=drop_empty_cols,
+        )
 
     @retry_on_rate_limit
-    def write_dataframe(self, df: Any, include_header: bool = True, clear: bool = True) -> Any:
-        """Escribe un DataFrame de pandas en la hoja desde A1 (limpiándola antes si ``clear``)."""
+    def write_dataframe(
+        self,
+        df: Any,
+        include_header: bool = True,
+        clear: bool = True,
+        *,
+        start_cell: str | None = None,
+        include_index: bool = False,
+    ) -> Any:
+        """Escribe un DataFrame en la hoja (desde A1 o ``start_cell``), limpiándola si ``clear``.
+
+        ``include_index`` vuelca también el índice como primera columna (solo pandas).
+        """
         return self._m._dataframe.write(
-            self._ws, df, include_header, clear, DEFAULT_VALUE_INPUT_OPTION
+            self._ws,
+            df,
+            include_header,
+            clear,
+            DEFAULT_VALUE_INPUT_OPTION,
+            include_index=include_index,
+            start_cell=start_cell,
         )

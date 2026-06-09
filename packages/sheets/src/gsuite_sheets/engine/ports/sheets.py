@@ -83,8 +83,10 @@ class WorksheetPort(Protocol):
         """Busca la primera celda cuyo valor coincide; None si no hay."""
         ...
 
-    def update(self, values: list[list[Any]], value_input_option: str) -> Any:
-        """Escribe ``values`` desde A1."""
+    def update(
+        self, values: list[list[Any]], value_input_option: str, range_name: str | None = None
+    ) -> Any:
+        """Escribe ``values`` desde A1, o desde ``range_name`` (ancla) si se indica."""
         ...
 
 

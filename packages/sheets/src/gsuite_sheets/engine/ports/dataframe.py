@@ -12,10 +12,20 @@ from typing import Any, Protocol
 class DataFramePort(Protocol):
     """Convierte entre filas (listas) y un DataFrame."""
 
-    def from_rows(self, header: list[str], rows: list[list[Any]]) -> Any:
-        """Construye un DataFrame con ``header`` como columnas y ``rows`` como datos."""
+    def from_rows(
+        self, header: list[str], rows: list[list[Any]], *, index_col: str | None = None
+    ) -> Any:
+        """Construye un DataFrame con ``header`` como columnas y ``rows`` como datos.
+
+        ``index_col`` fija esa columna como índice (solo pandas; polars la ignora).
+        """
         ...
 
-    def to_rows(self, df: Any, include_header: bool) -> list[list[Any]]:
-        """Convierte un DataFrame en filas, anteponiendo el encabezado si se pide."""
+    def to_rows(
+        self, df: Any, include_header: bool, *, include_index: bool = False
+    ) -> list[list[Any]]:
+        """Convierte un DataFrame en filas, anteponiendo el encabezado si se pide.
+
+        ``include_index`` vuelca también el índice como primera columna (solo pandas).
+        """
         ...

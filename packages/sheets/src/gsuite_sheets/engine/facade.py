@@ -31,7 +31,7 @@ from .infrastructure.auth import build_auth_strategy
 from .infrastructure.dataframe_backend import build_dataframe_adapter
 from .infrastructure.gspread_client import GspreadClientAdapter
 from .infrastructure.request_builders import grid_range
-from .ports.sheets import WorksheetPort
+from .ports.sheets import ClientPort, WorksheetPort
 from .retry import retry_on_rate_limit
 
 
@@ -58,12 +58,16 @@ class SheetManager:
         service_account_info: dict[str, Any] | None = None,
         use_adc: bool = False,
         dataframe_backend: str = "pandas",
+        sheets_client: ClientPort | None = None,
     ) -> None:
         """Configura la autenticación y los servicios de aplicación.
 
         Indicá ``doc_name`` (abrir por nombre) o ``key`` (abrir por id de Drive). Para abrir
         por URL usá el classmethod :meth:`open_by_url`. ``dataframe_backend`` elige el motor de
         DataFrame ('pandas' o 'polars') para ``read_dataframe`` / ``write_dataframe``.
+
+        ``sheets_client`` inyecta un ``ClientPort`` propio (ej. el backend en memoria de
+        ``gspreadmanager.testing``), salteando la autenticación con gspread.
         """
         if doc_name is None and key is None:
             raise GSpreadManagerError("Indicá 'doc_name' o 'key' al crear SheetManager.")
@@ -71,14 +75,17 @@ class SheetManager:
         self._key = key
         self.max_retries = max_retries
         self.retry_backoff = retry_backoff
-        auth = build_auth_strategy(
-            credentials=credentials,
-            service_account_info=service_account_info,
-            json_google_file=json_google_file,
-            client=client,
-            use_adc=use_adc,
-        )
-        self._client = GspreadClientAdapter(auth)
+        if sheets_client is not None:
+            self._client: ClientPort = sheets_client
+        else:
+            auth = build_auth_strategy(
+                credentials=credentials,
+                service_account_info=service_account_info,
+                json_google_file=json_google_file,
+                client=client,
+                use_adc=use_adc,
+            )
+            self._client = GspreadClientAdapter(auth)
         self._data = DataService()
         self._formatting = FormattingService()
         self._validation = ValidationService()

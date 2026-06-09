@@ -1,5 +1,7 @@
 """Tests del limitador de tasa (token bucket) y su cableado en el facade."""
 
+from __future__ import annotations
+
 from typing import Any
 
 import pytest

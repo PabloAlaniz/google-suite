@@ -148,7 +148,7 @@ class SheetManager:
         name = doc_name if doc_name is not None else self.doc_name
         if name is not None:
             return self._client.open(name)
-        assert self._key is not None  # garantizado por __init__  # noqa: S101
+        assert self._key is not None  # garantizado por __init__  # noqa: S101  # nosec B101
         return self._client.open_by_key(self._key)
 
     @retry_on_rate_limit

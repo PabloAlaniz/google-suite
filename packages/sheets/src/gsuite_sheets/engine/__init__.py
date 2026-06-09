@@ -4,7 +4,7 @@ from .domain.export import ExportFormat
 from .domain.values import Border, Borders, CellFormat, Color, NumberFormat, TextFormat
 from .facade import SheetManager, WorksheetContext
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 __all__ = [
     "DEFAULT_VALUE_INPUT_OPTION",

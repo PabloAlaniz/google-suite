@@ -28,10 +28,11 @@ from .domain.errors import GSpreadManagerError
 from .domain.export import ExportFormat
 from .domain.numericise import numericise_all, numericise_records
 from .domain.values import CellFormat, Color, SpreadsheetId
-from .infrastructure.auth import build_auth_strategy
+from .infrastructure.auth import build_auth_strategy, build_credentials
 from .infrastructure.cache import CachingClient
 from .infrastructure.dataframe_backend import build_dataframe_adapter
 from .infrastructure.gspread_client import GspreadClientAdapter
+from .infrastructure.native import DEFAULT_HTTP_TIMEOUT, SheetsApiClient, build_authorized_session
 from .infrastructure.rate_limit import TokenBucketRateLimiter
 from .infrastructure.request_builders import grid_range
 from .ports.rate_limit import RateLimiter
@@ -61,6 +62,8 @@ class SheetManager:
         client: Any = None,
         service_account_info: dict[str, Any] | None = None,
         use_adc: bool = False,
+        backend: str = "gspread",
+        http_timeout: float | None = DEFAULT_HTTP_TIMEOUT,
         dataframe_backend: str = "pandas",
         sheets_client: ClientPort | None = None,
         cache: bool = False,
@@ -72,6 +75,10 @@ class SheetManager:
         Indicá ``doc_name`` (abrir por nombre) o ``key`` (abrir por id de Drive). Para abrir
         por URL usá el classmethod :meth:`open_by_url`. ``dataframe_backend`` elige el motor de
         DataFrame ('pandas' o 'polars') para ``read_dataframe`` / ``write_dataframe``.
+
+        ``backend`` elige el transporte: ``"gspread"`` (default) o ``"native"`` (cliente REST
+        propio sobre google-auth, sin gspread; ver ADR 0001). ``http_timeout`` (segundos, solo
+        backend nativo) limita cada petición HTTP; ``None`` lo desactiva.
 
         ``sheets_client`` inyecta un ``ClientPort`` propio (ej. el backend en memoria de
         ``gspreadmanager.testing``), salteando la autenticación con gspread.
@@ -93,7 +100,21 @@ class SheetManager:
         )
         if sheets_client is not None:
             base_client: ClientPort = sheets_client
-        else:
+        elif backend == "native":
+            if client is not None:
+                raise GSpreadManagerError(
+                    "El parámetro 'client' (cliente de gspread preautorizado) no aplica "
+                    "con backend='native'; usá credentials, service_account_info, "
+                    "json_google_file o use_adc."
+                )
+            creds = build_credentials(
+                credentials=credentials,
+                service_account_info=service_account_info,
+                json_google_file=json_google_file,
+                use_adc=use_adc,
+            )
+            base_client = SheetsApiClient(build_authorized_session(creds, timeout=http_timeout))
+        elif backend == "gspread":
             auth = build_auth_strategy(
                 credentials=credentials,
                 service_account_info=service_account_info,
@@ -102,6 +123,10 @@ class SheetManager:
                 use_adc=use_adc,
             )
             base_client = GspreadClientAdapter(auth)
+        else:
+            raise GSpreadManagerError(
+                f"Backend desconocido: {backend!r}. Usá 'gspread' o 'native'."
+            )
         self._cache = CachingClient(base_client) if cache else None
         self._client: ClientPort = self._cache or base_client
         self._data = DataService()

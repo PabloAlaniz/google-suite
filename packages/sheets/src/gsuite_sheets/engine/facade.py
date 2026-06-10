@@ -12,6 +12,7 @@ viven en los adaptadores de infraestructura.
 
 from __future__ import annotations
 
+import importlib.util
 from typing import Any
 
 from .application.data_service import DataService
@@ -28,16 +29,33 @@ from .domain.errors import GSpreadManagerError
 from .domain.export import ExportFormat
 from .domain.numericise import numericise_all, numericise_records
 from .domain.values import CellFormat, Color, SpreadsheetId
-from .infrastructure.auth import build_auth_strategy, build_credentials
+from .infrastructure.auth import GSPREAD_MISSING_MESSAGE, build_auth_strategy, build_credentials
 from .infrastructure.cache import CachingClient
 from .infrastructure.dataframe_backend import build_dataframe_adapter
-from .infrastructure.gspread_client import GspreadClientAdapter
 from .infrastructure.native import DEFAULT_HTTP_TIMEOUT, SheetsApiClient, build_authorized_session
 from .infrastructure.rate_limit import TokenBucketRateLimiter
 from .infrastructure.request_builders import grid_range
 from .ports.rate_limit import RateLimiter
 from .ports.sheets import ClientPort, WorksheetPort
 from .retry import retry_on_rate_limit
+
+
+def _gspread_client_adapter(auth: Any) -> ClientPort:
+    """Construye el adaptador de gspread (import diferido: gspread es un extra opcional)."""
+    try:
+        from .infrastructure.gspread_client import GspreadClientAdapter  # noqa: PLC0415
+    except ImportError as exc:
+        raise GSpreadManagerError(GSPREAD_MISSING_MESSAGE) from exc
+    return GspreadClientAdapter(auth)
+
+
+def _resolve_backend(backend: str, client: Any) -> str:
+    """Resuelve ``backend="auto"``: gspread si está instalado (o hay ``client``), si no nativo."""
+    if backend != "auto":
+        return backend
+    if client is not None or importlib.util.find_spec("gspread") is not None:
+        return "gspread"
+    return "native"
 
 
 class SheetManager:
@@ -62,7 +80,7 @@ class SheetManager:
         client: Any = None,
         service_account_info: dict[str, Any] | None = None,
         use_adc: bool = False,
-        backend: str = "gspread",
+        backend: str = "auto",
         http_timeout: float | None = DEFAULT_HTTP_TIMEOUT,
         dataframe_backend: str = "pandas",
         sheets_client: ClientPort | None = None,
@@ -76,9 +94,11 @@ class SheetManager:
         por URL usá el classmethod :meth:`open_by_url`. ``dataframe_backend`` elige el motor de
         DataFrame ('pandas' o 'polars') para ``read_dataframe`` / ``write_dataframe``.
 
-        ``backend`` elige el transporte: ``"gspread"`` (default) o ``"native"`` (cliente REST
-        propio sobre google-auth, sin gspread; ver ADR 0001). ``http_timeout`` (segundos, solo
-        backend nativo) limita cada petición HTTP; ``None`` lo desactiva.
+        ``backend`` elige el transporte: ``"auto"`` (default: gspread si está instalado, si no
+        el nativo), ``"gspread"`` o ``"native"`` (cliente REST propio sobre google-auth, sin
+        gspread; ver ADR 0001). gspread es un **extra opcional**
+        (``pip install "GSpreadManager[gspread]"``). ``http_timeout`` (segundos, solo backend
+        nativo) limita cada petición HTTP; ``None`` lo desactiva.
 
         ``sheets_client`` inyecta un ``ClientPort`` propio (ej. el backend en memoria de
         ``gspreadmanager.testing``), salteando la autenticación con gspread.
@@ -98,6 +118,7 @@ class SheetManager:
         self._rate_limiter: RateLimiter | None = (
             TokenBucketRateLimiter(rate_limit, rate_limit_burst) if rate_limit is not None else None
         )
+        backend = _resolve_backend(backend, client)
         if sheets_client is not None:
             base_client: ClientPort = sheets_client
         elif backend == "native":
@@ -122,10 +143,10 @@ class SheetManager:
                 client=client,
                 use_adc=use_adc,
             )
-            base_client = GspreadClientAdapter(auth)
+            base_client = _gspread_client_adapter(auth)
         else:
             raise GSpreadManagerError(
-                f"Backend desconocido: {backend!r}. Usá 'gspread' o 'native'."
+                f"Backend desconocido: {backend!r}. Usá 'auto', 'gspread' o 'native'."
             )
         self._cache = CachingClient(base_client) if cache else None
         self._client: ClientPort = self._cache or base_client

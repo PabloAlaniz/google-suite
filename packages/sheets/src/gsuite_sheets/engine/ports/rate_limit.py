@@ -16,3 +16,11 @@ class RateLimiter(Protocol):
     def acquire(self) -> None:
         """Bloquea hasta que haya cupo para una operación (consume un permiso)."""
         ...
+
+
+class AsyncRateLimiter(Protocol):
+    """Versión async del freno de tasa: espera con ``asyncio.sleep`` (sin bloquear)."""
+
+    async def acquire(self) -> None:
+        """Consume un permiso, esperando de forma cooperativa si no hay cupo."""
+        ...

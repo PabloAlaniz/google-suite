@@ -4,6 +4,7 @@ Pensado para que los usuarios prueben su código sin tocar la red. Ver
 ``gspreadmanager.testing.in_memory`` para el detalle.
 """
 
+from .async_in_memory import AsyncInMemoryBackend
 from .in_memory import (
     FakeCell,
     InMemoryBackend,
@@ -13,6 +14,7 @@ from .in_memory import (
 )
 
 __all__ = [
+    "AsyncInMemoryBackend",
     "FakeCell",
     "InMemoryBackend",
     "InMemoryClient",

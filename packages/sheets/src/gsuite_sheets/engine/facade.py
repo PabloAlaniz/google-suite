@@ -80,8 +80,16 @@ def _gspread_client_adapter(auth: Any) -> ClientPort:
     return GspreadClientAdapter(auth)
 
 
-def _resolve_backend(backend: str, client: Any) -> str:
-    """Resuelve ``backend="auto"``: gspread si está instalado (o hay ``client``), si no nativo."""
+def _resolve_backend(backend: str | None, client: Any) -> str:
+    """Resuelve el backend efectivo.
+
+    - ``None`` (default 3.0): **nativo**, salvo que se pase un ``client`` de gspread
+      preautorizado (compatibilidad).
+    - ``"auto"``: gspread si está instalado (o hay ``client``), si no el nativo.
+    - ``"gspread"`` / ``"native"``: explícitos.
+    """
+    if backend is None:
+        return "gspread" if client is not None else "native"
     if backend != "auto":
         return backend
     if client is not None or importlib.util.find_spec("gspread") is not None:
@@ -111,7 +119,7 @@ class SheetManager:
         client: Any = None,
         service_account_info: dict[str, Any] | None = None,
         use_adc: bool = False,
-        backend: str = "auto",
+        backend: str | None = None,
         http_timeout: float | None = DEFAULT_HTTP_TIMEOUT,
         dataframe_backend: str = "pandas",
         sheets_client: ClientPort | None = None,
@@ -128,11 +136,12 @@ class SheetManager:
         por URL usá el classmethod :meth:`open_by_url`. ``dataframe_backend`` elige el motor de
         DataFrame ('pandas' o 'polars') para ``read_dataframe`` / ``write_dataframe``.
 
-        ``backend`` elige el transporte: ``"auto"`` (default: gspread si está instalado, si no
-        el nativo), ``"gspread"`` o ``"native"`` (cliente REST propio sobre google-auth, sin
-        gspread; ver ADR 0001). gspread es un **extra opcional**
-        (``pip install "GSpreadManager[gspread]"``). ``http_timeout`` (segundos, solo backend
-        nativo) limita cada petición HTTP; ``None`` lo desactiva.
+        ``backend`` elige el transporte. Desde la 3.0 el default es el **cliente nativo**
+        (REST propio sobre google-auth; culmina el ADR 0001), salvo que se pase ``client=``
+        (un cliente de gspread preautorizado). Valores: ``"native"``, ``"gspread"`` (requiere
+        el extra ``pip install "GSpreadManager[gspread]"``) o ``"auto"`` (gspread si está
+        instalado, si no nativo — el default de la 2.x). ``http_timeout`` (segundos, solo
+        backend nativo) limita cada petición HTTP; ``None`` lo desactiva.
 
         ``sheets_client`` inyecta un ``ClientPort`` propio (ej. el backend en memoria de
         ``gspreadmanager.testing``), salteando la autenticación con gspread.

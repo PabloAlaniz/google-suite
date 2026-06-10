@@ -15,6 +15,13 @@ from gspreadmanager.ports.model_codec import ModelCodec
 from gspreadmanager.ports.sheets import WorksheetPort
 
 
+def schema_drift(expected: list[str], header: list[str]) -> tuple[list[str], list[str]]:
+    """Compara el encabezado esperado por el modelo con el de la hoja: ``(faltan, sobran)``."""
+    missing = [column for column in expected if column not in header]
+    extra = [column for column in header if column not in expected and column != ""]
+    return missing, extra
+
+
 class RowModelService:
     """Casos de uso de lectura/escritura de filas tipadas (codec por modelo)."""
 
@@ -102,8 +109,7 @@ class RowModelService:
             worksheet.update([expected], "RAW")
             return {"created": True, "missing": [], "extra": []}
 
-        missing = [column for column in expected if column not in header]
-        extra = [column for column in header if column not in expected and column != ""]
+        missing, extra = schema_drift(expected, header)
         if missing:
             raise SchemaError(
                 f"El encabezado no cubre el modelo: faltan {missing} (sobran: {extra}).",

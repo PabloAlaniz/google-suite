@@ -1,5 +1,6 @@
 import logging
 
+from .async_facade import AsyncSheetManager, AsyncWorksheetContext
 from .config import DEFAULT_VALUE_INPUT_OPTION
 from .domain.errors import (
     ApiError,
@@ -20,11 +21,13 @@ from .facade import SheetManager, WorksheetContext
 # ``logging.getLogger("gspreadmanager")`` si quiere ver requests/retries/caché.
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
-__version__ = "2.1.0"
+__version__ = "3.0.0"
 
 __all__ = [
     "DEFAULT_VALUE_INPUT_OPTION",
     "ApiError",
+    "AsyncSheetManager",
+    "AsyncWorksheetContext",
     "Border",
     "Borders",
     "CellFormat",

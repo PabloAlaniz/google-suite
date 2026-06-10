@@ -111,6 +111,28 @@ class GridRange:
             end_column_index=data.get("endColumnIndex"),
         )
 
+    def overlaps(self, other: GridRange) -> bool:
+        """True si ambos rangos se intersecan (límites ``None`` = sin tope en ese eje).
+
+        Compara solo la geometría: ignora ``sheet_id`` (quien compara decide si las hojas
+        coinciden).
+        """
+
+        def axis(s1: int | None, e1: int | None, s2: int | None, e2: int | None) -> bool:
+            start1, start2 = s1 or 0, s2 or 0
+            return (e2 is None or start1 < e2) and (e1 is None or start2 < e1)
+
+        rows = axis(
+            self.start_row_index, self.end_row_index, other.start_row_index, other.end_row_index
+        )
+        cols = axis(
+            self.start_column_index,
+            self.end_column_index,
+            other.start_column_index,
+            other.end_column_index,
+        )
+        return rows and cols
+
     @classmethod
     def from_a1(cls, a1_range: str, sheet_id: int) -> GridRange:
         """Convierte un rango A1 en un ``GridRange`` (0-based, fin exclusivo) para ``sheet_id``.

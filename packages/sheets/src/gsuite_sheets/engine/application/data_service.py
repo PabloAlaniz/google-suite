@@ -41,6 +41,17 @@ class DataService:
         """
         return worksheet.get_all_values(value_render_option)[skiprows:]
 
+    def read_page(self, worksheet: WorksheetPort, start_row: int, end_row: int) -> list[list[str]]:
+        """Lee las filas ``[start_row, end_row]`` (1-based, inclusivo) vía ``values_get``.
+
+        Es la pieza de paginación de ``iter_rows``: la API omite las filas vacías al final
+        del rango, así que una página corta indica el fin de los datos.
+        """
+        a1 = f"{worksheet.title}!{start_row}:{end_row}"
+        data = worksheet.spreadsheet.values_get(a1)
+        rows: list[list[str]] = data.get("values", []) if isinstance(data, dict) else []
+        return rows
+
     def import_rows(self, worksheet: WorksheetPort, rows: list[list[str]], clear: bool) -> Any:
         """Vuelca ``rows`` (ej. parseadas de un CSV) desde A1, limpiando antes si ``clear``."""
         if clear:

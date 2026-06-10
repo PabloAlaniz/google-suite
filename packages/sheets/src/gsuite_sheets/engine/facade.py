@@ -13,6 +13,7 @@ viven en los adaptadores de infraestructura.
 from __future__ import annotations
 
 import importlib.util
+from collections.abc import Iterator
 from typing import Any
 
 from .application.data_service import DataService
@@ -31,7 +32,7 @@ from .domain.csv_data import rows_from_csv
 from .domain.errors import GSpreadManagerError, WorksheetNotFoundError
 from .domain.export import ExportFormat
 from .domain.numericise import numericise_all, numericise_records
-from .domain.schema import models_to_rows
+from .domain.schema import models_to_rows, rows_to_models
 from .domain.values import CellFormat, Color, SpreadsheetId
 from .infrastructure.auth import GSPREAD_MISSING_MESSAGE, build_auth_strategy, build_credentials
 from .infrastructure.cache import CachingClient
@@ -108,6 +109,8 @@ class SheetManager:
         dataframe_backend: str = "pandas",
         sheets_client: ClientPort | None = None,
         cache: bool = False,
+        cache_ttl: float | None = None,
+        cache_max_entries: int | None = None,
         rate_limit: float | None = None,
         rate_limit_burst: float | None = None,
         batch_cell_limit: int | None = DEFAULT_MAX_CELLS_PER_REQUEST,
@@ -129,6 +132,9 @@ class SheetManager:
 
         ``cache=True`` activa una caché de lecturas que se invalida con cada escritura propia
         (no detecta cambios de otros procesos); usá :meth:`clear_cache` para forzar el refresco.
+        ``cache_ttl`` (segundos) expira las entradas y acota la ventana de staleness;
+        ``cache_max_entries`` limita el tamaño (desalojo LRU). Pasar cualquiera de los dos
+        activa la caché aunque no se indique ``cache=True``.
 
         ``rate_limit`` (operaciones por segundo) activa un freno proactivo de cuota (token
         bucket); ``rate_limit_burst`` fija la ráfaga máxima (por defecto ``max(1, rate_limit)``).
@@ -177,7 +183,12 @@ class SheetManager:
             raise GSpreadManagerError(
                 f"Backend desconocido: {backend!r}. Usá 'auto', 'gspread' o 'native'."
             )
-        self._cache = CachingClient(base_client) if cache else None
+        cache_enabled = cache or cache_ttl is not None or cache_max_entries is not None
+        self._cache = (
+            CachingClient(base_client, ttl=cache_ttl, max_entries=cache_max_entries)
+            if cache_enabled
+            else None
+        )
         self._client: ClientPort = self._cache or base_client
         self._data = DataService()
         self._formatting = FormattingService()
@@ -476,6 +487,55 @@ class WorksheetContext:
     def insert(self, data: list[list[Any]], fila: int | None = None) -> Any:
         """Inserta ``data`` en ``fila`` (o al final), validando lista de listas homogénea."""
         return self._m._data.insert(self._ws, self._ws.title, data, fila)
+
+    def iter_rows(self, page_size: int = 1000, skiprows: int = 0) -> Iterator[list[str]]:
+        """Itera las filas de la hoja de a páginas de ``page_size`` (lectura perezosa).
+
+        Pensado para hojas grandes: solo materializa una página por vez. Cada página pide
+        su propio permiso al rate limiter y tiene su propio retry. Las filas se devuelven
+        como vienen de la API (sin padding a un ancho uniforme).
+        """
+        if page_size < 1:
+            raise GSpreadManagerError(f"page_size inválido: {page_size} (debe ser >= 1).")
+        start = skiprows + 1
+        while True:
+            rows = self._read_page(start, start + page_size - 1)
+            yield from rows
+            if len(rows) < page_size:
+                return
+            start += page_size
+
+    def iter_records(self, page_size: int = 1000) -> Iterator[dict[str, str]]:
+        """Itera las filas como dicts ``{columna: valor}`` (encabezado en la fila 1)."""
+        header = self._header_row()
+        if header is None:
+            return
+        for row in self.iter_rows(page_size, skiprows=1):
+            padded = row + [""] * (len(header) - len(row))
+            yield dict(zip(header, padded))
+
+    def iter_as(self, model: type, page_size: int = 1000) -> Iterator[Any]:
+        """Itera las filas como instancias de ``model`` (dataclass), de a páginas."""
+        if page_size < 1:
+            raise GSpreadManagerError(f"page_size inválido: {page_size} (debe ser >= 1).")
+        header = self._header_row()
+        if header is None:
+            return
+        start = 2
+        while True:
+            rows = self._read_page(start, start + page_size - 1)
+            yield from rows_to_models(model, header, rows)
+            if len(rows) < page_size:
+                return
+            start += page_size
+
+    def _header_row(self) -> list[str] | None:
+        rows = self._read_page(1, 1)
+        return rows[0] if rows else None
+
+    @retry_on_rate_limit
+    def _read_page(self, start: int, end: int) -> list[list[str]]:
+        return self._m._data.read_page(self._ws, start, end)
 
     @retry_on_rate_limit
     def import_csv(self, source: Any, *, clear: bool = True, delimiter: str = ",") -> Any:

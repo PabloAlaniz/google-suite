@@ -37,6 +37,42 @@ class WorksheetService:
         """Busca la primera celda cuyo valor coincide con ``query``; None si no hay."""
         return worksheet.find(query, case_sensitive)
 
+    def list_worksheets(self, spreadsheet: SpreadsheetPort) -> list[dict[str, Any]]:
+        """Lista las propiedades de las pestañas: ``{'sheetId', 'title', 'index', ...}``."""
+        meta = spreadsheet.get_metadata(None, "sheets.properties(sheetId,title,index,hidden)")
+        return [sheet["properties"] for sheet in meta.get("sheets", [])]
+
+    def find_replace(
+        self,
+        worksheet: WorksheetPort,
+        find: str,
+        replacement: str,
+        *,
+        match_case: bool,
+        match_entire_cell: bool,
+        search_by_regex: bool,
+        include_formulas: bool,
+    ) -> dict[str, Any]:
+        """Reemplaza ocurrencias en la hoja (``findReplace``); devuelve el resumen de la API."""
+        request = {
+            "findReplace": {
+                "find": find,
+                "replacement": replacement,
+                "sheetId": worksheet.id,
+                "matchCase": match_case,
+                "matchEntireCell": match_entire_cell,
+                "searchByRegex": search_by_regex,
+                "includeFormulas": include_formulas,
+            }
+        }
+        result = worksheet.spreadsheet.batch_update({"requests": [request]})
+        if isinstance(result, dict):
+            replies = result.get("replies") or []
+            if replies and isinstance(replies[0], dict):
+                reply: dict[str, Any] = replies[0].get("findReplace", {})
+                return reply
+        return {}
+
     # ------------------------------------------------------------------
     # Manipulación de dimensiones (filas / columnas) vía batchUpdate.
     # ``dimension`` es "ROWS" o "COLUMNS"; los índices son 0-based, fin exclusivo.

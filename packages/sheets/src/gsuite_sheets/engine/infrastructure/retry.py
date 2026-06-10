@@ -1,31 +1,26 @@
 """Implementación de ``RetryPolicy``: backoff exponencial ante errores transitorios.
 
-Esta es la pieza concreta que conoce gspread (``APIError``) y el reloj (``time.sleep``).
-La capa de aplicación depende del puerto ``RetryPolicy``, no de esta clase.
+Opera sobre los ``ApiError`` del dominio (los adaptadores ya tradujeron el error del
+transporte concreto), por lo que funciona igual con gspread, el cliente nativo o cualquier
+otro backend. Esta es la pieza concreta que conoce el reloj (``time.sleep``); la capa de
+aplicación depende del puerto ``RetryPolicy``, no de esta clase.
 """
 
 from __future__ import annotations
 
+import logging
 import time
 from collections.abc import Callable
 from typing import TypeVar
 
-from gspread.exceptions import APIError
+from gspreadmanager.domain.errors import ApiError
 
 T = TypeVar("T")
 
+logger = logging.getLogger(__name__)
+
 # Códigos HTTP que justifican un reintento (cuota / sobrecarga temporal).
 RETRYABLE_STATUS = {429, 500, 503}
-
-
-def _status_code(error: APIError) -> int | None:
-    """Extrae el código de estado HTTP de un APIError de gspread."""
-    response = getattr(error, "response", None)
-    status = getattr(response, "status_code", None)
-    if isinstance(status, int):
-        return status
-    code = getattr(error, "code", None)
-    return code if isinstance(code, int) else None
 
 
 class ExponentialBackoffRetry:
@@ -46,9 +41,16 @@ class ExponentialBackoffRetry:
         while True:
             try:
                 return operation()
-            except APIError as exc:  # noqa: PERF203  (try/except por intento es inherente al reintento)
-                status = _status_code(exc)
-                if status not in RETRYABLE_STATUS or attempt >= self.max_retries:
+            except ApiError as exc:  # noqa: PERF203  (try/except por intento es inherente al reintento)
+                if exc.status_code not in RETRYABLE_STATUS or attempt >= self.max_retries:
                     raise
-                time.sleep(self.backoff * (2**attempt))
+                delay = self.backoff * (2**attempt)
+                logger.warning(
+                    "Error transitorio de la API (HTTP %s); reintento %d/%d en %.1fs.",
+                    exc.status_code,
+                    attempt + 1,
+                    self.max_retries,
+                    delay,
+                )
+                time.sleep(delay)
                 attempt += 1

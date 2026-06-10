@@ -8,10 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from gspread.utils import rowcol_to_a1
-
 from gspreadmanager.config import DEFAULT_VALUE_INPUT_OPTION
 from gspreadmanager.domain.errors import InsertError
+from gspreadmanager.domain.values import rowcol_to_a1
 from gspreadmanager.ports.sheets import SpreadsheetPort, WorksheetPort
 
 
@@ -29,9 +28,35 @@ class DataService:
         for index, value in enumerate(data, start=(start_column or 1)):
             worksheet.update_cell(row, index, value)
 
-    def read_values(self, worksheet: WorksheetPort, skiprows: int = 0) -> list[list[str]]:
-        """Devuelve todas las filas de la hoja, omitiendo las primeras ``skiprows``."""
-        return worksheet.get_all_values()[skiprows:]
+    def read_values(
+        self,
+        worksheet: WorksheetPort,
+        skiprows: int = 0,
+        value_render_option: str | None = None,
+    ) -> list[list[str]]:
+        """Devuelve todas las filas de la hoja, omitiendo las primeras ``skiprows``.
+
+        ``value_render_option``: ``"FORMATTED_VALUE"``, ``"UNFORMATTED_VALUE"`` o
+        ``"FORMULA"`` (None usa el default de la API: formateado).
+        """
+        return worksheet.get_all_values(value_render_option)[skiprows:]
+
+    def read_page(self, worksheet: WorksheetPort, start_row: int, end_row: int) -> list[list[str]]:
+        """Lee las filas ``[start_row, end_row]`` (1-based, inclusivo) vía ``values_get``.
+
+        Es la pieza de paginación de ``iter_rows``: la API omite las filas vacías al final
+        del rango, así que una página corta indica el fin de los datos.
+        """
+        a1 = f"{worksheet.title}!{start_row}:{end_row}"
+        data = worksheet.spreadsheet.values_get(a1)
+        rows: list[list[str]] = data.get("values", []) if isinstance(data, dict) else []
+        return rows
+
+    def import_rows(self, worksheet: WorksheetPort, rows: list[list[str]], clear: bool) -> Any:
+        """Vuelca ``rows`` (ej. parseadas de un CSV) desde A1, limpiando antes si ``clear``."""
+        if clear:
+            worksheet.clear()
+        return worksheet.update(rows, "RAW")
 
     def as_dicts(self, rows: list[list[str]]) -> list[dict[str, str]]:
         """Convierte filas (con encabezado en la primera) en lista de diccionarios."""

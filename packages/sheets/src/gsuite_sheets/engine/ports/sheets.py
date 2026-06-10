@@ -35,8 +35,12 @@ class WorksheetPort(Protocol):
         """Actualiza una celda (índices 1-based)."""
         ...
 
-    def get_all_values(self) -> list[list[str]]:
-        """Devuelve todas las filas como lista de listas."""
+    def get_all_values(self, value_render_option: str | None = None) -> list[list[str]]:
+        """Devuelve todas las filas como lista de listas.
+
+        ``value_render_option`` (opcional): ``"FORMATTED_VALUE"`` (default de la API),
+        ``"UNFORMATTED_VALUE"`` o ``"FORMULA"``.
+        """
         ...
 
     def append_rows(self, data: list[list[Any]], value_input_option: str) -> Any:
@@ -87,6 +91,10 @@ class WorksheetPort(Protocol):
         self, values: list[list[Any]], value_input_option: str, range_name: str | None = None
     ) -> Any:
         """Escribe ``values`` desde A1, o desde ``range_name`` (ancla) si se indica."""
+        ...
+
+    def copy_to(self, destination_spreadsheet_id: str) -> Any:
+        """Copia esta hoja a otro documento (``sheets.copyTo``); devuelve sus propiedades."""
         ...
 
 

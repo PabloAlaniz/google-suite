@@ -20,12 +20,16 @@ No es un clon fiel de la API: el formato/validación/orden/filtro se registran e
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from gspread.utils import a1_range_to_grid_range
-
-from gspreadmanager.domain.errors import GSpreadManagerError
+from gspreadmanager.domain.errors import (
+    GSpreadManagerError,
+    SpreadsheetNotFoundError,
+    WorksheetNotFoundError,
+)
+from gspreadmanager.domain.values import GridRange
 from gspreadmanager.ports.sheets import SpreadsheetPort, WorksheetPort
 
 if TYPE_CHECKING:
@@ -41,9 +45,14 @@ class FakeCell:
     value: str
 
 
+def _grid_dict(a1_range: str) -> dict[str, int]:
+    """Resuelve un rango A1 (sin pestaña) a su dict ``GridRange`` con la conversión del dominio."""
+    return GridRange.from_a1(a1_range, sheet_id=0).to_dict()
+
+
 def _anchor(a1_range: str) -> tuple[int, int]:
     """Devuelve el (row0, col0) 0-based de la esquina superior izquierda de un rango A1."""
-    grid = a1_range_to_grid_range(a1_range.split("!", 1)[-1])
+    grid = _grid_dict(a1_range)
     return grid.get("startRowIndex", 0), grid.get("startColumnIndex", 0)
 
 
@@ -92,7 +101,7 @@ class _Grid:
 
     def clear_block(self, a1_range: str) -> None:
         """Borra las celdas dentro del rango A1 indicado."""
-        grid = a1_range_to_grid_range(a1_range.split("!", 1)[-1])
+        grid = _grid_dict(a1_range.split("!", 1)[-1])
         r1 = grid.get("startRowIndex", 0) + 1
         r2 = grid.get("endRowIndex", self.max_row)
         c1 = grid.get("startColumnIndex", 0) + 1
@@ -158,8 +167,12 @@ class InMemoryWorksheet:
         """Actualiza una celda (1-based)."""
         self._grid.set(row, col, value)
 
-    def get_all_values(self) -> list[list[str]]:
-        """Devuelve todas las filas como matriz rectangular de strings."""
+    def get_all_values(self, value_render_option: str | None = None) -> list[list[str]]:
+        """Devuelve todas las filas como matriz rectangular de strings.
+
+        ``value_render_option`` se acepta por contrato y se ignora: el fake no modela
+        fórmulas ni formato (devuelve siempre el valor almacenado).
+        """
         return self._grid.all_values()
 
     def append_rows(self, data: list[list[Any]], value_input_option: str) -> Any:
@@ -192,7 +205,7 @@ class InMemoryWorksheet:
 
     def range(self, name: str) -> list[Any]:
         """Celdas del rango A1 como ``FakeCell`` (incluye vacías dentro del rango)."""
-        grid = a1_range_to_grid_range(name.split("!", 1)[-1])
+        grid = _grid_dict(name.split("!", 1)[-1])
         r1 = grid.get("startRowIndex", 0) + 1
         r2 = grid.get("endRowIndex", self._grid.max_row)
         c1 = grid.get("startColumnIndex", 0) + 1
@@ -237,6 +250,17 @@ class InMemoryWorksheet:
                     return FakeCell(row=r, col=c, value=value)
         return None
 
+    def copy_to(self, destination_spreadsheet_id: str) -> dict[str, Any]:
+        """Copia esta hoja a otro documento del mismo backend (``sheets.copyTo``)."""
+        client = self._ss.client
+        if client is None:
+            raise GSpreadManagerError(
+                "copy_to requiere que el documento esté registrado en un InMemoryClient."
+            )
+        dest = client.spreadsheet_by_key(destination_spreadsheet_id)
+        copy = dest.seed(f"Copia de {self._title}", self.get_all_values())
+        return {"sheetId": copy.id, "title": copy.title, "index": len(dest.worksheets) - 1}
+
 
 class InMemorySpreadsheet:
     """``SpreadsheetPort`` en memoria: contiene hojas, notas, named/protected ranges y permisos."""
@@ -245,6 +269,8 @@ class InMemorySpreadsheet:
         """Crea un documento vacío con título e id."""
         self.title = title
         self.id = file_id
+        # Cliente al que está registrado (lo fija InMemoryClient.register; habilita copy_to).
+        self.client: InMemoryClient | None = None
         self._worksheets: list[InMemoryWorksheet] = []
         self._next_sheet_id = 0
         self.requests: list[dict[str, Any]] = []
@@ -281,7 +307,7 @@ class InMemorySpreadsheet:
         for ws in self._worksheets:
             if ws.title == name:
                 return ws
-        raise GSpreadManagerError(f"No existe la hoja '{name}' en '{self.title}'.")
+        raise WorksheetNotFoundError(f"No existe la hoja '{name}' en '{self.title}'.")
 
     def add_worksheet(self, title: str, rows: int, cols: int, index: int | None) -> WorksheetPort:
         """Crea una nueva hoja y la devuelve."""
@@ -304,7 +330,7 @@ class InMemorySpreadsheet:
         for ws in self._worksheets:
             if ws.id == sheet_id:
                 return ws
-        raise GSpreadManagerError(f"No existe la hoja con id {sheet_id}.")
+        raise WorksheetNotFoundError(f"No existe la hoja con id {sheet_id}.")
 
     # -- valores ----------------------------------------------------------
 
@@ -354,7 +380,7 @@ class InMemorySpreadsheet:
             self._by_id(rng["sheetId"]).grid.remove(
                 rng["dimension"], rng["startIndex"], rng["endIndex"]
             )
-        elif "updateCells" in request:
+        elif "updateCells" in request and "note" in request["updateCells"].get("fields", ""):
             self._store_note(request["updateCells"])
         elif "addNamedRange" in request:
             self._add_named(request["addNamedRange"]["namedRange"])
@@ -366,6 +392,23 @@ class InMemorySpreadsheet:
         elif "deleteProtectedRange" in request:
             target = request["deleteProtectedRange"]["protectedRangeId"]
             self._protected = [p for p in self._protected if p["protectedRangeId"] != target]
+        elif "findReplace" in request:
+            self._apply_find_replace(request["findReplace"])
+
+    def _apply_find_replace(self, spec: dict[str, Any]) -> None:
+        """Aplica un findReplace literal sobre la grilla (sin regex: el fake es simple)."""
+        ws = self._by_id(spec["sheetId"])
+        find, replacement = spec["find"], spec["replacement"]
+        match_case = spec.get("matchCase", False)
+        entire = spec.get("matchEntireCell", False)
+        flags = 0 if match_case else re.IGNORECASE
+        pattern = re.compile(re.escape(find), flags)
+        for (row, col), value in list(ws.grid._cells.items()):
+            if entire:
+                if pattern.fullmatch(value):
+                    ws.grid.set(row, col, replacement)
+            elif pattern.search(value):
+                ws.grid.set(row, col, pattern.sub(replacement, value))
 
     def _store_note(self, update: dict[str, Any]) -> None:
         rng = update["range"]
@@ -389,7 +432,14 @@ class InMemorySpreadsheet:
     # -- metadata ---------------------------------------------------------
 
     def get_metadata(self, ranges: list[str] | None, fields: str) -> dict[str, Any]:
-        """Lee metadata: notas (por rango), named ranges o protected ranges según ``fields``."""
+        """Lee metadata: hojas, notas (por rango), named o protected ranges según ``fields``."""
+        if "sheets.properties" in fields:
+            return {
+                "sheets": [
+                    {"properties": {"sheetId": ws.id, "title": ws.title, "index": i}}
+                    for i, ws in enumerate(self._worksheets)
+                ]
+            }
         if "namedRanges" in fields:
             return {"namedRanges": list(self._named)}
         if "protectedRanges" in fields:
@@ -484,18 +534,25 @@ class InMemoryClient:
         """Registra un documento ya construido (por nombre e id)."""
         self._by_name[spreadsheet.title] = spreadsheet
         self._by_id[spreadsheet.id] = spreadsheet
+        spreadsheet.client = self
         return spreadsheet
+
+    def spreadsheet_by_key(self, key: str) -> InMemorySpreadsheet:
+        """Documento registrado por id, como ``InMemorySpreadsheet`` (inspección/copy_to)."""
+        if key not in self._by_id:
+            raise SpreadsheetNotFoundError(f"No se encontró el documento con id '{key}'.")
+        return self._by_id[key]
 
     def open(self, doc_name: str) -> SpreadsheetPort:
         """Abre un documento por nombre."""
         if doc_name not in self._by_name:
-            raise GSpreadManagerError(f"No se encontró el documento '{doc_name}'.")
+            raise SpreadsheetNotFoundError(f"No se encontró el documento '{doc_name}'.")
         return self._by_name[doc_name]
 
     def open_by_key(self, key: str) -> SpreadsheetPort:
         """Abre un documento por su id."""
         if key not in self._by_id:
-            raise GSpreadManagerError(f"No se encontró el documento con id '{key}'.")
+            raise SpreadsheetNotFoundError(f"No se encontró el documento con id '{key}'.")
         return self._by_id[key]
 
     def create(self, title: str, folder_id: str | None) -> Any:

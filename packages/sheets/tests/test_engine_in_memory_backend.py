@@ -3,7 +3,15 @@
 from dataclasses import dataclass
 
 import pytest
-from gspreadmanager import Color, ExportFormat, GSpreadManagerError, SchemaError, SheetManager
+from gspreadmanager import (
+    Color,
+    ExportFormat,
+    GSpreadManagerError,
+    SchemaError,
+    SheetManager,
+    SpreadsheetNotFoundError,
+    WorksheetNotFoundError,
+)
 from gspreadmanager.testing import InMemoryBackend, InMemoryClient, InMemorySpreadsheet
 
 
@@ -230,3 +238,21 @@ class TestWiringAndErrors:
         other = backend.manager("Otro")
         mgr.worksheet("Hoja1").append([["new", "row"]])
         assert other.worksheet("H").read() == [["z"]]
+
+
+class TestErrorContract:
+    """Los not-found del backend en memoria usan los mismos errores de dominio (v2.2)."""
+
+    def test_missing_worksheet_raises_specific_error(self, mgr):
+        with pytest.raises(WorksheetNotFoundError):
+            mgr.worksheet("NoExiste")
+
+    def test_missing_document_raises_specific_error(self, backend):
+        # La apertura es perezosa: el error salta en la primera operación.
+        with pytest.raises(SpreadsheetNotFoundError):
+            backend.manager("OtroDoc").worksheet("Hoja1")
+
+    def test_specific_errors_remain_catchable_as_base(self, mgr):
+        # Compatibilidad: el código que captura GSpreadManagerError sigue funcionando.
+        with pytest.raises(GSpreadManagerError):
+            mgr.worksheet("NoExiste")

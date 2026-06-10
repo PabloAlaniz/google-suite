@@ -10,11 +10,14 @@ la cuota: espera *antes* de la operación si no hay cupo.
 
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from collections.abc import Callable
 
 from gspreadmanager.domain.errors import GSpreadManagerError
+
+logger = logging.getLogger(__name__)
 
 
 class TokenBucketRateLimiter:
@@ -48,7 +51,9 @@ class TokenBucketRateLimiter:
         with self._lock:
             self._refill()
             if self._tokens < 1.0:
-                self._sleep((1.0 - self._tokens) / self.rate)
+                wait = (1.0 - self._tokens) / self.rate
+                logger.debug("Rate limit: esperando %.3fs por un permiso.", wait)
+                self._sleep(wait)
                 self._refill()
             self._tokens -= 1.0
 

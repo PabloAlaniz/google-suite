@@ -12,6 +12,8 @@ viven en los adaptadores de infraestructura.
 
 from __future__ import annotations
 
+import importlib.util
+from collections.abc import Iterator
 from typing import Any
 
 from .application.data_service import DataService
@@ -21,22 +23,78 @@ from .application.formatting_service import FormattingService
 from .application.metadata_service import MetadataService
 from .application.row_model_service import RowModelService
 from .application.sharing_service import SharingService
+from .application.table_service import TableService, Where
 from .application.validation_service import ValidationService
+from .application.visualization_service import VisualizationService
 from .application.worksheet_service import WorksheetService
 from .config import DEFAULT_VALUE_INPUT_OPTION
-from .domain.errors import GSpreadManagerError
+from .domain.batching import DEFAULT_MAX_CELLS_PER_REQUEST, split_range_data, split_rows
+from .domain.csv_data import rows_from_csv
+from .domain.errors import GSpreadManagerError, WorksheetNotFoundError
 from .domain.export import ExportFormat
 from .domain.numericise import numericise_all, numericise_records
-from .domain.values import CellFormat, Color, SpreadsheetId
-from .infrastructure.auth import build_auth_strategy
+from .domain.values import (
+    BandingSpec,
+    CellFormat,
+    ChartSpec,
+    Color,
+    DeveloperMetadataEntry,
+    SpreadsheetId,
+)
+from .infrastructure.auth import GSPREAD_MISSING_MESSAGE, build_auth_strategy, build_credentials
 from .infrastructure.cache import CachingClient
 from .infrastructure.dataframe_backend import build_dataframe_adapter
-from .infrastructure.gspread_client import GspreadClientAdapter
+from .infrastructure.native import DEFAULT_HTTP_TIMEOUT, SheetsApiClient, build_authorized_session
 from .infrastructure.rate_limit import TokenBucketRateLimiter
 from .infrastructure.request_builders import grid_range
 from .ports.rate_limit import RateLimiter
 from .ports.sheets import ClientPort, WorksheetPort
 from .retry import retry_on_rate_limit
+
+# Render options al leer: nombre amigable -> enum de la Sheets API.
+_RENDER_OPTIONS = {
+    "formatted": "FORMATTED_VALUE",
+    "unformatted": "UNFORMATTED_VALUE",
+    "formula": "FORMULA",
+}
+
+
+def _resolve_render(render: str | None) -> str | None:
+    """Mapea ``render`` ('formatted'/'unformatted'/'formula') al enum de la API."""
+    if render is None:
+        return None
+    try:
+        return _RENDER_OPTIONS[render]
+    except KeyError:
+        raise GSpreadManagerError(
+            f"render inválido: {render!r}. Usá 'formatted', 'unformatted' o 'formula'."
+        ) from None
+
+
+def _gspread_client_adapter(auth: Any) -> ClientPort:
+    """Construye el adaptador de gspread (import diferido: gspread es un extra opcional)."""
+    try:
+        from .infrastructure.gspread_client import GspreadClientAdapter  # noqa: PLC0415
+    except ImportError as exc:
+        raise GSpreadManagerError(GSPREAD_MISSING_MESSAGE) from exc
+    return GspreadClientAdapter(auth)
+
+
+def _resolve_backend(backend: str | None, client: Any) -> str:
+    """Resuelve el backend efectivo.
+
+    - ``None`` (default 3.0): **nativo**, salvo que se pase un ``client`` de gspread
+      preautorizado (compatibilidad).
+    - ``"auto"``: gspread si está instalado (o hay ``client``), si no el nativo.
+    - ``"gspread"`` / ``"native"``: explícitos.
+    """
+    if backend is None:
+        return "gspread" if client is not None else "native"
+    if backend != "auto":
+        return backend
+    if client is not None or importlib.util.find_spec("gspread") is not None:
+        return "gspread"
+    return "native"
 
 
 class SheetManager:
@@ -61,11 +119,16 @@ class SheetManager:
         client: Any = None,
         service_account_info: dict[str, Any] | None = None,
         use_adc: bool = False,
+        backend: str | None = None,
+        http_timeout: float | None = DEFAULT_HTTP_TIMEOUT,
         dataframe_backend: str = "pandas",
         sheets_client: ClientPort | None = None,
         cache: bool = False,
+        cache_ttl: float | None = None,
+        cache_max_entries: int | None = None,
         rate_limit: float | None = None,
         rate_limit_burst: float | None = None,
+        batch_cell_limit: int | None = DEFAULT_MAX_CELLS_PER_REQUEST,
     ) -> None:
         """Configura la autenticación y los servicios de aplicación.
 
@@ -73,14 +136,28 @@ class SheetManager:
         por URL usá el classmethod :meth:`open_by_url`. ``dataframe_backend`` elige el motor de
         DataFrame ('pandas' o 'polars') para ``read_dataframe`` / ``write_dataframe``.
 
+        ``backend`` elige el transporte. Desde la 3.0 el default es el **cliente nativo**
+        (REST propio sobre google-auth; culmina el ADR 0001), salvo que se pase ``client=``
+        (un cliente de gspread preautorizado). Valores: ``"native"``, ``"gspread"`` (requiere
+        el extra ``pip install "GSpreadManager[gspread]"``) o ``"auto"`` (gspread si está
+        instalado, si no nativo — el default de la 2.x). ``http_timeout`` (segundos, solo
+        backend nativo) limita cada petición HTTP; ``None`` lo desactiva.
+
         ``sheets_client`` inyecta un ``ClientPort`` propio (ej. el backend en memoria de
         ``gspreadmanager.testing``), salteando la autenticación con gspread.
 
         ``cache=True`` activa una caché de lecturas que se invalida con cada escritura propia
         (no detecta cambios de otros procesos); usá :meth:`clear_cache` para forzar el refresco.
+        ``cache_ttl`` (segundos) expira las entradas y acota la ventana de staleness;
+        ``cache_max_entries`` limita el tamaño (desalojo LRU). Pasar cualquiera de los dos
+        activa la caché aunque no se indique ``cache=True``.
 
         ``rate_limit`` (operaciones por segundo) activa un freno proactivo de cuota (token
         bucket); ``rate_limit_burst`` fija la ráfaga máxima (por defecto ``max(1, rate_limit)``).
+
+        ``batch_cell_limit`` (celdas por petición de escritura) parte automáticamente los
+        ``append``/``batch_update``/``upsert`` grandes en varias peticiones (cada chunk con
+        su propio retry y permiso del rate limiter); ``None`` desactiva el chunking.
         """
         if doc_name is None and key is None:
             raise GSpreadManagerError("Indicá 'doc_name' o 'key' al crear SheetManager.")
@@ -88,12 +165,28 @@ class SheetManager:
         self._key = key
         self.max_retries = max_retries
         self.retry_backoff = retry_backoff
+        self.batch_cell_limit = batch_cell_limit
         self._rate_limiter: RateLimiter | None = (
             TokenBucketRateLimiter(rate_limit, rate_limit_burst) if rate_limit is not None else None
         )
+        backend = _resolve_backend(backend, client)
         if sheets_client is not None:
             base_client: ClientPort = sheets_client
-        else:
+        elif backend == "native":
+            if client is not None:
+                raise GSpreadManagerError(
+                    "El parámetro 'client' (cliente de gspread preautorizado) no aplica "
+                    "con backend='native'; usá credentials, service_account_info, "
+                    "json_google_file o use_adc."
+                )
+            creds = build_credentials(
+                credentials=credentials,
+                service_account_info=service_account_info,
+                json_google_file=json_google_file,
+                use_adc=use_adc,
+            )
+            base_client = SheetsApiClient(build_authorized_session(creds, timeout=http_timeout))
+        elif backend == "gspread":
             auth = build_auth_strategy(
                 credentials=credentials,
                 service_account_info=service_account_info,
@@ -101,8 +194,17 @@ class SheetManager:
                 client=client,
                 use_adc=use_adc,
             )
-            base_client = GspreadClientAdapter(auth)
-        self._cache = CachingClient(base_client) if cache else None
+            base_client = _gspread_client_adapter(auth)
+        else:
+            raise GSpreadManagerError(
+                f"Backend desconocido: {backend!r}. Usá 'auto', 'gspread' o 'native'."
+            )
+        cache_enabled = cache or cache_ttl is not None or cache_max_entries is not None
+        self._cache = (
+            CachingClient(base_client, ttl=cache_ttl, max_entries=cache_max_entries)
+            if cache_enabled
+            else None
+        )
         self._client: ClientPort = self._cache or base_client
         self._data = DataService()
         self._formatting = FormattingService()
@@ -112,6 +214,8 @@ class SheetManager:
         self._sharing = SharingService()
         self._metadata = MetadataService()
         self._rows = RowModelService()
+        self._table = TableService()
+        self._visualization = VisualizationService()
         self._dataframe = DataframeService(build_dataframe_adapter(dataframe_backend))
 
     def __enter__(self) -> SheetManager:
@@ -158,6 +262,25 @@ class SheetManager:
         ws = spreadsheet.worksheet(tab_name) if tab_name else spreadsheet.sheet1
         return WorksheetContext(ws, self)
 
+    @retry_on_rate_limit
+    def list_worksheets(self) -> list[dict[str, Any]]:
+        """Lista las pestañas del documento: ``{'sheetId', 'title', 'index', ...}``."""
+        return self._worksheet.list_worksheets(self._spreadsheet())
+
+    def worksheet_by_index(self, index: int) -> WorksheetContext:
+        """Devuelve el handle de la pestaña en la posición ``index`` (0-based)."""
+        for props in self.list_worksheets():
+            if props.get("index", -1) == index:
+                return self.worksheet(props["title"])
+        raise WorksheetNotFoundError(f"No existe la hoja con índice {index}.")
+
+    def worksheet_by_id(self, sheet_id: int) -> WorksheetContext:
+        """Devuelve el handle de la pestaña con el ``sheetId`` dado."""
+        for props in self.list_worksheets():
+            if props.get("sheetId") == sheet_id:
+                return self.worksheet(props["title"])
+        raise WorksheetNotFoundError(f"No existe la hoja con id {sheet_id}.")
+
     # ------------------------------------------------------------------
     # Gestión de hojas
     # ------------------------------------------------------------------
@@ -175,6 +298,13 @@ class SheetManager:
     def delete_sheet(self, title: str) -> None:
         """Elimina la pestaña con el nombre dado."""
         self._worksheet.delete(self._spreadsheet(), title)
+
+    def worksheet_or_create(self, title: str, rows: int = 100, cols: int = 26) -> WorksheetContext:
+        """Devuelve el handle de la pestaña ``title``, creándola si no existe."""
+        try:
+            return self.worksheet(title)
+        except WorksheetNotFoundError:
+            return self.create_sheet(title, rows, cols)
 
     # ------------------------------------------------------------------
     # Operaciones a nivel documento (Drive)
@@ -207,6 +337,41 @@ class SheetManager:
     ) -> list[dict[str, Any]]:
         """Lista los documentos accesibles (filtrando por título/carpeta si se indica)."""
         return self._document.list(self._client, title, folder_id)
+
+    @retry_on_rate_limit
+    def update_title(self, title: str) -> None:
+        """Renombra el documento (``updateSpreadsheetProperties``)."""
+        self._document.update_title(self._spreadsheet(), title)
+
+    @retry_on_rate_limit
+    def update_locale(self, locale: str) -> None:
+        """Cambia el locale del documento (ej. ``"es_AR"``)."""
+        self._document.update_locale(self._spreadsheet(), locale)
+
+    @retry_on_rate_limit
+    def update_timezone(self, timezone: str) -> None:
+        """Cambia la zona horaria del documento (ej. ``"America/Argentina/Buenos_Aires"``)."""
+        self._document.update_timezone(self._spreadsheet(), timezone)
+
+    # ------------------------------------------------------------------
+    # Developer metadata (clave/valor invisible para el usuario final)
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def set_developer_metadata(self, key: str, value: str, visibility: str = "DOCUMENT") -> None:
+        """Guarda un par clave/valor de developer metadata anclado al documento."""
+        entry = DeveloperMetadataEntry(key, value, visibility)
+        self._metadata.set_developer_metadata(self._spreadsheet(), entry, sheet_id=None)
+
+    @retry_on_rate_limit
+    def list_developer_metadata(self) -> list[dict[str, Any]]:
+        """Lista la developer metadata del documento y de todas sus hojas."""
+        return self._metadata.list_developer_metadata(self._spreadsheet())
+
+    @retry_on_rate_limit
+    def delete_developer_metadata(self, key: str) -> None:
+        """Elimina toda la developer metadata con la clave dada."""
+        self._metadata.delete_developer_metadata(self._spreadsheet(), key)
 
     # ------------------------------------------------------------------
     # Permisos / compartir
@@ -309,13 +474,21 @@ class WorksheetContext:
         self._m._data.update_row(self._ws, row, data, start_column)
 
     @retry_on_rate_limit
-    def read(self, skiprows: int = 0, output_format: str = "list", numericise: bool = False) -> Any:
+    def read(
+        self,
+        skiprows: int = 0,
+        output_format: str = "list",
+        numericise: bool = False,
+        render: str | None = None,
+    ) -> Any:
         """Lee la hoja como ``list``, ``dict`` o ``pandas`` (según ``output_format``).
 
         Si ``numericise`` es True, convierte los valores a int/float cuando corresponde
-        (no aplica al formato ``pandas``, que infiere tipos por su cuenta).
+        (no aplica al formato ``pandas``, que infiere tipos por su cuenta). ``render``
+        controla cómo devuelve los valores la API: ``"formatted"`` (default),
+        ``"unformatted"`` (números crudos) o ``"formula"`` (la fórmula en vez del valor).
         """
-        rows = self._m._data.read_values(self._ws, skiprows)
+        rows = self._m._data.read_values(self._ws, skiprows, _resolve_render(render))
         if output_format == "dict":
             records = self._m._data.as_dicts(rows)
             return numericise_records(records) if numericise else records
@@ -331,9 +504,20 @@ class WorksheetContext:
         a1 = f"{self._ws.title}!{column_start}{fila_start}:{column_end}{fila_end}"
         return self._m._data.read_range(self._ws.spreadsheet, a1, fila_start)
 
-    @retry_on_rate_limit
     def append(self, data: list[list[Any]]) -> Any:
-        """Añade filas al final de la hoja."""
+        """Añade filas al final de la hoja.
+
+        Si ``data`` supera ``batch_cell_limit`` (celdas), se parte en varios appends —
+        cada chunk con su propio retry y permiso del rate limiter — y se devuelve la
+        lista de respuestas.
+        """
+        chunks = split_rows(data, self._m.batch_cell_limit)
+        if len(chunks) == 1:
+            return self._append_chunk(chunks[0])
+        return [self._append_chunk(chunk) for chunk in chunks]
+
+    @retry_on_rate_limit
+    def _append_chunk(self, data: list[list[Any]]) -> Any:
         return self._m._data.append(self._ws, data, DEFAULT_VALUE_INPUT_OPTION)
 
     @retry_on_rate_limit
@@ -341,12 +525,126 @@ class WorksheetContext:
         """Inserta ``data`` en ``fila`` (o al final), validando lista de listas homogénea."""
         return self._m._data.insert(self._ws, self._ws.title, data, fila)
 
+    def iter_rows(self, page_size: int = 1000, skiprows: int = 0) -> Iterator[list[str]]:
+        """Itera las filas de la hoja de a páginas de ``page_size`` (lectura perezosa).
+
+        Pensado para hojas grandes: solo materializa una página por vez. Cada página pide
+        su propio permiso al rate limiter y tiene su propio retry. Las filas se devuelven
+        como vienen de la API (sin padding a un ancho uniforme).
+        """
+        if page_size < 1:
+            raise GSpreadManagerError(f"page_size inválido: {page_size} (debe ser >= 1).")
+        start = skiprows + 1
+        while True:
+            rows = self._read_page(start, start + page_size - 1)
+            yield from rows
+            if len(rows) < page_size:
+                return
+            start += page_size
+
+    def iter_records(self, page_size: int = 1000) -> Iterator[dict[str, str]]:
+        """Itera las filas como dicts ``{columna: valor}`` (encabezado en la fila 1)."""
+        header = self._header_row()
+        if header is None:
+            return
+        for row in self.iter_rows(page_size, skiprows=1):
+            padded = row + [""] * (len(header) - len(row))
+            yield dict(zip(header, padded))
+
+    def iter_as(self, model: type, page_size: int = 1000) -> Iterator[Any]:
+        """Itera las filas como instancias de ``model`` (dataclass o Pydantic), de a páginas."""
+        if page_size < 1:
+            raise GSpreadManagerError(f"page_size inválido: {page_size} (debe ser >= 1).")
+        header = self._header_row()
+        if header is None:
+            return
+        start = 2
+        while True:
+            rows = self._read_page(start, start + page_size - 1)
+            yield from self._m._rows.to_models(model, header, rows)
+            if len(rows) < page_size:
+                return
+            start += page_size
+
+    def _header_row(self) -> list[str] | None:
+        rows = self._read_page(1, 1)
+        return rows[0] if rows else None
+
     @retry_on_rate_limit
+    def _read_page(self, start: int, end: int) -> list[list[str]]:
+        return self._m._data.read_page(self._ws, start, end)
+
+    @retry_on_rate_limit
+    def import_csv(self, source: Any, *, clear: bool = True, delimiter: str = ",") -> Any:
+        """Vuelca un CSV en la hoja desde A1 (limpiándola antes salvo ``clear=False``).
+
+        ``source`` puede ser una ruta (``str``/``Path``) o un objeto file-like abierto en
+        modo texto. Los valores se escriben en crudo (``RAW``), sin interpretación.
+        """
+        if hasattr(source, "read"):
+            text = source.read()
+        else:
+            from pathlib import Path  # noqa: PLC0415
+
+            text = Path(source).read_text(encoding="utf-8")
+        return self._m._data.import_rows(self._ws, rows_from_csv(text, delimiter), clear)
+
     def batch_update(
         self, range_data: list[dict[str, Any]], value_input_option: str = DEFAULT_VALUE_INPUT_OPTION
     ) -> None:
-        """Actualiza varios rangos en una sola petición."""
+        """Actualiza varios rangos en una sola petición.
+
+        Si el total supera ``batch_cell_limit`` (celdas), se parte en varias peticiones
+        (un rango individual nunca se parte).
+        """
+        for chunk in split_range_data(range_data, self._m.batch_cell_limit):
+            self._batch_update_chunk(chunk, value_input_option)
+
+    @retry_on_rate_limit
+    def _batch_update_chunk(
+        self, range_data: list[dict[str, Any]], value_input_option: str
+    ) -> None:
         self._m._data.batch_update(self._ws, range_data, value_input_option)
+
+    # ------------------------------------------------------------------
+    # La hoja como tabla (encabezado en la fila 1)
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def upsert(self, rows: list[dict[str, Any]] | list[list[Any]], key: str) -> dict[str, int]:
+        """Actualiza por la columna clave ``key`` las filas existentes y agrega las nuevas.
+
+        ``rows``: dicts ``{columna: valor}`` (solo se actualizan las columnas presentes) o
+        listas alineadas al encabezado. Devuelve ``{"updated": n, "appended": m}``.
+        """
+        return self._m._table.upsert(
+            self._ws, rows, key, DEFAULT_VALUE_INPUT_OPTION, self._m.batch_cell_limit
+        )
+
+    @retry_on_rate_limit
+    def upsert_models(self, models: list[Any], key: str) -> dict[str, int]:
+        """Upsert de modelos tipados (dataclasses o Pydantic) por la columna clave ``key``."""
+        header, rows = self._m._rows.to_rows(models)
+        records = [dict(zip(header, row)) for row in rows]
+        return self._m._table.upsert(
+            self._ws, records, key, DEFAULT_VALUE_INPUT_OPTION, self._m.batch_cell_limit
+        )
+
+    @retry_on_rate_limit
+    def update_where(self, where: Where, updates: dict[str, Any]) -> int:
+        """Aplica ``updates`` (``{columna: valor}``) a las filas que cumplen ``where``.
+
+        ``where``: dict de igualdades (``{"estado": "pendiente"}``) o un predicado que
+        recibe la fila como dict. Devuelve la cantidad de filas afectadas.
+        """
+        return self._m._table.update_where(
+            self._ws, where, updates, DEFAULT_VALUE_INPUT_OPTION, self._m.batch_cell_limit
+        )
+
+    @retry_on_rate_limit
+    def delete_where(self, where: Where) -> int:
+        """Elimina las filas que cumplen ``where``; devuelve cuántas se borraron."""
+        return self._m._table.delete_where(self._ws, where)
 
     @retry_on_rate_limit
     def rows_where_column_equals(self, column: int, value: Any) -> list[tuple[int, list[str]]]:
@@ -461,6 +759,41 @@ class WorksheetContext:
     def clear(self, ranges: str | list[str] | None = None) -> None:
         """Limpia uno o más rangos, o toda la hoja si ``ranges`` es None."""
         self._m._worksheet.clear(self._ws, ranges)
+
+    @retry_on_rate_limit
+    def find_replace(
+        self,
+        find: str,
+        replacement: str,
+        *,
+        match_case: bool = False,
+        match_entire_cell: bool = False,
+        search_by_regex: bool = False,
+        include_formulas: bool = False,
+    ) -> dict[str, Any]:
+        """Reemplaza ocurrencias de ``find`` por ``replacement`` en esta pestaña.
+
+        Devuelve el resumen de la API (``occurrencesChanged``, ``valuesChanged``, ...).
+        Con ``search_by_regex=True``, ``find`` es una regex (sintaxis RE2 de Google).
+        """
+        return self._m._worksheet.find_replace(
+            self._ws,
+            find,
+            replacement,
+            match_case=match_case,
+            match_entire_cell=match_entire_cell,
+            search_by_regex=search_by_regex,
+            include_formulas=include_formulas,
+        )
+
+    @retry_on_rate_limit
+    def copy_to(self, destination_key: str) -> Any:
+        """Copia esta pestaña a otro documento (por su key de Drive).
+
+        Devuelve las propiedades de la hoja creada (``sheetId``, ``title``, ...). El
+        destino debe ser accesible con las mismas credenciales.
+        """
+        return self._ws.copy_to(destination_key)
 
     @retry_on_rate_limit
     def find(self, query: str, case_sensitive: bool = True) -> Any:
@@ -631,6 +964,79 @@ class WorksheetContext:
         """Fija el color de la pestaña."""
         self._m._worksheet.set_tab_color(self._ws, color)
 
+    # ------------------------------------------------------------------
+    # Charts, pivot tables, banding y developer metadata
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def add_chart(
+        self,
+        chart_type: str,
+        domain: str,
+        series: list[str],
+        *,
+        title: str | None = None,
+        anchor_cell: str = "A1",
+        legend: str = "BOTTOM_LEGEND",
+    ) -> int | None:
+        """Agrega un gráfico embebido y devuelve su ``chartId``.
+
+        ``chart_type``: LINE, BAR, COLUMN, AREA, SCATTER o PIE. ``domain`` es el rango de
+        etiquetas (eje X / categorías) y ``series`` los rangos de datos (PIE usa solo el
+        primero). El gráfico se ancla en ``anchor_cell``.
+        """
+        spec = ChartSpec(chart_type, title=title, legend_position=legend)
+        return self._m._visualization.add_chart(self._ws, spec, domain, series, anchor_cell)
+
+    @retry_on_rate_limit
+    def delete_chart(self, chart_id: int) -> None:
+        """Elimina un gráfico embebido por su id."""
+        self._m._visualization.delete_chart(self._ws, chart_id)
+
+    @retry_on_rate_limit
+    def add_pivot_table(
+        self,
+        source: str,
+        anchor_cell: str,
+        *,
+        rows: list[int],
+        values: list[tuple[int, str]],
+        columns: list[int] | None = None,
+    ) -> None:
+        """Escribe una pivot table en ``anchor_cell`` a partir del rango ``source``.
+
+        ``rows``/``columns``: offsets 0-based de columnas del rango fuente para agrupar.
+        ``values``: pares ``(offset, función)`` con función SUM/COUNT/COUNTA/AVERAGE/MAX/
+        MIN/MEDIAN.
+        """
+        self._m._visualization.add_pivot_table(
+            self._ws, source, anchor_cell, rows, values, columns or []
+        )
+
+    @retry_on_rate_limit
+    def set_banding(
+        self,
+        range_name: str,
+        *,
+        first_color: Color,
+        second_color: Color,
+        header_color: Color | None = None,
+    ) -> int | None:
+        """Aplica bandas de color alternadas por fila; devuelve el ``bandedRangeId``."""
+        spec = BandingSpec(first_color, second_color, header_color)
+        return self._m._visualization.set_banding(self._ws, spec, range_name)
+
+    @retry_on_rate_limit
+    def delete_banding(self, banded_range_id: int) -> None:
+        """Quita las bandas alternadas por su id."""
+        self._m._visualization.delete_banding(self._ws, banded_range_id)
+
+    @retry_on_rate_limit
+    def set_developer_metadata(self, key: str, value: str, visibility: str = "DOCUMENT") -> None:
+        """Guarda un par clave/valor de developer metadata anclado a esta pestaña."""
+        entry = DeveloperMetadataEntry(key, value, visibility)
+        self._m._metadata.set_developer_metadata(self._ws.spreadsheet, entry, self._ws.id)
+
     @retry_on_rate_limit
     def clear_tab_color(self) -> None:
         """Quita el color de la pestaña."""
@@ -691,6 +1097,17 @@ class WorksheetContext:
     # ------------------------------------------------------------------
     # Modelos de fila tipados (dataclasses)
     # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def ensure_schema(self, model: type, *, create: bool = True, strict: bool = False) -> dict[str, Any]:
+        """Valida (o crea) el encabezado de la hoja contra el esquema de ``model``.
+
+        Hoja vacía: escribe el encabezado del modelo (salvo ``create=False``). Columnas del
+        modelo ausentes en la hoja: ``SchemaError`` con ``missing_columns``/``extra_columns``.
+        Columnas extra: se reportan (y con ``strict=True``, fallan). Devuelve
+        ``{"created": bool, "missing": [...], "extra": [...]}``.
+        """
+        return self._m._rows.ensure_schema(self._ws, model, create=create, strict=strict)
 
     @retry_on_rate_limit
     def read_as(self, model: type, skiprows: int = 0) -> list[Any]:

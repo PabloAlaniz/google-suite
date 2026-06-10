@@ -29,6 +29,9 @@ from gspreadmanager.domain.values import (
     SpreadsheetId,
     TextFormat,
     WorksheetRef,
+    column_to_letter,
+    letter_to_column,
+    rowcol_to_a1,
 )
 
 
@@ -233,3 +236,34 @@ class TestSpreadsheetIdFromUrl:
     def test_invalid_url_raises(self):
         with pytest.raises(InvalidIdentifierError):
             SpreadsheetId.from_url("https://example.com/nope")
+
+
+class TestA1Helpers:
+    """Helpers A1 del dominio (promovidos desde el spike nativo en v2.2)."""
+
+    @pytest.mark.parametrize(
+        ("col", "letter"), [(1, "A"), (26, "Z"), (27, "AA"), (52, "AZ"), (703, "AAA")]
+    )
+    def test_column_to_letter_roundtrip(self, col, letter):
+        assert column_to_letter(col) == letter
+        assert letter_to_column(letter) == col
+
+    def test_rowcol_to_a1_beyond_z(self):
+        assert rowcol_to_a1(2, 3) == "C2"
+        assert rowcol_to_a1(10, 28) == "AB10"
+
+    def test_rowcol_to_a1_invalid_raises_domain_error(self):
+        with pytest.raises(InvalidRangeError):
+            rowcol_to_a1(0, 1)
+        with pytest.raises(InvalidRangeError):
+            column_to_letter(0)
+
+    @pytest.mark.parametrize("a1", ["A1", "A1:C10", "A:C", "1:5", "Hoja1!B2:D4"])
+    def test_grid_range_from_a1_matches_gspread(self, a1):
+        # Paridad con gspread.utils.a1_range_to_grid_range (la referencia histórica).
+        stripped = a1.split("!", 1)[-1]
+        assert GridRange.from_a1(a1, 7).to_dict() == a1_range_to_grid_range(stripped, 7)
+
+    def test_grid_range_from_a1_invalid_anchor_raises(self):
+        with pytest.raises(InvalidRangeError):
+            GridRange.from_a1("A1:$%", 0)

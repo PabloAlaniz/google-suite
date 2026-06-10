@@ -1,4 +1,4 @@
-"""Servicio de metadata: notas de celda, named ranges y protected ranges.
+"""Servicio de metadata: notas, named/protected ranges y developer metadata.
 
 Las escrituras son requests de ``spreadsheets:batchUpdate``; las lecturas usan
 ``SpreadsheetPort.get_metadata`` (``spreadsheets.get`` con ``fields``). Recibe el
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from gspreadmanager.domain.values import GridRange
+from gspreadmanager.domain.values import DeveloperMetadataEntry, GridRange
 from gspreadmanager.ports.sheets import SpreadsheetPort, WorksheetPort
 
 
@@ -101,3 +101,35 @@ class MetadataService:
     def delete_protected_range(self, spreadsheet: SpreadsheetPort, protected_range_id: str) -> None:
         """Quita la protección de un rango por su id."""
         self._apply(spreadsheet, {"deleteProtectedRange": {"protectedRangeId": protected_range_id}})
+
+    # ------------------------------------------------------------------
+    # Developer metadata
+    # ------------------------------------------------------------------
+
+    def set_developer_metadata(
+        self,
+        spreadsheet: SpreadsheetPort,
+        entry: DeveloperMetadataEntry,
+        sheet_id: int | None,
+    ) -> None:
+        """Crea developer metadata anclada a una hoja (o al documento si ``sheet_id=None``)."""
+        self._apply(spreadsheet, entry.to_request(sheet_id))
+
+    def list_developer_metadata(self, spreadsheet: SpreadsheetPort) -> list[dict[str, Any]]:
+        """Lista la developer metadata del documento y de todas sus hojas."""
+        meta = spreadsheet.get_metadata(
+            None, "developerMetadata,sheets(properties(sheetId),developerMetadata)"
+        )
+        entries: list[dict[str, Any]] = list(meta.get("developerMetadata", []))
+        for sheet in meta.get("sheets", []):
+            entries.extend(sheet.get("developerMetadata", []))
+        return entries
+
+    def delete_developer_metadata(self, spreadsheet: SpreadsheetPort, key: str) -> None:
+        """Elimina toda la developer metadata cuya clave sea ``key``."""
+        request = {
+            "deleteDeveloperMetadata": {
+                "dataFilter": {"developerMetadataLookup": {"metadataKey": key}}
+            }
+        }
+        self._apply(spreadsheet, request)

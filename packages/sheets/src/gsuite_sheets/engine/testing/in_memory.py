@@ -380,7 +380,7 @@ class InMemorySpreadsheet:
             self._by_id(rng["sheetId"]).grid.remove(
                 rng["dimension"], rng["startIndex"], rng["endIndex"]
             )
-        elif "updateCells" in request:
+        elif "updateCells" in request and "note" in request["updateCells"].get("fields", ""):
             self._store_note(request["updateCells"])
         elif "addNamedRange" in request:
             self._add_named(request["addNamedRange"]["namedRange"])

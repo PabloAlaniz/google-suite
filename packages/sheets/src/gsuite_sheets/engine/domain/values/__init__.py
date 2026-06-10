@@ -17,18 +17,32 @@ from .ranges import (
 )
 from .text_format import TextFormat
 from .validation import Condition, ConditionalFormatRule, DataValidationRule
+from .visualization import (
+    BandingSpec,
+    ChartSpec,
+    DeveloperMetadataEntry,
+    PivotField,
+    PivotTableSpec,
+    PivotValue,
+)
 
 __all__ = [
     "A1Range",
+    "BandingSpec",
     "Border",
     "Borders",
     "CellFormat",
+    "ChartSpec",
     "Color",
     "Condition",
     "ConditionalFormatRule",
     "DataValidationRule",
+    "DeveloperMetadataEntry",
     "GridRange",
     "NumberFormat",
+    "PivotField",
+    "PivotTableSpec",
+    "PivotValue",
     "SpreadsheetId",
     "TextFormat",
     "WorksheetRef",

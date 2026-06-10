@@ -25,6 +25,7 @@ from .application.row_model_service import RowModelService
 from .application.sharing_service import SharingService
 from .application.table_service import TableService, Where
 from .application.validation_service import ValidationService
+from .application.visualization_service import VisualizationService
 from .application.worksheet_service import WorksheetService
 from .config import DEFAULT_VALUE_INPUT_OPTION
 from .domain.batching import DEFAULT_MAX_CELLS_PER_REQUEST, split_range_data, split_rows
@@ -32,7 +33,14 @@ from .domain.csv_data import rows_from_csv
 from .domain.errors import GSpreadManagerError, WorksheetNotFoundError
 from .domain.export import ExportFormat
 from .domain.numericise import numericise_all, numericise_records
-from .domain.values import CellFormat, Color, SpreadsheetId
+from .domain.values import (
+    BandingSpec,
+    CellFormat,
+    ChartSpec,
+    Color,
+    DeveloperMetadataEntry,
+    SpreadsheetId,
+)
 from .infrastructure.auth import GSPREAD_MISSING_MESSAGE, build_auth_strategy, build_credentials
 from .infrastructure.cache import CachingClient
 from .infrastructure.dataframe_backend import build_dataframe_adapter
@@ -198,6 +206,7 @@ class SheetManager:
         self._metadata = MetadataService()
         self._rows = RowModelService()
         self._table = TableService()
+        self._visualization = VisualizationService()
         self._dataframe = DataframeService(build_dataframe_adapter(dataframe_backend))
 
     def __enter__(self) -> SheetManager:
@@ -334,6 +343,26 @@ class SheetManager:
     def update_timezone(self, timezone: str) -> None:
         """Cambia la zona horaria del documento (ej. ``"America/Argentina/Buenos_Aires"``)."""
         self._document.update_timezone(self._spreadsheet(), timezone)
+
+    # ------------------------------------------------------------------
+    # Developer metadata (clave/valor invisible para el usuario final)
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def set_developer_metadata(self, key: str, value: str, visibility: str = "DOCUMENT") -> None:
+        """Guarda un par clave/valor de developer metadata anclado al documento."""
+        entry = DeveloperMetadataEntry(key, value, visibility)
+        self._metadata.set_developer_metadata(self._spreadsheet(), entry, sheet_id=None)
+
+    @retry_on_rate_limit
+    def list_developer_metadata(self) -> list[dict[str, Any]]:
+        """Lista la developer metadata del documento y de todas sus hojas."""
+        return self._metadata.list_developer_metadata(self._spreadsheet())
+
+    @retry_on_rate_limit
+    def delete_developer_metadata(self, key: str) -> None:
+        """Elimina toda la developer metadata con la clave dada."""
+        self._metadata.delete_developer_metadata(self._spreadsheet(), key)
 
     # ------------------------------------------------------------------
     # Permisos / compartir
@@ -925,6 +954,79 @@ class WorksheetContext:
     def set_tab_color(self, color: Color) -> None:
         """Fija el color de la pestaña."""
         self._m._worksheet.set_tab_color(self._ws, color)
+
+    # ------------------------------------------------------------------
+    # Charts, pivot tables, banding y developer metadata
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def add_chart(
+        self,
+        chart_type: str,
+        domain: str,
+        series: list[str],
+        *,
+        title: str | None = None,
+        anchor_cell: str = "A1",
+        legend: str = "BOTTOM_LEGEND",
+    ) -> int | None:
+        """Agrega un gráfico embebido y devuelve su ``chartId``.
+
+        ``chart_type``: LINE, BAR, COLUMN, AREA, SCATTER o PIE. ``domain`` es el rango de
+        etiquetas (eje X / categorías) y ``series`` los rangos de datos (PIE usa solo el
+        primero). El gráfico se ancla en ``anchor_cell``.
+        """
+        spec = ChartSpec(chart_type, title=title, legend_position=legend)
+        return self._m._visualization.add_chart(self._ws, spec, domain, series, anchor_cell)
+
+    @retry_on_rate_limit
+    def delete_chart(self, chart_id: int) -> None:
+        """Elimina un gráfico embebido por su id."""
+        self._m._visualization.delete_chart(self._ws, chart_id)
+
+    @retry_on_rate_limit
+    def add_pivot_table(
+        self,
+        source: str,
+        anchor_cell: str,
+        *,
+        rows: list[int],
+        values: list[tuple[int, str]],
+        columns: list[int] | None = None,
+    ) -> None:
+        """Escribe una pivot table en ``anchor_cell`` a partir del rango ``source``.
+
+        ``rows``/``columns``: offsets 0-based de columnas del rango fuente para agrupar.
+        ``values``: pares ``(offset, función)`` con función SUM/COUNT/COUNTA/AVERAGE/MAX/
+        MIN/MEDIAN.
+        """
+        self._m._visualization.add_pivot_table(
+            self._ws, source, anchor_cell, rows, values, columns or []
+        )
+
+    @retry_on_rate_limit
+    def set_banding(
+        self,
+        range_name: str,
+        *,
+        first_color: Color,
+        second_color: Color,
+        header_color: Color | None = None,
+    ) -> int | None:
+        """Aplica bandas de color alternadas por fila; devuelve el ``bandedRangeId``."""
+        spec = BandingSpec(first_color, second_color, header_color)
+        return self._m._visualization.set_banding(self._ws, spec, range_name)
+
+    @retry_on_rate_limit
+    def delete_banding(self, banded_range_id: int) -> None:
+        """Quita las bandas alternadas por su id."""
+        self._m._visualization.delete_banding(self._ws, banded_range_id)
+
+    @retry_on_rate_limit
+    def set_developer_metadata(self, key: str, value: str, visibility: str = "DOCUMENT") -> None:
+        """Guarda un par clave/valor de developer metadata anclado a esta pestaña."""
+        entry = DeveloperMetadataEntry(key, value, visibility)
+        self._m._metadata.set_developer_metadata(self._ws.spreadsheet, entry, self._ws.id)
 
     @retry_on_rate_limit
     def clear_tab_color(self) -> None:

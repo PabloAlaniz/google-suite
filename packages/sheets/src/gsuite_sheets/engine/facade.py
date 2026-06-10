@@ -22,13 +22,16 @@ from .application.formatting_service import FormattingService
 from .application.metadata_service import MetadataService
 from .application.row_model_service import RowModelService
 from .application.sharing_service import SharingService
+from .application.table_service import TableService, Where
 from .application.validation_service import ValidationService
 from .application.worksheet_service import WorksheetService
 from .config import DEFAULT_VALUE_INPUT_OPTION
+from .domain.batching import DEFAULT_MAX_CELLS_PER_REQUEST, split_range_data, split_rows
 from .domain.csv_data import rows_from_csv
 from .domain.errors import GSpreadManagerError, WorksheetNotFoundError
 from .domain.export import ExportFormat
 from .domain.numericise import numericise_all, numericise_records
+from .domain.schema import models_to_rows
 from .domain.values import CellFormat, Color, SpreadsheetId
 from .infrastructure.auth import GSPREAD_MISSING_MESSAGE, build_auth_strategy, build_credentials
 from .infrastructure.cache import CachingClient
@@ -107,6 +110,7 @@ class SheetManager:
         cache: bool = False,
         rate_limit: float | None = None,
         rate_limit_burst: float | None = None,
+        batch_cell_limit: int | None = DEFAULT_MAX_CELLS_PER_REQUEST,
     ) -> None:
         """Configura la autenticación y los servicios de aplicación.
 
@@ -128,6 +132,10 @@ class SheetManager:
 
         ``rate_limit`` (operaciones por segundo) activa un freno proactivo de cuota (token
         bucket); ``rate_limit_burst`` fija la ráfaga máxima (por defecto ``max(1, rate_limit)``).
+
+        ``batch_cell_limit`` (celdas por petición de escritura) parte automáticamente los
+        ``append``/``batch_update``/``upsert`` grandes en varias peticiones (cada chunk con
+        su propio retry y permiso del rate limiter); ``None`` desactiva el chunking.
         """
         if doc_name is None and key is None:
             raise GSpreadManagerError("Indicá 'doc_name' o 'key' al crear SheetManager.")
@@ -135,6 +143,7 @@ class SheetManager:
         self._key = key
         self.max_retries = max_retries
         self.retry_backoff = retry_backoff
+        self.batch_cell_limit = batch_cell_limit
         self._rate_limiter: RateLimiter | None = (
             TokenBucketRateLimiter(rate_limit, rate_limit_burst) if rate_limit is not None else None
         )
@@ -178,6 +187,7 @@ class SheetManager:
         self._sharing = SharingService()
         self._metadata = MetadataService()
         self._rows = RowModelService()
+        self._table = TableService()
         self._dataframe = DataframeService(build_dataframe_adapter(dataframe_backend))
 
     def __enter__(self) -> SheetManager:
@@ -260,6 +270,13 @@ class SheetManager:
     def delete_sheet(self, title: str) -> None:
         """Elimina la pestaña con el nombre dado."""
         self._worksheet.delete(self._spreadsheet(), title)
+
+    def worksheet_or_create(self, title: str, rows: int = 100, cols: int = 26) -> WorksheetContext:
+        """Devuelve el handle de la pestaña ``title``, creándola si no existe."""
+        try:
+            return self.worksheet(title)
+        except WorksheetNotFoundError:
+            return self.create_sheet(title, rows, cols)
 
     # ------------------------------------------------------------------
     # Operaciones a nivel documento (Drive)
@@ -439,9 +456,20 @@ class WorksheetContext:
         a1 = f"{self._ws.title}!{column_start}{fila_start}:{column_end}{fila_end}"
         return self._m._data.read_range(self._ws.spreadsheet, a1, fila_start)
 
-    @retry_on_rate_limit
     def append(self, data: list[list[Any]]) -> Any:
-        """Añade filas al final de la hoja."""
+        """Añade filas al final de la hoja.
+
+        Si ``data`` supera ``batch_cell_limit`` (celdas), se parte en varios appends —
+        cada chunk con su propio retry y permiso del rate limiter — y se devuelve la
+        lista de respuestas.
+        """
+        chunks = split_rows(data, self._m.batch_cell_limit)
+        if len(chunks) == 1:
+            return self._append_chunk(chunks[0])
+        return [self._append_chunk(chunk) for chunk in chunks]
+
+    @retry_on_rate_limit
+    def _append_chunk(self, data: list[list[Any]]) -> Any:
         return self._m._data.append(self._ws, data, DEFAULT_VALUE_INPUT_OPTION)
 
     @retry_on_rate_limit
@@ -464,12 +492,62 @@ class WorksheetContext:
             text = Path(source).read_text(encoding="utf-8")
         return self._m._data.import_rows(self._ws, rows_from_csv(text, delimiter), clear)
 
-    @retry_on_rate_limit
     def batch_update(
         self, range_data: list[dict[str, Any]], value_input_option: str = DEFAULT_VALUE_INPUT_OPTION
     ) -> None:
-        """Actualiza varios rangos en una sola petición."""
+        """Actualiza varios rangos en una sola petición.
+
+        Si el total supera ``batch_cell_limit`` (celdas), se parte en varias peticiones
+        (un rango individual nunca se parte).
+        """
+        for chunk in split_range_data(range_data, self._m.batch_cell_limit):
+            self._batch_update_chunk(chunk, value_input_option)
+
+    @retry_on_rate_limit
+    def _batch_update_chunk(
+        self, range_data: list[dict[str, Any]], value_input_option: str
+    ) -> None:
         self._m._data.batch_update(self._ws, range_data, value_input_option)
+
+    # ------------------------------------------------------------------
+    # La hoja como tabla (encabezado en la fila 1)
+    # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def upsert(self, rows: list[dict[str, Any]] | list[list[Any]], key: str) -> dict[str, int]:
+        """Actualiza por la columna clave ``key`` las filas existentes y agrega las nuevas.
+
+        ``rows``: dicts ``{columna: valor}`` (solo se actualizan las columnas presentes) o
+        listas alineadas al encabezado. Devuelve ``{"updated": n, "appended": m}``.
+        """
+        return self._m._table.upsert(
+            self._ws, rows, key, DEFAULT_VALUE_INPUT_OPTION, self._m.batch_cell_limit
+        )
+
+    @retry_on_rate_limit
+    def upsert_models(self, models: list[Any], key: str) -> dict[str, int]:
+        """Upsert de modelos tipados (dataclasses) por la columna clave ``key``."""
+        header, rows = models_to_rows(models)
+        records = [dict(zip(header, row)) for row in rows]
+        return self._m._table.upsert(
+            self._ws, records, key, DEFAULT_VALUE_INPUT_OPTION, self._m.batch_cell_limit
+        )
+
+    @retry_on_rate_limit
+    def update_where(self, where: Where, updates: dict[str, Any]) -> int:
+        """Aplica ``updates`` (``{columna: valor}``) a las filas que cumplen ``where``.
+
+        ``where``: dict de igualdades (``{"estado": "pendiente"}``) o un predicado que
+        recibe la fila como dict. Devuelve la cantidad de filas afectadas.
+        """
+        return self._m._table.update_where(
+            self._ws, where, updates, DEFAULT_VALUE_INPUT_OPTION, self._m.batch_cell_limit
+        )
+
+    @retry_on_rate_limit
+    def delete_where(self, where: Where) -> int:
+        """Elimina las filas que cumplen ``where``; devuelve cuántas se borraron."""
+        return self._m._table.delete_where(self._ws, where)
 
     @retry_on_rate_limit
     def rows_where_column_equals(self, column: int, value: Any) -> list[tuple[int, list[str]]]:

@@ -1,9 +1,9 @@
 """Value objects: rangos e identificadores de Google Sheets.
 
 Modelan el direccionamiento (rango A1, GridRange, id de documento, referencia a
-pestaña) como objetos inmutables. La conversión A1 -> GridRange depende del id de la
-hoja y de gspread, por lo que vive en la capa de infraestructura; aquí ``GridRange``
-es un contenedor tipado con ``to_dict()`` / ``from_dict()``.
+pestaña) como objetos inmutables, junto con las conversiones puras de notación A1
+(``rowcol_to_a1``, ``column_to_letter``, ``GridRange.from_a1``) — lógica de dominio
+sin dependencias de infraestructura.
 """
 
 from __future__ import annotations
@@ -16,6 +16,45 @@ from gspreadmanager.domain.errors import InvalidIdentifierError, InvalidRangeErr
 # Ancla A1: una celda (A1), una columna (A) o una fila (1).
 _A1_ANCHOR = r"(?:[A-Za-z]{1,3}[1-9][0-9]*|[A-Za-z]{1,3}|[1-9][0-9]*)"
 _A1_PATTERN = re.compile(rf"{_A1_ANCHOR}(?::{_A1_ANCHOR})?")
+
+_A1_CELL = re.compile(r"^([A-Za-z]*)([0-9]*)$")
+
+
+def column_to_letter(col: int) -> str:
+    """Convierte un índice de columna 1-based a letras ('A', 'Z', 'AA', ...)."""
+    if col < 1:
+        raise InvalidRangeError(f"Columna inválida: {col} (debe ser >= 1).")
+    letters = ""
+    while col > 0:
+        col, remainder = divmod(col - 1, 26)
+        letters = chr(ord("A") + remainder) + letters
+    return letters
+
+
+def letter_to_column(letters: str) -> int:
+    """Convierte letras de columna ('A', 'AA') a su índice 1-based."""
+    col = 0
+    for ch in letters.upper():
+        col = col * 26 + (ord(ch) - ord("A") + 1)
+    return col
+
+
+def rowcol_to_a1(row: int, col: int) -> str:
+    """Convierte (fila, columna) 1-based a notación A1 (ej. (2, 3) -> 'C2')."""
+    if row < 1:
+        raise InvalidRangeError(f"Fila inválida: {row} (debe ser >= 1).")
+    return f"{column_to_letter(col)}{row}"
+
+
+def _split_cell(cell: str) -> tuple[int | None, int | None]:
+    """Separa una ancla A1 ('A1', 'A', '10') en (columna, fila) 1-based o None."""
+    match = _A1_CELL.match(cell)
+    if not match or not cell:
+        raise InvalidRangeError(f"Ancla A1 inválida: {cell!r}.")
+    letters, digits = match.groups()
+    col = letter_to_column(letters) if letters else None
+    row = int(digits) if digits else None
+    return col, row
 
 
 @dataclass(frozen=True)
@@ -70,6 +109,35 @@ class GridRange:
             end_row_index=data.get("endRowIndex"),
             start_column_index=data.get("startColumnIndex"),
             end_column_index=data.get("endColumnIndex"),
+        )
+
+    @classmethod
+    def from_a1(cls, a1_range: str, sheet_id: int) -> GridRange:
+        """Convierte un rango A1 en un ``GridRange`` (0-based, fin exclusivo) para ``sheet_id``.
+
+        Soporta celdas ('A1'), rangos ('A1:C10'), columnas ('A:C') y filas ('1:5');
+        ignora el prefijo de pestaña ('Hoja1!A1:C10').
+        """
+        if "!" in a1_range:
+            a1_range = a1_range.split("!", 1)[1]
+        start_str, _, end_str = a1_range.partition(":")
+        if not end_str:
+            end_str = start_str
+        start_col, start_row = _split_cell(start_str)
+        end_col, end_row = _split_cell(end_str)
+
+        start_row_index = end_row_index = None
+        if start_row is not None and end_row is not None:
+            start_row_index, end_row_index = start_row - 1, end_row
+        start_column_index = end_column_index = None
+        if start_col is not None and end_col is not None:
+            start_column_index, end_column_index = start_col - 1, end_col
+        return cls(
+            sheet_id=sheet_id,
+            start_row_index=start_row_index,
+            end_row_index=end_row_index,
+            start_column_index=start_column_index,
+            end_column_index=end_column_index,
         )
 
 

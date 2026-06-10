@@ -11,11 +11,11 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any, TypeVar
 
-from .infrastructure.retry import RETRYABLE_STATUS, ExponentialBackoffRetry, _status_code
+from .infrastructure.retry import RETRYABLE_STATUS, ExponentialBackoffRetry
 
 F = TypeVar("F", bound=Callable[..., Any])
 
-__all__ = ["RETRYABLE_STATUS", "ExponentialBackoffRetry", "_status_code", "retry_on_rate_limit"]
+__all__ = ["RETRYABLE_STATUS", "ExponentialBackoffRetry", "retry_on_rate_limit"]
 
 
 def retry_on_rate_limit(func: F) -> F:

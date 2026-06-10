@@ -10,9 +10,12 @@ Es transparente: implementa los mismos puertos, así que la capa de aplicación 
 
 from __future__ import annotations
 
+import logging
 from typing import Any, Callable
 
 from gspreadmanager.ports.sheets import ClientPort, SpreadsheetPort, WorksheetPort
+
+logger = logging.getLogger(__name__)
 
 
 class _Cache:
@@ -24,11 +27,16 @@ class _Cache:
     def load(self, key: Any, loader: Callable[[], Any]) -> Any:
         """Devuelve el valor cacheado para ``key`` o lo calcula con ``loader`` y lo guarda."""
         if key not in self._store:
+            logger.debug("Caché miss: %r.", key)
             self._store[key] = loader()
+        else:
+            logger.debug("Caché hit: %r.", key)
         return self._store[key]
 
     def clear(self) -> None:
         """Invalida todo lo cacheado (se llama tras cada escritura)."""
+        if self._store:
+            logger.debug("Caché invalidada (%d entradas).", len(self._store))
         self._store.clear()
 
 

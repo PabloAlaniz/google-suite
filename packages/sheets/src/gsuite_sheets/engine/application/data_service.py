@@ -8,10 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from gspread.utils import rowcol_to_a1
-
 from gspreadmanager.config import DEFAULT_VALUE_INPUT_OPTION
 from gspreadmanager.domain.errors import InsertError
+from gspreadmanager.domain.values import rowcol_to_a1
 from gspreadmanager.ports.sheets import SpreadsheetPort, WorksheetPort
 
 

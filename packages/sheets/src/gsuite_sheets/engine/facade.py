@@ -32,7 +32,6 @@ from .domain.csv_data import rows_from_csv
 from .domain.errors import GSpreadManagerError, WorksheetNotFoundError
 from .domain.export import ExportFormat
 from .domain.numericise import numericise_all, numericise_records
-from .domain.schema import models_to_rows, rows_to_models
 from .domain.values import CellFormat, Color, SpreadsheetId
 from .infrastructure.auth import GSPREAD_MISSING_MESSAGE, build_auth_strategy, build_credentials
 from .infrastructure.cache import CachingClient
@@ -515,7 +514,7 @@ class WorksheetContext:
             yield dict(zip(header, padded))
 
     def iter_as(self, model: type, page_size: int = 1000) -> Iterator[Any]:
-        """Itera las filas como instancias de ``model`` (dataclass), de a páginas."""
+        """Itera las filas como instancias de ``model`` (dataclass o Pydantic), de a páginas."""
         if page_size < 1:
             raise GSpreadManagerError(f"page_size inválido: {page_size} (debe ser >= 1).")
         header = self._header_row()
@@ -524,7 +523,7 @@ class WorksheetContext:
         start = 2
         while True:
             rows = self._read_page(start, start + page_size - 1)
-            yield from rows_to_models(model, header, rows)
+            yield from self._m._rows.to_models(model, header, rows)
             if len(rows) < page_size:
                 return
             start += page_size
@@ -586,8 +585,8 @@ class WorksheetContext:
 
     @retry_on_rate_limit
     def upsert_models(self, models: list[Any], key: str) -> dict[str, int]:
-        """Upsert de modelos tipados (dataclasses) por la columna clave ``key``."""
-        header, rows = models_to_rows(models)
+        """Upsert de modelos tipados (dataclasses o Pydantic) por la columna clave ``key``."""
+        header, rows = self._m._rows.to_rows(models)
         records = [dict(zip(header, row)) for row in rows]
         return self._m._table.upsert(
             self._ws, records, key, DEFAULT_VALUE_INPUT_OPTION, self._m.batch_cell_limit
@@ -987,6 +986,17 @@ class WorksheetContext:
     # ------------------------------------------------------------------
     # Modelos de fila tipados (dataclasses)
     # ------------------------------------------------------------------
+
+    @retry_on_rate_limit
+    def ensure_schema(self, model: type, *, create: bool = True, strict: bool = False) -> dict[str, Any]:
+        """Valida (o crea) el encabezado de la hoja contra el esquema de ``model``.
+
+        Hoja vacía: escribe el encabezado del modelo (salvo ``create=False``). Columnas del
+        modelo ausentes en la hoja: ``SchemaError`` con ``missing_columns``/``extra_columns``.
+        Columnas extra: se reportan (y con ``strict=True``, fallan). Devuelve
+        ``{"created": bool, "missing": [...], "extra": [...]}``.
+        """
+        return self._m._rows.ensure_schema(self._ws, model, create=create, strict=strict)
 
     @retry_on_rate_limit
     def read_as(self, model: type, skiprows: int = 0) -> list[Any]:

@@ -11,7 +11,9 @@ from __future__ import annotations
 import dataclasses
 import types
 from datetime import date, datetime
-from typing import Any, Union, get_args, get_origin, get_type_hints
+from decimal import Decimal, InvalidOperation
+from enum import Enum
+from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
 
 from gspreadmanager.domain.errors import SchemaError
 
@@ -58,8 +60,8 @@ def _parse_bool(value: str, field_name: str) -> bool:
     raise SchemaError(f"Valor booleano inválido para '{field_name}': {value!r}.")
 
 
-def _coerce(value: str, annotation: Any, field_name: str) -> Any:
-    """Convierte el texto de una celda al tipo anotado del campo."""
+def _coerce(value: str, annotation: Any, field_name: str) -> Any:  # noqa: PLR0911
+    """Convierte el texto de una celda al tipo anotado del campo (un return por tipo)."""
     inner, optional = _unwrap_optional(annotation)
     if optional and value == "":
         return None
@@ -74,13 +76,46 @@ def _coerce(value: str, annotation: Any, field_name: str) -> Any:
             raise SchemaError(
                 f"No se pudo convertir {value!r} a {inner.__name__} en '{field_name}'."
             ) from exc
+    if inner is Decimal:
+        try:
+            return Decimal(value)
+        except InvalidOperation as exc:
+            raise SchemaError(f"Decimal inválido en '{field_name}': {value!r}.") from exc
     if inner in (date, datetime):
         try:
             parsed = datetime.fromisoformat(value)
         except ValueError as exc:
             raise SchemaError(f"Fecha inválida en '{field_name}': {value!r}.") from exc
         return parsed.date() if inner is date else parsed
+    if isinstance(inner, type) and issubclass(inner, Enum):
+        return _parse_enum(value, inner, field_name)
+    if get_origin(inner) is Literal:
+        return _parse_literal(value, get_args(inner), field_name)
     return inner(value)
+
+
+def _parse_enum(value: str, enum_type: type[Enum], field_name: str) -> Enum:
+    """Resuelve un Enum por su valor (o por nombre como fallback)."""
+    for member in enum_type:
+        if str(member.value) == value:
+            return member
+    try:
+        return enum_type[value]
+    except KeyError as exc:
+        valid = [str(m.value) for m in enum_type]
+        raise SchemaError(
+            f"Valor inválido para '{field_name}': {value!r} (esperaba uno de {valid})."
+        ) from exc
+
+
+def _parse_literal(value: str, options: tuple[Any, ...], field_name: str) -> Any:
+    """Matchea el texto de la celda contra las opciones de un ``Literal``."""
+    for option in options:
+        if str(option) == value:
+            return option
+    raise SchemaError(
+        f"Valor inválido para '{field_name}': {value!r} (esperaba uno de {list(options)})."
+    )
 
 
 def rows_to_models(model: type, header: list[str], rows: list[list[str]]) -> list[Any]:
@@ -107,15 +142,25 @@ def rows_to_models(model: type, header: list[str], rows: list[list[str]]) -> lis
     return result
 
 
-def _format(value: Any) -> Any:
-    """Serializa un valor de campo para escribir en la hoja (bool/fecha/None)."""
+def format_cell(value: Any) -> Any:
+    """Serializa un valor de campo para escribir en la hoja (bool/fecha/Decimal/Enum/None)."""
     if value is None:
         return ""
     if isinstance(value, bool):
         return "TRUE" if value else "FALSE"
     if isinstance(value, (date, datetime)):
         return value.isoformat()
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, Enum):
+        return format_cell(value.value)
     return value
+
+
+def model_header(model: type) -> list[str]:
+    """Encabezado esperado por un dataclass (nombres de columna en orden de campos)."""
+    _require_dataclass(model)
+    return [_column_name(field) for field in dataclasses.fields(model)]
 
 
 def models_to_rows(models: list[Any]) -> tuple[list[str], list[list[Any]]]:
@@ -126,5 +171,5 @@ def models_to_rows(models: list[Any]) -> tuple[list[str], list[list[Any]]]:
     _require_dataclass(model)
     fields = dataclasses.fields(model)
     header = [_column_name(field) for field in fields]
-    rows = [[_format(getattr(item, field.name)) for field in fields] for item in models]
+    rows = [[format_cell(getattr(item, field.name)) for field in fields] for item in models]
     return header, rows

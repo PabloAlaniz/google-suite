@@ -40,8 +40,21 @@ class InvalidIdentifierError(GSpreadManagerError, ValueError):
 class SchemaError(GSpreadManagerError, ValueError):
     """Se lanza cuando una fila no encaja con el modelo tipado (columna faltante o valor inválido).
 
-    Subclase de ``ValueError`` por compatibilidad.
+    Subclase de ``ValueError`` por compatibilidad. ``missing_columns`` / ``extra_columns``
+    detallan el drift de esquema cuando aplica (ver ``ensure_schema``).
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        missing_columns: list[str] | None = None,
+        extra_columns: list[str] | None = None,
+    ) -> None:
+        """Guarda el mensaje y el detalle de columnas faltantes/sobrantes (si aplica)."""
+        super().__init__(message)
+        self.missing_columns = missing_columns or []
+        self.extra_columns = extra_columns or []
 
 
 class ApiError(GSpreadManagerError):

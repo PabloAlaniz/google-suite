@@ -1,13 +1,14 @@
-"""Servicio de documentos (Drive): crear, eliminar, copiar y listar.
+"""Servicio de documentos: crear, eliminar, copiar, listar y propiedades.
 
-Opera sobre ``ClientPort`` (el adaptador con caché del facade).
+Las operaciones de Drive operan sobre ``ClientPort``; las propiedades del documento
+(título, locale, zona horaria) van por ``SpreadsheetPort.batch_update``.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-from gspreadmanager.ports.sheets import ClientPort
+from gspreadmanager.ports.sheets import ClientPort, SpreadsheetPort
 
 
 class DocumentService:
@@ -37,3 +38,28 @@ class DocumentService:
     ) -> list[dict[str, Any]]:
         """Lista los documentos accesibles (filtrando por título/carpeta si se indica)."""
         return client.list_spreadsheet_files(title, folder_id)
+
+    # -- propiedades del documento (updateSpreadsheetProperties) ----------
+
+    def update_title(self, spreadsheet: SpreadsheetPort, title: str) -> None:
+        """Renombra el documento."""
+        self._update_properties(spreadsheet, {"title": title}, "title")
+
+    def update_locale(self, spreadsheet: SpreadsheetPort, locale: str) -> None:
+        """Cambia el locale del documento (ej. ``"es_AR"``)."""
+        self._update_properties(spreadsheet, {"locale": locale}, "locale")
+
+    def update_timezone(self, spreadsheet: SpreadsheetPort, timezone: str) -> None:
+        """Cambia la zona horaria del documento (ej. ``"America/Argentina/Buenos_Aires"``)."""
+        self._update_properties(spreadsheet, {"timeZone": timezone}, "timeZone")
+
+    def _update_properties(
+        self, spreadsheet: SpreadsheetPort, properties: dict[str, Any], fields: str
+    ) -> None:
+        spreadsheet.batch_update(
+            {
+                "requests": [
+                    {"updateSpreadsheetProperties": {"properties": properties, "fields": fields}}
+                ]
+            }
+        )

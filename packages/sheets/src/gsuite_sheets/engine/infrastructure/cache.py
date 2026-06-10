@@ -63,9 +63,12 @@ class CachingWorksheet:
         """Documento (envuelto), compartiendo la misma caché."""
         return CachingSpreadsheet(self._inner.spreadsheet, self._cache)
 
-    def get_all_values(self) -> list[list[str]]:
-        """Lee todas las filas (memoizado por hoja)."""
-        return self._cache.load(("get_all_values", self._inner.id), self._inner.get_all_values)
+    def get_all_values(self, value_render_option: str | None = None) -> list[list[str]]:
+        """Lee todas las filas (memoizado por hoja y render option)."""
+        return self._cache.load(
+            ("get_all_values", self._inner.id, value_render_option),
+            lambda: self._inner.get_all_values(value_render_option),
+        )
 
     # -- lecturas no memoizadas (pasan directo) ---------------------------
 
@@ -138,6 +141,14 @@ class CachingWorksheet:
         """Limpia varios rangos."""
         self._inner.batch_clear(ranges)
         self._cache.clear()
+
+    def copy_to(self, destination_spreadsheet_id: str) -> Any:
+        """Copia la hoja a otro documento.
+
+        Nota: escribe en el documento *destino*; si ese documento está abierto con caché
+        en el mismo gestor, su caché no se invalida (usá ``clear_cache()``).
+        """
+        return self._inner.copy_to(destination_spreadsheet_id)
 
 
 class CachingSpreadsheet:

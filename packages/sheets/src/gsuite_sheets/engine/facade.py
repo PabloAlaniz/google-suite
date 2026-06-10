@@ -25,7 +25,8 @@ from .application.sharing_service import SharingService
 from .application.validation_service import ValidationService
 from .application.worksheet_service import WorksheetService
 from .config import DEFAULT_VALUE_INPUT_OPTION
-from .domain.errors import GSpreadManagerError
+from .domain.csv_data import rows_from_csv
+from .domain.errors import GSpreadManagerError, WorksheetNotFoundError
 from .domain.export import ExportFormat
 from .domain.numericise import numericise_all, numericise_records
 from .domain.values import CellFormat, Color, SpreadsheetId
@@ -38,6 +39,25 @@ from .infrastructure.request_builders import grid_range
 from .ports.rate_limit import RateLimiter
 from .ports.sheets import ClientPort, WorksheetPort
 from .retry import retry_on_rate_limit
+
+# Render options al leer: nombre amigable -> enum de la Sheets API.
+_RENDER_OPTIONS = {
+    "formatted": "FORMATTED_VALUE",
+    "unformatted": "UNFORMATTED_VALUE",
+    "formula": "FORMULA",
+}
+
+
+def _resolve_render(render: str | None) -> str | None:
+    """Mapea ``render`` ('formatted'/'unformatted'/'formula') al enum de la API."""
+    if render is None:
+        return None
+    try:
+        return _RENDER_OPTIONS[render]
+    except KeyError:
+        raise GSpreadManagerError(
+            f"render inválido: {render!r}. Usá 'formatted', 'unformatted' o 'formula'."
+        ) from None
 
 
 def _gspread_client_adapter(auth: Any) -> ClientPort:
@@ -204,6 +224,25 @@ class SheetManager:
         ws = spreadsheet.worksheet(tab_name) if tab_name else spreadsheet.sheet1
         return WorksheetContext(ws, self)
 
+    @retry_on_rate_limit
+    def list_worksheets(self) -> list[dict[str, Any]]:
+        """Lista las pestañas del documento: ``{'sheetId', 'title', 'index', ...}``."""
+        return self._worksheet.list_worksheets(self._spreadsheet())
+
+    def worksheet_by_index(self, index: int) -> WorksheetContext:
+        """Devuelve el handle de la pestaña en la posición ``index`` (0-based)."""
+        for props in self.list_worksheets():
+            if props.get("index", -1) == index:
+                return self.worksheet(props["title"])
+        raise WorksheetNotFoundError(f"No existe la hoja con índice {index}.")
+
+    def worksheet_by_id(self, sheet_id: int) -> WorksheetContext:
+        """Devuelve el handle de la pestaña con el ``sheetId`` dado."""
+        for props in self.list_worksheets():
+            if props.get("sheetId") == sheet_id:
+                return self.worksheet(props["title"])
+        raise WorksheetNotFoundError(f"No existe la hoja con id {sheet_id}.")
+
     # ------------------------------------------------------------------
     # Gestión de hojas
     # ------------------------------------------------------------------
@@ -253,6 +292,21 @@ class SheetManager:
     ) -> list[dict[str, Any]]:
         """Lista los documentos accesibles (filtrando por título/carpeta si se indica)."""
         return self._document.list(self._client, title, folder_id)
+
+    @retry_on_rate_limit
+    def update_title(self, title: str) -> None:
+        """Renombra el documento (``updateSpreadsheetProperties``)."""
+        self._document.update_title(self._spreadsheet(), title)
+
+    @retry_on_rate_limit
+    def update_locale(self, locale: str) -> None:
+        """Cambia el locale del documento (ej. ``"es_AR"``)."""
+        self._document.update_locale(self._spreadsheet(), locale)
+
+    @retry_on_rate_limit
+    def update_timezone(self, timezone: str) -> None:
+        """Cambia la zona horaria del documento (ej. ``"America/Argentina/Buenos_Aires"``)."""
+        self._document.update_timezone(self._spreadsheet(), timezone)
 
     # ------------------------------------------------------------------
     # Permisos / compartir
@@ -355,13 +409,21 @@ class WorksheetContext:
         self._m._data.update_row(self._ws, row, data, start_column)
 
     @retry_on_rate_limit
-    def read(self, skiprows: int = 0, output_format: str = "list", numericise: bool = False) -> Any:
+    def read(
+        self,
+        skiprows: int = 0,
+        output_format: str = "list",
+        numericise: bool = False,
+        render: str | None = None,
+    ) -> Any:
         """Lee la hoja como ``list``, ``dict`` o ``pandas`` (según ``output_format``).
 
         Si ``numericise`` es True, convierte los valores a int/float cuando corresponde
-        (no aplica al formato ``pandas``, que infiere tipos por su cuenta).
+        (no aplica al formato ``pandas``, que infiere tipos por su cuenta). ``render``
+        controla cómo devuelve los valores la API: ``"formatted"`` (default),
+        ``"unformatted"`` (números crudos) o ``"formula"`` (la fórmula en vez del valor).
         """
-        rows = self._m._data.read_values(self._ws, skiprows)
+        rows = self._m._data.read_values(self._ws, skiprows, _resolve_render(render))
         if output_format == "dict":
             records = self._m._data.as_dicts(rows)
             return numericise_records(records) if numericise else records
@@ -386,6 +448,21 @@ class WorksheetContext:
     def insert(self, data: list[list[Any]], fila: int | None = None) -> Any:
         """Inserta ``data`` en ``fila`` (o al final), validando lista de listas homogénea."""
         return self._m._data.insert(self._ws, self._ws.title, data, fila)
+
+    @retry_on_rate_limit
+    def import_csv(self, source: Any, *, clear: bool = True, delimiter: str = ",") -> Any:
+        """Vuelca un CSV en la hoja desde A1 (limpiándola antes salvo ``clear=False``).
+
+        ``source`` puede ser una ruta (``str``/``Path``) o un objeto file-like abierto en
+        modo texto. Los valores se escriben en crudo (``RAW``), sin interpretación.
+        """
+        if hasattr(source, "read"):
+            text = source.read()
+        else:
+            from pathlib import Path  # noqa: PLC0415
+
+            text = Path(source).read_text(encoding="utf-8")
+        return self._m._data.import_rows(self._ws, rows_from_csv(text, delimiter), clear)
 
     @retry_on_rate_limit
     def batch_update(
@@ -507,6 +584,41 @@ class WorksheetContext:
     def clear(self, ranges: str | list[str] | None = None) -> None:
         """Limpia uno o más rangos, o toda la hoja si ``ranges`` es None."""
         self._m._worksheet.clear(self._ws, ranges)
+
+    @retry_on_rate_limit
+    def find_replace(
+        self,
+        find: str,
+        replacement: str,
+        *,
+        match_case: bool = False,
+        match_entire_cell: bool = False,
+        search_by_regex: bool = False,
+        include_formulas: bool = False,
+    ) -> dict[str, Any]:
+        """Reemplaza ocurrencias de ``find`` por ``replacement`` en esta pestaña.
+
+        Devuelve el resumen de la API (``occurrencesChanged``, ``valuesChanged``, ...).
+        Con ``search_by_regex=True``, ``find`` es una regex (sintaxis RE2 de Google).
+        """
+        return self._m._worksheet.find_replace(
+            self._ws,
+            find,
+            replacement,
+            match_case=match_case,
+            match_entire_cell=match_entire_cell,
+            search_by_regex=search_by_regex,
+            include_formulas=include_formulas,
+        )
+
+    @retry_on_rate_limit
+    def copy_to(self, destination_key: str) -> Any:
+        """Copia esta pestaña a otro documento (por su key de Drive).
+
+        Devuelve las propiedades de la hoja creada (``sheetId``, ``title``, ...). El
+        destino debe ser accesible con las mismas credenciales.
+        """
+        return self._ws.copy_to(destination_key)
 
     @retry_on_rate_limit
     def find(self, query: str, case_sensitive: bool = True) -> Any:

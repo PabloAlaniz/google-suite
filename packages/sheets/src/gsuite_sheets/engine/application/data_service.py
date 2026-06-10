@@ -28,9 +28,24 @@ class DataService:
         for index, value in enumerate(data, start=(start_column or 1)):
             worksheet.update_cell(row, index, value)
 
-    def read_values(self, worksheet: WorksheetPort, skiprows: int = 0) -> list[list[str]]:
-        """Devuelve todas las filas de la hoja, omitiendo las primeras ``skiprows``."""
-        return worksheet.get_all_values()[skiprows:]
+    def read_values(
+        self,
+        worksheet: WorksheetPort,
+        skiprows: int = 0,
+        value_render_option: str | None = None,
+    ) -> list[list[str]]:
+        """Devuelve todas las filas de la hoja, omitiendo las primeras ``skiprows``.
+
+        ``value_render_option``: ``"FORMATTED_VALUE"``, ``"UNFORMATTED_VALUE"`` o
+        ``"FORMULA"`` (None usa el default de la API: formateado).
+        """
+        return worksheet.get_all_values(value_render_option)[skiprows:]
+
+    def import_rows(self, worksheet: WorksheetPort, rows: list[list[str]], clear: bool) -> Any:
+        """Vuelca ``rows`` (ej. parseadas de un CSV) desde A1, limpiando antes si ``clear``."""
+        if clear:
+            worksheet.clear()
+        return worksheet.update(rows, "RAW")
 
     def as_dicts(self, rows: list[list[str]]) -> list[dict[str, str]]:
         """Convierte filas (con encabezado en la primera) en lista de diccionarios."""

@@ -1,7 +1,6 @@
 """Google Suite Core - Shared auth, config, and utilities."""
 
-__version__ = "0.1.0"
-
+from gsuite_core._version import __version__
 from gsuite_core.api_utils import api_call, api_call_optional, map_http_error
 from gsuite_core.auth.oauth import GoogleAuth
 from gsuite_core.auth.scopes import Scopes

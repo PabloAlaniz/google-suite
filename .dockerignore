@@ -45,4 +45,4 @@ tests
 **/tests
 conftest.py
 CHANGELOG.md
-README.md
+# README.md stays: pyproject.toml reads it for package metadata

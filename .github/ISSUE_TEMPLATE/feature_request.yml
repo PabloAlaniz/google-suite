@@ -1,0 +1,16 @@
+name: Feature request
+description: A Google Workspace API, method or option you need
+labels: [enhancement]
+body:
+  - type: textarea
+    id: use-case
+    attributes:
+      label: What are you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API
+      description: How you'd like to call it from Python, the REST API or the CLI
+      render: python

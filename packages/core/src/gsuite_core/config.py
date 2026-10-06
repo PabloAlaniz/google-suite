@@ -6,6 +6,8 @@ from typing import Literal
 from pydantic import Field
 from pydantic_settings import BaseSettings
 
+from gsuite_core._version import __version__
+
 
 class Settings(BaseSettings):
     """
@@ -19,7 +21,9 @@ class Settings(BaseSettings):
     api_key: str | None = Field(default=None, description="API key for REST endpoints")
     host: str = Field(default="0.0.0.0", description="Server host")
     port: int = Field(default=8080, description="Server port")
-    version: str = Field(default="dev", description="API version")
+    version: str = Field(
+        default=__version__, description="Version reported by /health (override per deploy)"
+    )
 
     # Google OAuth
     credentials_file: str = Field(

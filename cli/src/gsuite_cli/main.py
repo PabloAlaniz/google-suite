@@ -23,7 +23,7 @@ app.add_typer(sheets.app, name="sheets", help="Sheets operations")
 @app.command()
 def status():
     """Show overall status of Google Suite CLI."""
-    from gsuite_core import GoogleAuth, get_settings
+    from gsuite_core import GoogleAuth, __version__, get_settings
 
     settings = get_settings()
     auth = GoogleAuth()
@@ -32,7 +32,7 @@ def status():
     table.add_column("Setting", style="cyan")
     table.add_column("Value", style="green")
 
-    table.add_row("Version", "0.1.0")
+    table.add_row("Version", __version__)
     table.add_row("Credentials File", settings.credentials_file)
     table.add_row("Token Storage", settings.token_storage)
     table.add_row("Authenticated", "✓ Yes" if auth.is_authenticated() else "✗ No")

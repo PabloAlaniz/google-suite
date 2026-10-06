@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from gsuite_api.routes import calendar, drive, gmail, health, sheets
-from gsuite_core import get_settings
+from gsuite_core import __version__, get_settings
 
 
 @asynccontextmanager
@@ -24,7 +24,7 @@ def create_app() -> FastAPI:
     app = FastAPI(
         title="Google Suite API",
         description="Unified REST API for Google Workspace - Gmail, Calendar, Drive, Sheets",
-        version="0.1.0",
+        version=__version__,
         docs_url="/docs",
         redoc_url="/redoc",
         lifespan=lifespan,

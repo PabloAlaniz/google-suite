@@ -18,7 +18,9 @@ class TestAppCreation:
     def test_app_metadata(self):
         """Test app has correct metadata."""
         assert app.title == "Google Suite API"
-        assert "0.1.0" in app.version
+        from gsuite_core import __version__
+
+        assert app.version == __version__
 
     def test_cors_enabled(self):
         """Test CORS middleware is configured."""

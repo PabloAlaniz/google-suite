@@ -4,8 +4,11 @@ Unified FastAPI REST gateway for Google Workspace APIs.
 
 ## Installation
 
+The API ships inside `gsuite-sdk` as the `api` extra (add `cli` for the
+`gsuite serve` command):
+
 ```bash
-pip install gsuite-api
+pip install "gsuite-sdk[api,cli]"
 ```
 
 ## Quick Start
@@ -23,8 +26,8 @@ Server runs at `http://localhost:8080` with interactive docs at `/docs`.
 ## Docker
 
 ```bash
-# Build
-docker build -t gsuite-api .
+# Build (from the repo root)
+docker build -f api/Dockerfile -t gsuite-api .
 
 # Run (mount credentials)
 docker run -p 8080:8080 \

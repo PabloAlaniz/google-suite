@@ -284,18 +284,14 @@ Environment variables (prefix `GSUITE_`):
 git clone https://github.com/PabloAlaniz/google-suite.git
 cd google-suite
 
-# Install all packages in dev mode
-pip install -e "packages/core[dev]"
-pip install -e "packages/gmail[dev]"
-pip install -e "packages/calendar[dev]"
-pip install -e "api[dev]"
-pip install -e "cli[dev]"
+# Install everything, pinned by uv.lock
+uv sync --all-extras
 
 # Run tests
-pytest
+uv run pytest
 
 # Lint
-ruff check packages api cli
+uv run ruff check packages api cli
 ```
 
 ## Deployment
@@ -305,8 +301,9 @@ ruff check packages api cli
 Deploy the REST API to Cloud Run with Secret Manager for token storage:
 
 ```bash
-# Build and push Docker image
-gcloud builds submit --tag gcr.io/YOUR_PROJECT/gsuite-api
+# Build and push Docker image (from the repo root)
+docker build -f api/Dockerfile -t gcr.io/YOUR_PROJECT/gsuite-api .
+docker push gcr.io/YOUR_PROJECT/gsuite-api
 
 # Deploy to Cloud Run
 gcloud run deploy gsuite-api \
@@ -328,7 +325,9 @@ For local development or self-hosted deployment:
 version: '3.8'
 services:
   gsuite-api:
-    build: .
+    build:
+      context: .
+      dockerfile: api/Dockerfile
     ports:
       - "8080:8080"
     environment:
@@ -384,8 +383,8 @@ When running the REST API server, interactive API docs are available at:
 **Problem:** `ModuleNotFoundError: No module named 'gsuite_gmail'`
 
 **Solution:**
-- Install the package: `pip install gsuite-gmail`
-- Or for development: `pip install -e "packages/gmail[dev]"`
+- Install the package: `pip install gsuite-sdk`
+- Or for development: `uv sync --all-extras` (see [CONTRIBUTING.md](CONTRIBUTING.md))
 
 ## License
 

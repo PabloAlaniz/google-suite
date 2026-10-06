@@ -5,7 +5,7 @@ Unified command-line interface for Google Workspace.
 ## Installation
 
 ```bash
-pip install gsuite-cli
+pip install "gsuite-sdk[cli]"
 ```
 
 This installs all gsuite packages and the `gsuite` command.

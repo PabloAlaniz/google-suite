@@ -64,9 +64,9 @@ uv run python scripts/mypy_ratchet.py --update
 
 Every PR runs lint, the mypy ratchet, a build/install smoke test and the
 lowest-supported dependency versions. Package tests run per package on
-Python 3.11–3.14, but only for the packages a PR touches (core or shared
-config runs all of them). macOS and Windows run the full suite. Nightly runs
-add the latest release of every dependency.
+Python 3.11 (oldest supported) and 3.14 (latest), but only for the packages
+a PR touches (core or shared config runs all of them). macOS and Windows run
+the full suite. Nightly runs add the latest release of every dependency.
 
 ## Getting Credentials
 
@@ -147,6 +147,21 @@ refactor: simplify OAuth token refresh logic
 chore: update dependencies
 ```
 
+PRs are squash-merged and the **PR title** becomes the commit on `main`, so
+the title must follow this format (CI checks it). Releases are driven by it:
+`fix:` bumps the patch version, `feat:` the minor version, and `feat!:` or a
+`BREAKING CHANGE:` footer marks a breaking change.
+
+## Releases
+
+Releases are automated with
+[release-please](https://github.com/googleapis/release-please). Every push to
+`main` updates a release PR that bumps the version in `pyproject.toml` and
+`uv.lock` and writes `CHANGELOG.md`. Merging that PR tags the release and
+publishes `gsuite-sdk` to PyPI through trusted publishing. Don't edit the
+version by hand: `gsuite_core.__version__`, the API and the CLI all read it
+from the installed package metadata.
+
 ## Pull Request Guidelines
 
 - Keep PRs focused on a single change
@@ -167,7 +182,7 @@ To add a new Google API (e.g., Contacts):
    │   ├── client.py
    │   └── py.typed
    ├── tests/
-   │   └── test_client.py
+   │   └── test_contacts_client.py   # test module names must be unique repo-wide
    ├── pyproject.toml
    └── README.md
    ```
@@ -176,7 +191,11 @@ To add a new Google API (e.g., Contacts):
 3. Follow existing patterns from other packages
 4. Add router in `api/src/gsuite_api/routes/`
 5. Add commands in `cli/src/gsuite_cli/`
-6. Update main README with new package
+6. Wire it into packaging and CI:
+   - `where` in `[tool.setuptools.packages.find]` and `source` in `[tool.coverage.run]` (root `pyproject.toml`)
+   - `PACKAGES`/`SERVICES` in `scripts/ci_select_packages.py` and a filter in `.github/workflows/ci.yml`
+   - `TARGETS` in `scripts/mypy_ratchet.py`, then `uv run python scripts/mypy_ratchet.py --update`
+7. Update main README with new package
 
 ## Code Style
 
@@ -221,3 +240,34 @@ def send_email(
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
+
+## Maintainer setup
+
+One-time repository settings that live on GitHub, not in the repo:
+
+```bash
+REPO=PabloAlaniz/google-suite
+
+# Squash-only merges, with the PR title as the commit message
+gh api -X PATCH repos/$REPO -F allow_merge_commit=false -F allow_rebase_merge=false \
+  -F allow_squash_merge=true -f squash_merge_commit_title=PR_TITLE \
+  -f squash_merge_commit_message=PR_BODY -F delete_branch_on_merge=true
+
+# Private vulnerability reports (SECURITY.md points here) and Dependabot security PRs
+gh api -X PUT repos/$REPO/private-vulnerability-reporting
+gh api -X PUT repos/$REPO/automated-security-fixes
+
+# Let release-please open PRs
+gh api -X PUT repos/$REPO/actions/permissions/workflow \
+  -f default_workflow_permissions=read -F can_approve_pull_request_reviews=true
+
+# Fine-grained PAT (this repo; contents + pull requests: write) so release PRs trigger CI
+gh secret set RELEASE_PLEASE_TOKEN -R $REPO
+
+# Protect main. Apply after ci-ok has run once on main, so the check exists.
+gh api -X POST repos/$REPO/rulesets --input .github/rulesets/main.json
+```
+
+The ruleset requires a squash-merged PR with `ci-ok`, secret scanning, the
+dependency audit, CodeQL and the PR title check green. It has no bypass
+actors, so automation that pushed straight to `main` has to open PRs instead.

@@ -8,9 +8,10 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
-from gspreadmanager import GSpreadManagerError, SheetManager
-from gspreadmanager.infrastructure.cache import _Cache
-from gspreadmanager.testing import InMemoryBackend
+
+from gsuite_sheets.engine import GSpreadManagerError, SheetManager
+from gsuite_sheets.engine.infrastructure.cache import _Cache
+from gsuite_sheets.engine.testing import InMemoryBackend
 
 ROWS = [["id", "nombre"]] + [[str(i), f"p{i}"] for i in range(1, 6)]  # encabezado + 5 filas
 

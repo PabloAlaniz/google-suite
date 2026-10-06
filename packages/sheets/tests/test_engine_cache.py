@@ -2,8 +2,9 @@
 
 import pandas as pd
 import pytest
-from gspreadmanager import CellFormat, Color, ExportFormat, SheetManager
-from gspreadmanager.testing import InMemoryBackend
+
+from gsuite_sheets.engine import CellFormat, Color, ExportFormat, SheetManager
+from gsuite_sheets.engine.testing import InMemoryBackend
 
 
 @pytest.fixture

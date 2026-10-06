@@ -1,11 +1,12 @@
 """Tests del backend de DataFrame pluggable: factory, adaptador polars y limpieza pura."""
 
 import pytest
-from gspreadmanager.domain.dataframe import prune_empty
-from gspreadmanager.domain.errors import GSpreadManagerError
-from gspreadmanager.infrastructure.dataframe_backend import build_dataframe_adapter
-from gspreadmanager.infrastructure.pandas_adapter import PandasDataFrameAdapter
-from gspreadmanager.infrastructure.polars_adapter import PolarsDataFrameAdapter
+
+from gsuite_sheets.engine.domain.dataframe import prune_empty
+from gsuite_sheets.engine.domain.errors import GSpreadManagerError
+from gsuite_sheets.engine.infrastructure.dataframe_backend import build_dataframe_adapter
+from gsuite_sheets.engine.infrastructure.pandas_adapter import PandasDataFrameAdapter
+from gsuite_sheets.engine.infrastructure.polars_adapter import PolarsDataFrameAdapter
 
 polars = pytest.importorskip("polars")
 

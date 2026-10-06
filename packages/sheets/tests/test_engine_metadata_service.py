@@ -4,8 +4,9 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
-from gspreadmanager.application.metadata_service import MetadataService
-from gspreadmanager.domain.values import GridRange
+
+from gsuite_sheets.engine.application.metadata_service import MetadataService
+from gsuite_sheets.engine.domain.values import GridRange
 
 
 @pytest.fixture

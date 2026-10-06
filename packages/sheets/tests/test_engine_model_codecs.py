@@ -11,14 +11,15 @@ from enum import Enum
 from typing import Literal, Optional
 
 import pytest
-from gspreadmanager import SchemaError
-from gspreadmanager.domain.schema import format_cell, rows_to_models
-from gspreadmanager.infrastructure.model_codecs import (
+from pydantic import BaseModel, Field
+
+from gsuite_sheets.engine import SchemaError
+from gsuite_sheets.engine.domain.schema import format_cell, rows_to_models
+from gsuite_sheets.engine.infrastructure.model_codecs import (
     DataclassModelCodec,
     PydanticModelCodec,
 )
-from gspreadmanager.testing import InMemoryBackend
-from pydantic import BaseModel, Field
+from gsuite_sheets.engine.testing import InMemoryBackend
 
 
 class Estado(Enum):
@@ -32,7 +33,7 @@ class FilaDc:
     monto: Decimal
     estado: Estado
     prioridad: Literal["alta", "baja"]
-    nota: Optional[str] = None
+    nota: str | None = None
 
 
 class FilaPyd(BaseModel):
@@ -67,7 +68,6 @@ HEADER_DC = ["id", "monto", "estado", "prioridad", "nota"]
 
 
 class TestDomainCoercions:
-
     def test_decimal_enum_literal_roundtrip(self):
         models = rows_to_models(FilaDc, HEADER_DC, [["1", "10.50", "hecho", "alta", ""]])
         fila = models[0]
@@ -105,7 +105,9 @@ class TestPydanticCodec:
 
     def test_read_as_validates_and_coerces(self, mgr):
         filas = mgr.worksheet("Pyd").read_as(FilaPyd)
-        assert filas[0] == FilaPyd.model_validate({"id": 1, "nombre completo": "Ana García", "activo": True})
+        assert filas[0] == FilaPyd.model_validate(
+            {"id": 1, "nombre completo": "Ana García", "activo": True}
+        )
         assert filas[1].activo is True  # celda vacía -> default
 
     def test_alias_maps_column_name(self, mgr):
@@ -121,7 +123,9 @@ class TestPydanticCodec:
 
     def test_write_and_append_models(self, backend, mgr):
         ws = mgr.worksheet("Pyd")
-        ws.write_models([FilaPyd.model_validate({"id": 9, "nombre completo": "Eva", "activo": False})])
+        ws.write_models(
+            [FilaPyd.model_validate({"id": 9, "nombre completo": "Eva", "activo": False})]
+        )
         assert ws.read() == [["id", "nombre completo", "activo"], ["9", "Eva", "FALSE"]]
         ws.append_models([FilaPyd.model_validate({"id": 10, "nombre completo": "Zoe"})])
         assert ws.read()[-1] == ["10", "Zoe", "TRUE"]

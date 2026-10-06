@@ -8,9 +8,14 @@ prueban contra los adaptadores (el fake no modela fórmulas).
 import io
 
 import pytest
-from gspreadmanager import GSpreadManagerError, SpreadsheetNotFoundError, WorksheetNotFoundError
-from gspreadmanager.domain.csv_data import rows_from_csv
-from gspreadmanager.testing import InMemoryBackend
+
+from gsuite_sheets.engine import (
+    GSpreadManagerError,
+    SpreadsheetNotFoundError,
+    WorksheetNotFoundError,
+)
+from gsuite_sheets.engine.domain.csv_data import rows_from_csv
+from gsuite_sheets.engine.testing import InMemoryBackend
 
 
 @pytest.fixture

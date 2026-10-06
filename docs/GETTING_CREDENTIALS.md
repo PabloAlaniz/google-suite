@@ -45,6 +45,11 @@ Before creating credentials, you need to configure the consent screen:
    - Sheets: `https://www.googleapis.com/auth/spreadsheets`
 3. Click **Save and Continue**
 
+`gsuite auth login` requests all four by default. Sheets needs the Drive scope
+too: opening a spreadsheet by title, listing, sharing and exporting go through
+Drive. If you logged in with an older version (Drive wasn't in the default),
+run `gsuite auth login --force` once to grant it.
+
 ### Add Test Users
 
 While in testing mode, you must add users who can use your app:

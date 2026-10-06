@@ -13,7 +13,7 @@ import time
 from collections.abc import Callable
 from typing import TypeVar
 
-from gspreadmanager.domain.errors import ApiError
+from gsuite_sheets.engine.domain.errors import ApiError
 
 T = TypeVar("T")
 

@@ -6,10 +6,10 @@ conoce el puerto, y aquí se decide la implementación concreta a partir de un n
 
 from __future__ import annotations
 
-from gspreadmanager.domain.errors import GSpreadManagerError
-from gspreadmanager.infrastructure.pandas_adapter import PandasDataFrameAdapter
-from gspreadmanager.infrastructure.polars_adapter import PolarsDataFrameAdapter
-from gspreadmanager.ports.dataframe import DataFramePort
+from gsuite_sheets.engine.domain.errors import GSpreadManagerError
+from gsuite_sheets.engine.infrastructure.pandas_adapter import PandasDataFrameAdapter
+from gsuite_sheets.engine.infrastructure.polars_adapter import PolarsDataFrameAdapter
+from gsuite_sheets.engine.ports.dataframe import DataFramePort
 
 
 def build_dataframe_adapter(backend: str) -> DataFramePort:

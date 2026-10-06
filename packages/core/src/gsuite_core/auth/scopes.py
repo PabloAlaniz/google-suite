@@ -80,5 +80,10 @@ class Scopes:
 
     @classmethod
     def default(cls) -> list[str]:
-        """Default scopes (Gmail + Calendar + Sheets)."""
-        return cls.gmail() + cls.calendar() + cls.sheets()
+        """Default scopes: Gmail, Calendar, Drive and Sheets.
+
+        Drive used to be missing, so a default login got 403s from the Drive
+        client and from the Sheets calls that go through Drive (open by title,
+        list, share, export). Tokens created before need `gsuite auth login --force`.
+        """
+        return cls.gmail() + cls.calendar() + cls.drive() + cls.sheets()

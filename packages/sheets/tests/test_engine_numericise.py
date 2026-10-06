@@ -1,7 +1,8 @@
 """Tests de inferencia de tipos (``domain.numericise``)."""
 
 import pytest
-from gspreadmanager.domain.numericise import numericise, numericise_all, numericise_records
+
+from gsuite_sheets.engine.domain.numericise import numericise, numericise_all, numericise_records
 
 
 @pytest.mark.parametrize(

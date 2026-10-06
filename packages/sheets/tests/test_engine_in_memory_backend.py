@@ -1,9 +1,10 @@
-"""Tests del backend en memoria (``gspreadmanager.testing``) vía el API público."""
+"""Tests del backend en memoria (``gsuite_sheets.engine.testing``) vía el API público."""
 
 from dataclasses import dataclass
 
 import pytest
-from gspreadmanager import (
+
+from gsuite_sheets.engine import (
     Color,
     ExportFormat,
     GSpreadManagerError,
@@ -12,7 +13,7 @@ from gspreadmanager import (
     SpreadsheetNotFoundError,
     WorksheetNotFoundError,
 )
-from gspreadmanager.testing import InMemoryBackend, InMemoryClient, InMemorySpreadsheet
+from gsuite_sheets.engine.testing import InMemoryBackend, InMemoryClient, InMemorySpreadsheet
 
 
 @dataclass
@@ -147,6 +148,9 @@ class TestNotesAndRanges:
 
 
 class TestCapturedRequests:
+    # Inspects the emulator's own request log ("format" pseudo-entries); through the
+    # adapter the real repeatCell request is logged instead.
+    @pytest.mark.memory_only
     def test_formatting_and_sort_are_logged_not_applied(self, backend, mgr):
         ws = mgr.worksheet("Hoja1")
         ws.set_background("A1", Color(red=1.0))

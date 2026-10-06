@@ -8,10 +8,11 @@ from __future__ import annotations
 
 from typing import Any
 
-from gspreadmanager.config import DEFAULT_VALUE_INPUT_OPTION
-from gspreadmanager.domain.errors import InsertError
-from gspreadmanager.domain.values import rowcol_to_a1
-from gspreadmanager.ports.sheets import SpreadsheetPort, WorksheetPort
+from gsuite_sheets.a1 import a1 as qualify
+from gsuite_sheets.engine.config import DEFAULT_VALUE_INPUT_OPTION
+from gsuite_sheets.engine.domain.errors import InsertError
+from gsuite_sheets.engine.domain.values import rowcol_to_a1
+from gsuite_sheets.engine.ports.sheets import SpreadsheetPort, WorksheetPort
 
 
 class DataService:
@@ -47,7 +48,7 @@ class DataService:
         Es la pieza de paginación de ``iter_rows``: la API omite las filas vacías al final
         del rango, así que una página corta indica el fin de los datos.
         """
-        a1 = f"{worksheet.title}!{start_row}:{end_row}"
+        a1 = qualify(worksheet.title, f"{start_row}:{end_row}")
         data = worksheet.spreadsheet.values_get(a1)
         rows: list[list[str]] = data.get("values", []) if isinstance(data, dict) else []
         return rows
@@ -136,7 +137,9 @@ class DataService:
         last = first_row + len(data) - 1
         num_cols = len(data[0])
         # rowcol_to_a1 soporta correctamente más de 26 columnas (más allá de Z).
-        a1_range = f"{worksheet_name}!{rowcol_to_a1(first_row, 1)}:{rowcol_to_a1(last, num_cols)}"
+        a1_range = qualify(
+            worksheet_name, f"{rowcol_to_a1(first_row, 1)}:{rowcol_to_a1(last, num_cols)}"
+        )
 
         try:
             params = {"valueInputOption": DEFAULT_VALUE_INPUT_OPTION}

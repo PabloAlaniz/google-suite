@@ -15,7 +15,7 @@ import threading
 import time
 from collections.abc import Callable
 
-from gspreadmanager.domain.errors import GSpreadManagerError
+from gsuite_sheets.engine.domain.errors import GSpreadManagerError
 
 logger = logging.getLogger(__name__)
 

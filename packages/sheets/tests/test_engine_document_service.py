@@ -3,7 +3,8 @@
 from unittest.mock import Mock
 
 import pytest
-from gspreadmanager.application.document_service import DocumentService
+
+from gsuite_sheets.engine.application.document_service import DocumentService
 
 
 @pytest.fixture

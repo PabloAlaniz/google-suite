@@ -1,14 +1,24 @@
 """Jerarquía de errores propia de GSpreadManager.
 
-Hogar canónico de las excepciones. ``gspreadmanager.exceptions`` se conserva como
+Hogar canónico de las excepciones. ``gsuite_sheets.engine.exceptions`` se conserva como
 shim de compatibilidad que re-exporta ``GSpreadManagerError`` e ``InsertError``.
 """
 
 from __future__ import annotations
 
+from gsuite_core.exceptions import GSuiteError
 
-class GSpreadManagerError(Exception):
-    """Error base para todas las operaciones de GSpreadManager."""
+
+class GSpreadManagerError(GSuiteError):
+    """Error base para todas las operaciones de GSpreadManager.
+
+    En google-suite hereda de ``GSuiteError``: quien atrapa los errores de la suite
+    (handlers de la REST API, la CLI) atrapa también los del motor de Sheets.
+    """
+
+    def __init__(self, message: str = "", *args: object) -> None:
+        """Acepta el mensaje como los errores de GSM (``GSuiteError`` lo guarda en ``message``)."""
+        super().__init__(str(message))
 
 
 class InsertError(GSpreadManagerError):

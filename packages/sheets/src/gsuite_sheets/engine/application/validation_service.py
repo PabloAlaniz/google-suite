@@ -9,14 +9,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from gspreadmanager.domain.values import (
+from gsuite_sheets.engine.domain.values import (
     CellFormat,
     Condition,
     ConditionalFormatRule,
     DataValidationRule,
     GridRange,
 )
-from gspreadmanager.ports.sheets import WorksheetPort
+from gsuite_sheets.engine.ports.sheets import WorksheetPort
 
 
 class ValidationService:

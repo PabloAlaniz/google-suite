@@ -22,10 +22,10 @@ class TestScopes:
         assert Scopes.CALENDAR_EVENTS in scopes
 
     def test_default_scopes(self):
-        """Default scopes should be Gmail + Calendar."""
+        """Default scopes cover every service the SDK ships, Drive included."""
         scopes = Scopes.default()
-        assert all(s in scopes for s in Scopes.gmail())
-        assert all(s in scopes for s in Scopes.calendar())
+        for service_scopes in (Scopes.gmail(), Scopes.calendar(), Scopes.drive(), Scopes.sheets()):
+            assert all(s in scopes for s in service_scopes)
 
     def test_all_scopes(self):
         """All scopes should include everything."""

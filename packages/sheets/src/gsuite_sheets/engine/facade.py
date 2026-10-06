@@ -12,9 +12,10 @@ viven en los adaptadores de infraestructura.
 
 from __future__ import annotations
 
-import importlib.util
 from collections.abc import Iterator
 from typing import Any
+
+from gsuite_sheets.a1 import a1 as qualify
 
 from .application.data_service import DataService
 from .application.dataframe_service import DataframeService
@@ -41,10 +42,8 @@ from .domain.values import (
     DeveloperMetadataEntry,
     SpreadsheetId,
 )
-from .infrastructure.auth import GSPREAD_MISSING_MESSAGE, build_auth_strategy, build_credentials
 from .infrastructure.cache import CachingClient
 from .infrastructure.dataframe_backend import build_dataframe_adapter
-from .infrastructure.native import DEFAULT_HTTP_TIMEOUT, SheetsApiClient, build_authorized_session
 from .infrastructure.rate_limit import TokenBucketRateLimiter
 from .infrastructure.request_builders import grid_range
 from .ports.rate_limit import RateLimiter
@@ -71,32 +70,6 @@ def _resolve_render(render: str | None) -> str | None:
         ) from None
 
 
-def _gspread_client_adapter(auth: Any) -> ClientPort:
-    """Construye el adaptador de gspread (import diferido: gspread es un extra opcional)."""
-    try:
-        from .infrastructure.gspread_client import GspreadClientAdapter  # noqa: PLC0415
-    except ImportError as exc:
-        raise GSpreadManagerError(GSPREAD_MISSING_MESSAGE) from exc
-    return GspreadClientAdapter(auth)
-
-
-def _resolve_backend(backend: str | None, client: Any) -> str:
-    """Resuelve el backend efectivo.
-
-    - ``None`` (default 3.0): **nativo**, salvo que se pase un ``client`` de gspread
-      preautorizado (compatibilidad).
-    - ``"auto"``: gspread si está instalado (o hay ``client``), si no el nativo.
-    - ``"gspread"`` / ``"native"``: explícitos.
-    """
-    if backend is None:
-        return "gspread" if client is not None else "native"
-    if backend != "auto":
-        return backend
-    if client is not None or importlib.util.find_spec("gspread") is not None:
-        return "gspread"
-    return "native"
-
-
 class SheetManager:
     """Gestor de un documento de Google Sheets (API 2.0, sin estado de pestaña mutable).
 
@@ -110,19 +83,12 @@ class SheetManager:
     def __init__(
         self,
         doc_name: str | None = None,
-        json_google_file: str | None = None,
         *,
         key: str | None = None,
-        max_retries: int = 3,
+        sheets_client: ClientPort,
+        max_retries: int = 0,
         retry_backoff: float = 1.0,
-        credentials: Any = None,
-        client: Any = None,
-        service_account_info: dict[str, Any] | None = None,
-        use_adc: bool = False,
-        backend: str | None = None,
-        http_timeout: float | None = DEFAULT_HTTP_TIMEOUT,
         dataframe_backend: str = "pandas",
-        sheets_client: ClientPort | None = None,
         cache: bool = False,
         cache_ttl: float | None = None,
         cache_max_entries: int | None = None,
@@ -136,15 +102,9 @@ class SheetManager:
         por URL usá el classmethod :meth:`open_by_url`. ``dataframe_backend`` elige el motor de
         DataFrame ('pandas' o 'polars') para ``read_dataframe`` / ``write_dataframe``.
 
-        ``backend`` elige el transporte. Desde la 3.0 el default es el **cliente nativo**
-        (REST propio sobre google-auth; culmina el ADR 0001), salvo que se pase ``client=``
-        (un cliente de gspread preautorizado). Valores: ``"native"``, ``"gspread"`` (requiere
-        el extra ``pip install "GSpreadManager[gspread]"``) o ``"auto"`` (gspread si está
-        instalado, si no nativo — el default de la 2.x). ``http_timeout`` (segundos, solo
-        backend nativo) limita cada petición HTTP; ``None`` lo desactiva.
-
-        ``sheets_client`` inyecta un ``ClientPort`` propio (ej. el backend en memoria de
-        ``gspreadmanager.testing``), salteando la autenticación con gspread.
+        ``sheets_client`` es el ``ClientPort`` a usar: el adaptador de google-suite
+        (``gsuite_sheets.engine_adapter``) o el backend en memoria de
+        ``gsuite_sheets.engine.testing``.
 
         ``cache=True`` activa una caché de lecturas que se invalida con cada escritura propia
         (no detecta cambios de otros procesos); usá :meth:`clear_cache` para forzar el refresco.
@@ -169,36 +129,11 @@ class SheetManager:
         self._rate_limiter: RateLimiter | None = (
             TokenBucketRateLimiter(rate_limit, rate_limit_burst) if rate_limit is not None else None
         )
-        backend = _resolve_backend(backend, client)
-        if sheets_client is not None:
-            base_client: ClientPort = sheets_client
-        elif backend == "native":
-            if client is not None:
-                raise GSpreadManagerError(
-                    "El parámetro 'client' (cliente de gspread preautorizado) no aplica "
-                    "con backend='native'; usá credentials, service_account_info, "
-                    "json_google_file o use_adc."
-                )
-            creds = build_credentials(
-                credentials=credentials,
-                service_account_info=service_account_info,
-                json_google_file=json_google_file,
-                use_adc=use_adc,
-            )
-            base_client = SheetsApiClient(build_authorized_session(creds, timeout=http_timeout))
-        elif backend == "gspread":
-            auth = build_auth_strategy(
-                credentials=credentials,
-                service_account_info=service_account_info,
-                json_google_file=json_google_file,
-                client=client,
-                use_adc=use_adc,
-            )
-            base_client = _gspread_client_adapter(auth)
-        else:
-            raise GSpreadManagerError(
-                f"Backend desconocido: {backend!r}. Usá 'auto', 'gspread' o 'native'."
-            )
+        # google-suite: the transport is always an injected ClientPort
+        # (gsuite_sheets.engine_adapter, or the in-memory backend in tests).
+        # Auth, retries and error mapping happen in gsuite_core.execute, so
+        # max_retries defaults to 0 here to avoid retrying twice.
+        base_client: ClientPort = sheets_client
         cache_enabled = cache or cache_ttl is not None or cache_max_entries is not None
         self._cache = (
             CachingClient(base_client, ttl=cache_ttl, max_entries=cache_max_entries)
@@ -227,20 +162,14 @@ class SheetManager:
         return
 
     @classmethod
-    def open_by_key(
-        cls, key: str, json_google_file: str | None = None, **kwargs: Any
-    ) -> SheetManager:
+    def open_by_key(cls, key: str, **kwargs: Any) -> SheetManager:
         """Crea un gestor para el documento con ``key`` (id de Drive)."""
-        return cls(key=key, json_google_file=json_google_file, **kwargs)
+        return cls(key=key, **kwargs)
 
     @classmethod
-    def open_by_url(
-        cls, url: str, json_google_file: str | None = None, **kwargs: Any
-    ) -> SheetManager:
+    def open_by_url(cls, url: str, **kwargs: Any) -> SheetManager:
         """Crea un gestor para el documento de una URL de Google Sheets."""
-        return cls(
-            key=SpreadsheetId.from_url(url).value, json_google_file=json_google_file, **kwargs
-        )
+        return cls(key=SpreadsheetId.from_url(url).value, **kwargs)
 
     def clear_cache(self) -> None:
         """Invalida la caché de lecturas (no-op si se creó con ``cache=False``)."""
@@ -430,7 +359,8 @@ class SheetManager:
         mime_type = (
             export_format.value if isinstance(export_format, ExportFormat) else export_format
         )
-        return self._spreadsheet().export(mime_type)
+        content: bytes = self._spreadsheet().export(mime_type)
+        return content
 
 
 class WorksheetContext:
@@ -501,7 +431,7 @@ class WorksheetContext:
         self, fila_start: int, fila_end: int, column_start: str, column_end: str
     ) -> list[dict[str, Any]]:
         """Lee un rango por índices de fila/columna; devuelve ``{'fila': nro, 'values': [...]}``."""
-        a1 = f"{self._ws.title}!{column_start}{fila_start}:{column_end}{fila_end}"
+        a1 = qualify(self._ws.title, f"{column_start}{fila_start}:{column_end}{fila_end}")
         return self._m._data.read_range(self._ws.spreadsheet, a1, fila_start)
 
     def append(self, data: list[list[Any]]) -> Any:
@@ -897,7 +827,7 @@ class WorksheetContext:
     @retry_on_rate_limit
     def get_note(self, cell: str) -> str:
         """Devuelve la nota de una celda (cadena vacía si no tiene)."""
-        return self._m._metadata.get_note(self._ws, f"{self._ws.title}!{cell}")
+        return self._m._metadata.get_note(self._ws, qualify(self._ws.title, cell))
 
     # ------------------------------------------------------------------
     # Named ranges / protected ranges
@@ -1099,7 +1029,9 @@ class WorksheetContext:
     # ------------------------------------------------------------------
 
     @retry_on_rate_limit
-    def ensure_schema(self, model: type, *, create: bool = True, strict: bool = False) -> dict[str, Any]:
+    def ensure_schema(
+        self, model: type, *, create: bool = True, strict: bool = False
+    ) -> dict[str, Any]:
         """Valida (o crea) el encabezado de la hoja contra el esquema de ``model``.
 
         Hoja vacía: escribe el encabezado del modelo (salvo ``create=False``). Columnas del

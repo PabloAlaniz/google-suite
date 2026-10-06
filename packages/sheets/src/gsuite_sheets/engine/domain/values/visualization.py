@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-from gspreadmanager.domain.errors import GSpreadManagerError
+from gsuite_sheets.engine.domain.errors import GSpreadManagerError
 
 from .color import Color
 from .ranges import GridRange

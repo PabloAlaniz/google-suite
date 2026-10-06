@@ -3,7 +3,8 @@
 from unittest.mock import Mock
 
 import pytest
-from gspreadmanager.application.sharing_service import SharingService
+
+from gsuite_sheets.engine.application.sharing_service import SharingService
 
 
 @pytest.fixture

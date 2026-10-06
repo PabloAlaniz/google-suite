@@ -11,7 +11,6 @@ from collections.abc import Callable
 from functools import wraps
 from typing import Any, TypeVar
 
-from .infrastructure.async_retry import AsyncExponentialBackoffRetry
 from .infrastructure.retry import RETRYABLE_STATUS, ExponentialBackoffRetry
 
 F = TypeVar("F", bound=Callable[..., Any])
@@ -20,7 +19,6 @@ __all__ = [
     "RETRYABLE_STATUS",
     "ExponentialBackoffRetry",
     "retry_on_rate_limit",
-    "retry_on_rate_limit_async",
 ]
 
 
@@ -42,22 +40,5 @@ def retry_on_rate_limit(func: F) -> F:
             backoff=getattr(self, "retry_backoff", 1.0),
         )
         return policy.run(lambda: func(self, *args, **kwargs))
-
-    return wrapper  # type: ignore[return-value]
-
-
-def retry_on_rate_limit_async(func: F) -> F:
-    """Versión async del decorador: ``await acquire()`` + retry cooperativo por método."""
-
-    @wraps(func)
-    async def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
-        limiter = getattr(self, "_rate_limiter", None)
-        if limiter is not None:
-            await limiter.acquire()
-        policy = AsyncExponentialBackoffRetry(
-            max_retries=getattr(self, "max_retries", 0),
-            backoff=getattr(self, "retry_backoff", 1.0),
-        )
-        return await policy.run(lambda: func(self, *args, **kwargs))
 
     return wrapper  # type: ignore[return-value]

@@ -4,8 +4,9 @@ from unittest.mock import Mock
 
 import pandas as pd
 import pytest
-from gspreadmanager.application.dataframe_service import DataframeService
-from gspreadmanager.infrastructure.pandas_adapter import PandasDataFrameAdapter
+
+from gsuite_sheets.engine.application.dataframe_service import DataframeService
+from gsuite_sheets.engine.infrastructure.pandas_adapter import PandasDataFrameAdapter
 
 
 class TestDataframeService:

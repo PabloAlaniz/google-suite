@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from gspreadmanager.domain.values import (
+from gsuite_sheets.engine.domain.values import (
     BandingSpec,
     ChartSpec,
     GridRange,
@@ -17,7 +17,7 @@ from gspreadmanager.domain.values import (
     PivotTableSpec,
     PivotValue,
 )
-from gspreadmanager.ports.sheets import WorksheetPort
+from gsuite_sheets.engine.ports.sheets import WorksheetPort
 
 
 class VisualizationService:
@@ -74,9 +74,7 @@ class VisualizationService:
         self, worksheet: WorksheetPort, spec: BandingSpec, range_name: str
     ) -> int | None:
         """Aplica bandas alternadas al rango; devuelve el ``bandedRangeId`` (si el backend lo da)."""
-        reply = self._apply(
-            worksheet, spec.to_request(GridRange.from_a1(range_name, worksheet.id))
-        )
+        reply = self._apply(worksheet, spec.to_request(GridRange.from_a1(range_name, worksheet.id)))
         banded_id = reply.get("addBanding", {}).get("bandedRange", {}).get("bandedRangeId")
         return int(banded_id) if banded_id is not None else None
 

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from gspreadmanager.ports.sheets import SpreadsheetPort
+from gsuite_sheets.engine.ports.sheets import SpreadsheetPort
 
 
 class SharingService:

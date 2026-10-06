@@ -1,6 +1,14 @@
+"""Sheets engine incorporated from GSpreadManager 3.0 (PabloAlaniz/GSpreadManager).
+
+Internal to gsuite_sheets: domain value objects, ports, application services,
+the in-memory backend and the SheetManager/WorksheetContext orchestration.
+The public API is gsuite_sheets.Sheets / Spreadsheet / Worksheet; requests
+go through gsuite_sheets.engine_adapter, which implements the ports on top
+of google-suite's client (retries, errors and auth from gsuite_core).
+"""
+
 import logging
 
-from .async_facade import AsyncSheetManager, AsyncWorksheetContext
 from .config import DEFAULT_VALUE_INPUT_OPTION
 from .domain.errors import (
     ApiError,
@@ -18,16 +26,13 @@ from .domain.values import Border, Borders, CellFormat, Color, NumberFormat, Tex
 from .facade import SheetManager, WorksheetContext
 
 # Logging opt-in: la librería no configura handlers; el usuario activa
-# ``logging.getLogger("gspreadmanager")`` si quiere ver requests/retries/caché.
+# ``logging.getLogger("gsuite_sheets.engine")`` si quiere ver requests/retries/caché.
 logging.getLogger(__name__).addHandler(logging.NullHandler())
 
-__version__ = "3.0.0"
 
 __all__ = [
     "DEFAULT_VALUE_INPUT_OPTION",
     "ApiError",
-    "AsyncSheetManager",
-    "AsyncWorksheetContext",
     "Border",
     "Borders",
     "CellFormat",
@@ -45,5 +50,4 @@ __all__ = [
     "TextFormat",
     "WorksheetContext",
     "WorksheetNotFoundError",
-    "__version__",
 ]

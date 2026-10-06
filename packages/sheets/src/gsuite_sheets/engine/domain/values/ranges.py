@@ -11,7 +11,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from gspreadmanager.domain.errors import InvalidIdentifierError, InvalidRangeError
+from gsuite_core.exceptions import ValidationError
+from gsuite_sheets import a1 as _a1
+from gsuite_sheets.engine.domain.errors import InvalidIdentifierError, InvalidRangeError
 
 # Ancla A1: una celda (A1), una columna (A) o una fila (1).
 _A1_ANCHOR = r"(?:[A-Za-z]{1,3}[1-9][0-9]*|[A-Za-z]{1,3}|[1-9][0-9]*)"
@@ -24,19 +26,12 @@ def column_to_letter(col: int) -> str:
     """Convierte un índice de columna 1-based a letras ('A', 'Z', 'AA', ...)."""
     if col < 1:
         raise InvalidRangeError(f"Columna inválida: {col} (debe ser >= 1).")
-    letters = ""
-    while col > 0:
-        col, remainder = divmod(col - 1, 26)
-        letters = chr(ord("A") + remainder) + letters
-    return letters
+    return _a1.column_letter(col - 1)
 
 
 def letter_to_column(letters: str) -> int:
     """Convierte letras de columna ('A', 'AA') a su índice 1-based."""
-    col = 0
-    for ch in letters.upper():
-        col = col * 26 + (ord(ch) - ord("A") + 1)
-    return col
+    return _a1.column_index(letters) + 1
 
 
 def rowcol_to_a1(row: int, col: int) -> str:
@@ -44,17 +39,6 @@ def rowcol_to_a1(row: int, col: int) -> str:
     if row < 1:
         raise InvalidRangeError(f"Fila inválida: {row} (debe ser >= 1).")
     return f"{column_to_letter(col)}{row}"
-
-
-def _split_cell(cell: str) -> tuple[int | None, int | None]:
-    """Separa una ancla A1 ('A1', 'A', '10') en (columna, fila) 1-based o None."""
-    match = _A1_CELL.match(cell)
-    if not match or not cell:
-        raise InvalidRangeError(f"Ancla A1 inválida: {cell!r}.")
-    letters, digits = match.groups()
-    col = letter_to_column(letters) if letters else None
-    row = int(digits) if digits else None
-    return col, row
 
 
 @dataclass(frozen=True)
@@ -69,8 +53,8 @@ class A1Range:
             raise InvalidRangeError(f"Rango A1 inválido: {self.value!r}.")
 
     def with_sheet(self, sheet_name: str) -> str:
-        """Antepone el nombre de pestaña: ``'Hoja1!A1:C10'``."""
-        return f"{sheet_name}!{self.value}"
+        """Antepone el nombre de pestaña, entre comillas: ``"'Hoja 1'!A1:C10"``."""
+        return _a1.a1(sheet_name, self.value)
 
     def __str__(self) -> str:
         """Devuelve la notación A1 cruda."""
@@ -137,30 +121,14 @@ class GridRange:
     def from_a1(cls, a1_range: str, sheet_id: int) -> GridRange:
         """Convierte un rango A1 en un ``GridRange`` (0-based, fin exclusivo) para ``sheet_id``.
 
-        Soporta celdas ('A1'), rangos ('A1:C10'), columnas ('A:C') y filas ('1:5');
-        ignora el prefijo de pestaña ('Hoja1!A1:C10').
+        Soporta celdas ('A1'), rangos ('A1:C10'), columnas ('A:C'), filas ('1:5') y rangos
+        abiertos ('A2:C'); ignora el prefijo de pestaña, también entre comillas. Delega en
+        ``gsuite_sheets.a1.grid_range``, la única implementación de A1 de la suite.
         """
-        if "!" in a1_range:
-            a1_range = a1_range.split("!", 1)[1]
-        start_str, _, end_str = a1_range.partition(":")
-        if not end_str:
-            end_str = start_str
-        start_col, start_row = _split_cell(start_str)
-        end_col, end_row = _split_cell(end_str)
-
-        start_row_index = end_row_index = None
-        if start_row is not None and end_row is not None:
-            start_row_index, end_row_index = start_row - 1, end_row
-        start_column_index = end_column_index = None
-        if start_col is not None and end_col is not None:
-            start_column_index, end_column_index = start_col - 1, end_col
-        return cls(
-            sheet_id=sheet_id,
-            start_row_index=start_row_index,
-            end_row_index=end_row_index,
-            start_column_index=start_column_index,
-            end_column_index=end_column_index,
-        )
+        try:
+            return cls.from_dict(_a1.grid_range(a1_range, sheet_id))
+        except ValidationError as exc:
+            raise InvalidRangeError(f"Rango A1 inválido: {a1_range!r}.") from exc
 
 
 _URL_KEY_PATTERN = re.compile(r"/spreadsheets/d/([a-zA-Z0-9-_]+)")

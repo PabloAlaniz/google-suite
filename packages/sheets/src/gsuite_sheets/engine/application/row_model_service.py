@@ -10,9 +10,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 from typing import Any
 
-from gspreadmanager.domain.errors import SchemaError
-from gspreadmanager.ports.model_codec import ModelCodec
-from gspreadmanager.ports.sheets import WorksheetPort
+from gsuite_sheets.engine.domain.errors import SchemaError
+from gsuite_sheets.engine.ports.model_codec import ModelCodec
+from gsuite_sheets.engine.ports.sheets import WorksheetPort
 
 
 def schema_drift(expected: list[str], header: list[str]) -> tuple[list[str], list[str]]:
@@ -28,7 +28,9 @@ class RowModelService:
     def __init__(self, codecs: Sequence[ModelCodec] | None = None) -> None:
         """Recibe los codecs disponibles (por defecto: Pydantic + dataclasses)."""
         if codecs is None:
-            from gspreadmanager.infrastructure.model_codecs import DEFAULT_CODECS  # noqa: PLC0415
+            from gsuite_sheets.engine.infrastructure.model_codecs import (
+                DEFAULT_CODECS,  # noqa: PLC0415
+            )
 
             codecs = DEFAULT_CODECS
         self._codecs = list(codecs)

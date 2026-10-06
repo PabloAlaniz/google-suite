@@ -16,19 +16,19 @@ from __future__ import annotations
 import logging
 import time
 from collections import OrderedDict
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
-from gspreadmanager.domain.values import GridRange, rowcol_to_a1
-from gspreadmanager.ports.sheets import ClientPort, SpreadsheetPort, WorksheetPort
+from gsuite_sheets.a1 import split_sheet
+from gsuite_sheets.engine.domain.values import GridRange, rowcol_to_a1
+from gsuite_sheets.engine.ports.sheets import ClientPort, SpreadsheetPort, WorksheetPort
 
 logger = logging.getLogger(__name__)
 
 
 def _range_title(a1_range: str) -> str | None:
     """Título de pestaña de un rango A1 calificado ('Hoja!A1:B2'), o None si no trae."""
-    if "!" not in a1_range:
-        return None
-    return a1_range.split("!", 1)[0].strip("'")
+    return split_sheet(a1_range)[0] if "!" in a1_range else None
 
 
 class _Cache:
@@ -142,10 +142,11 @@ class CachingWorksheet:
 
     def get_all_values(self, value_render_option: str | None = None) -> list[list[str]]:
         """Lee todas las filas (memoizado por hoja y render option)."""
-        return self._cache.load(
+        rows: list[list[str]] = self._cache.load(
             ("get_all_values", self._inner.id, value_render_option),
             lambda: self._inner.get_all_values(value_render_option),
         )
+        return rows
 
     # -- lecturas no memoizadas (pasan directo) ---------------------------
 
@@ -254,7 +255,10 @@ class CachingSpreadsheet:
     def get_metadata(self, ranges: list[str] | None, fields: str) -> dict[str, Any]:
         """Lee metadata (memoizado por ranges/fields)."""
         key = ("get_metadata", tuple(ranges) if ranges is not None else None, fields)
-        return self._cache.load(key, lambda: self._inner.get_metadata(ranges, fields))
+        metadata: dict[str, Any] = self._cache.load(
+            key, lambda: self._inner.get_metadata(ranges, fields)
+        )
+        return metadata
 
     # -- escrituras (invalidan la caché del documento) ----------------------
 

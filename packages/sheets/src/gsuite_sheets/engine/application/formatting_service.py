@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from gspreadmanager.domain.values import CellFormat, Color, NumberFormat, TextFormat
-from gspreadmanager.ports.sheets import WorksheetPort
+from gsuite_sheets.engine.domain.values import CellFormat, Color, NumberFormat, TextFormat
+from gsuite_sheets.engine.ports.sheets import WorksheetPort
 
 
 class FormattingService:

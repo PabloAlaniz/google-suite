@@ -11,9 +11,14 @@ import dataclasses
 import importlib.util
 from typing import Any
 
-from gspreadmanager.domain.errors import SchemaError
-from gspreadmanager.domain.schema import format_cell, model_header, models_to_rows, rows_to_models
-from gspreadmanager.ports.model_codec import ModelCodec
+from gsuite_sheets.engine.domain.errors import SchemaError
+from gsuite_sheets.engine.domain.schema import (
+    format_cell,
+    model_header,
+    models_to_rows,
+    rows_to_models,
+)
+from gsuite_sheets.engine.ports.model_codec import ModelCodec
 
 PYDANTIC_MISSING_MESSAGE = (
     "Los modelos Pydantic requieren el paquete 'pydantic' (es un extra opcional). "
@@ -88,10 +93,7 @@ class PydanticModelCodec:
         model = type(models[0])
         fields = self._fields(model)
         header = [alias for _, alias in fields]
-        rows = [
-            [format_cell(getattr(item, name)) for name, _ in fields]
-            for item in models
-        ]
+        rows = [[format_cell(getattr(item, name)) for name, _ in fields] for item in models]
         return header, rows
 
     @staticmethod

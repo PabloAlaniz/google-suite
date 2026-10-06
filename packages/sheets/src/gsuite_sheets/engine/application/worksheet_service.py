@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from gspreadmanager.domain.values import Color, GridRange
-from gspreadmanager.ports.sheets import SpreadsheetPort, WorksheetPort
+from gsuite_sheets.engine.domain.values import Color, GridRange
+from gsuite_sheets.engine.ports.sheets import SpreadsheetPort, WorksheetPort
 
 
 class WorksheetService:

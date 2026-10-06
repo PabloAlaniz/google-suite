@@ -8,8 +8,9 @@ cableado de la facade.
 from typing import Any
 
 import pytest
-from gspreadmanager import Color, GSpreadManagerError
-from gspreadmanager.domain.values import (
+
+from gsuite_sheets.engine import Color, GSpreadManagerError
+from gsuite_sheets.engine.domain.values import (
     BandingSpec,
     ChartSpec,
     DeveloperMetadataEntry,
@@ -18,7 +19,7 @@ from gspreadmanager.domain.values import (
     PivotTableSpec,
     PivotValue,
 )
-from gspreadmanager.testing import InMemoryBackend
+from gsuite_sheets.engine.testing import InMemoryBackend
 
 
 @pytest.fixture

@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 
-class ExportFormat(str, Enum):
+class ExportFormat(StrEnum):
     """Mime types soportados por la exportación de Google Sheets."""
 
     PDF = "application/pdf"

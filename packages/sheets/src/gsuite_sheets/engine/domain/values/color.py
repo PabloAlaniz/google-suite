@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from gspreadmanager.domain.errors import InvalidColorError
+from gsuite_sheets.engine.domain.errors import InvalidColorError
 
 # Longitud esperada de un color hexadecimal sin prefijo (RRGGBB).
 _HEX_RGB_LENGTH = 6

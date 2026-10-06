@@ -8,9 +8,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from gspreadmanager.domain.dataframe import prune_empty
-from gspreadmanager.ports.dataframe import DataFramePort
-from gspreadmanager.ports.sheets import WorksheetPort
+from gsuite_sheets.engine.domain.dataframe import prune_empty
+from gsuite_sheets.engine.ports.dataframe import DataFramePort
+from gsuite_sheets.engine.ports.sheets import WorksheetPort
 
 
 class DataframeService:

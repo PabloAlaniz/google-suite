@@ -198,3 +198,45 @@ def batching():
         return service
 
     return enable
+
+
+def pytest_configure(config):
+    config.addinivalue_line(
+        "markers", "memory_only: engine test that only makes sense against the in-memory backend"
+    )
+
+
+def pytest_addoption(parser):
+    parser.addoption(
+        "--engine-backend",
+        choices=["memory", "adapter"],
+        default="memory",
+        help=(
+            "Run the Sheets engine tests against the in-memory backend directly, or "
+            "through gsuite_sheets.engine_adapter over a fake googleapiclient service"
+        ),
+    )
+
+
+@pytest.fixture(autouse=True)
+def _engine_backend(request, monkeypatch):
+    """With --engine-backend=adapter, InMemoryBackend.manager() goes through the adapter.
+
+    Same tests, same in-memory state, but every engine call is translated to
+    googleapiclient requests by the real adapter first: a behavioral contract test.
+    """
+    if request.config.getoption("--engine-backend") != "adapter":
+        return
+    if "test_engine_" not in request.node.nodeid:
+        return
+    if request.node.get_closest_marker("memory_only"):
+        pytest.skip("inspects the in-memory emulator itself")
+
+    from gsuite_sheets.engine.facade import SheetManager
+    from gsuite_sheets.engine.testing import InMemoryBackend
+    from gsuite_sheets.engine.testing.google_api_fake import adapter_client
+
+    def manager(self, doc_name=None, *, key=None, **kwargs):
+        return SheetManager(doc_name, key=key, sheets_client=adapter_client(self.client), **kwargs)
+
+    monkeypatch.setattr(InMemoryBackend, "manager", manager)

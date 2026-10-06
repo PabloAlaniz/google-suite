@@ -4,8 +4,9 @@ from typing import Any
 from unittest.mock import Mock
 
 import pytest
-from gspreadmanager.application.worksheet_service import WorksheetService
-from gspreadmanager.domain.values import Color, GridRange
+
+from gsuite_sheets.engine.application.worksheet_service import WorksheetService
+from gsuite_sheets.engine.domain.values import Color, GridRange
 
 
 @pytest.fixture

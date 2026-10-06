@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from gspreadmanager.ports.sheets import ClientPort, SpreadsheetPort
+from gsuite_sheets.engine.ports.sheets import ClientPort, SpreadsheetPort
 
 
 class DocumentService:

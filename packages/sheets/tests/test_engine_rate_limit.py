@@ -5,10 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from gspreadmanager import GSpreadManagerError, SheetManager
-from gspreadmanager.infrastructure.rate_limit import TokenBucketRateLimiter
-from gspreadmanager.retry import retry_on_rate_limit
-from gspreadmanager.testing import InMemoryBackend
+
+from gsuite_sheets.engine import GSpreadManagerError, SheetManager
+from gsuite_sheets.engine.infrastructure.rate_limit import TokenBucketRateLimiter
+from gsuite_sheets.engine.retry import retry_on_rate_limit
+from gsuite_sheets.engine.testing import InMemoryBackend
 
 
 class FakeClock:

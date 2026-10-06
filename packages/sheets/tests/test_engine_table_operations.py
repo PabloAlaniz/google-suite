@@ -7,9 +7,10 @@ worksheet_or_create y el chunking automático de escrituras, todo sobre el backe
 from dataclasses import dataclass
 
 import pytest
-from gspreadmanager import GSpreadManagerError
-from gspreadmanager.domain.batching import split_range_data, split_rows
-from gspreadmanager.testing import InMemoryBackend
+
+from gsuite_sheets.engine import GSpreadManagerError
+from gsuite_sheets.engine.domain.batching import split_range_data, split_rows
+from gsuite_sheets.engine.testing import InMemoryBackend
 
 HEADER = ["id", "nombre", "estado"]
 DATA = [
@@ -55,9 +56,7 @@ class TestUpsert:
         assert ws.read()[3] == ["3", "Eva María", "hecho"]
 
     def test_new_keys_deduplicated_last_wins(self, ws):
-        result = ws.upsert(
-            [{"id": "7", "nombre": "a"}, {"id": "7", "nombre": "b"}], key="id"
-        )
+        result = ws.upsert([{"id": "7", "nombre": "a"}, {"id": "7", "nombre": "b"}], key="id")
         assert result["appended"] == 1
         assert ws.read()[-1][1] == "b"
 

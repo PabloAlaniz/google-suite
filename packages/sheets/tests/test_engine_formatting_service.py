@@ -3,8 +3,9 @@
 from unittest.mock import Mock
 
 import pytest
-from gspreadmanager.application.formatting_service import FormattingService
-from gspreadmanager.domain.values import CellFormat, Color
+
+from gsuite_sheets.engine.application.formatting_service import FormattingService
+from gsuite_sheets.engine.domain.values import CellFormat, Color
 
 
 @pytest.fixture

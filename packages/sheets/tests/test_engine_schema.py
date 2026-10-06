@@ -5,8 +5,9 @@ from datetime import date, datetime
 from typing import Optional
 
 import pytest
-from gspreadmanager.domain.errors import SchemaError
-from gspreadmanager.domain.schema import models_to_rows, rows_to_models
+
+from gsuite_sheets.engine.domain.errors import SchemaError
+from gsuite_sheets.engine.domain.schema import models_to_rows, rows_to_models
 
 
 @dataclass
@@ -15,7 +16,7 @@ class Person:
     edad: int
     activo: bool
     puntaje: float
-    email: Optional[str] = None
+    email: str | None = None
 
 
 class TestRowsToModels:
@@ -107,7 +108,7 @@ class TestModelsToRows:
         class Row:
             flag: bool
             when: date
-            note: Optional[str]
+            note: str | None
 
         header, rows = models_to_rows([Row(False, date(2026, 1, 2), None)])
         assert header == ["flag", "when", "note"]

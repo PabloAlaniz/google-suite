@@ -15,13 +15,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Union
 
-from gspreadmanager.domain.batching import split_range_data, split_rows
-from gspreadmanager.domain.errors import GSpreadManagerError
-from gspreadmanager.domain.values import rowcol_to_a1
-from gspreadmanager.ports.sheets import WorksheetPort
+from gsuite_sheets.engine.domain.batching import split_range_data, split_rows
+from gsuite_sheets.engine.domain.errors import GSpreadManagerError
+from gsuite_sheets.engine.domain.values import rowcol_to_a1
+from gsuite_sheets.engine.ports.sheets import WorksheetPort
 
 # Filtro de filas: dict de igualdades {columna: valor} o un predicado sobre el registro.
-Where = Union[dict[str, Any], Callable[[dict[str, str]], bool]]
+Where = dict[str, Any] | Callable[[dict[str, str]], bool]
 
 _MISSING = object()
 
@@ -62,9 +62,7 @@ def row_record(header: list[str], row: list[str]) -> dict[str, str]:
     return dict(zip(header, padded))
 
 
-def row_updates(
-    record: dict[str, Any], header: list[str], row_number: int
-) -> list[dict[str, Any]]:
+def row_updates(record: dict[str, Any], header: list[str], row_number: int) -> list[dict[str, Any]]:
     """Rangos de actualización para una fila.
 
     La fila completa (un solo rango) si el registro cubre todo el encabezado; una
@@ -172,9 +170,7 @@ def plan_delete_requests(
     """
     predicate = build_predicate(where, header)
     targets = [
-        number
-        for number, row in enumerate(values, start=2)
-        if predicate(row_record(header, row))
+        number for number, row in enumerate(values, start=2) if predicate(row_record(header, row))
     ]
     if not targets:
         return [], 0

@@ -15,7 +15,7 @@ from decimal import Decimal, InvalidOperation
 from enum import Enum
 from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
 
-from gspreadmanager.domain.errors import SchemaError
+from gsuite_sheets.engine.domain.errors import SchemaError
 
 # Une ``typing.Union[...]`` y ``X | None`` (PEP 604, ``types.UnionType`` en 3.10+).
 _UNION_ORIGINS: tuple[Any, ...] = (Union, getattr(types, "UnionType", Union))

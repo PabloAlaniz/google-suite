@@ -7,7 +7,7 @@ ranges) se aplican o se registran para poder inspeccionarlas en los tests.
 
 Uso típico::
 
-    from gspreadmanager.testing import InMemoryBackend
+    from gsuite_sheets.engine.testing import InMemoryBackend
 
     backend = InMemoryBackend()
     backend.add_spreadsheet("MiDoc", {"Hoja1": [["nombre", "email"], ["Ana", "ana@x.com"]]})
@@ -24,16 +24,17 @@ import re
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from gspreadmanager.domain.errors import (
+from gsuite_sheets.a1 import split_sheet
+from gsuite_sheets.engine.domain.errors import (
     GSpreadManagerError,
     SpreadsheetNotFoundError,
     WorksheetNotFoundError,
 )
-from gspreadmanager.domain.values import GridRange
-from gspreadmanager.ports.sheets import SpreadsheetPort, WorksheetPort
+from gsuite_sheets.engine.domain.values import GridRange
+from gsuite_sheets.engine.ports.sheets import SpreadsheetPort, WorksheetPort
 
 if TYPE_CHECKING:
-    from gspreadmanager.facade import SheetManager
+    from gsuite_sheets.engine.facade import SheetManager
 
 
 @dataclass(frozen=True)
@@ -101,7 +102,7 @@ class _Grid:
 
     def clear_block(self, a1_range: str) -> None:
         """Borra las celdas dentro del rango A1 indicado."""
-        grid = _grid_dict(a1_range.split("!", 1)[-1])
+        grid = _grid_dict(split_sheet(a1_range)[1] or "")
         r1 = grid.get("startRowIndex", 0) + 1
         r2 = grid.get("endRowIndex", self.max_row)
         c1 = grid.get("startColumnIndex", 0) + 1
@@ -205,7 +206,7 @@ class InMemoryWorksheet:
 
     def range(self, name: str) -> list[Any]:
         """Celdas del rango A1 como ``FakeCell`` (incluye vacías dentro del rango)."""
-        grid = _grid_dict(name.split("!", 1)[-1])
+        grid = _grid_dict(split_sheet(name)[1] or "")
         r1 = grid.get("startRowIndex", 0) + 1
         r2 = grid.get("endRowIndex", self._grid.max_row)
         c1 = grid.get("startColumnIndex", 0) + 1
@@ -356,8 +357,9 @@ class InMemorySpreadsheet:
 
     def _resolve(self, a1_range: str) -> InMemoryWorksheet:
         """Resuelve la hoja referida por el prefijo del rango (o la primera)."""
-        if "!" in a1_range:
-            return self.worksheet(a1_range.split("!", 1)[0])  # type: ignore[return-value]
+        title, _ = split_sheet(a1_range)
+        if title is not None:
+            return self.worksheet(title)  # type: ignore[return-value]
         return self._worksheets[0]
 
     # -- batchUpdate ------------------------------------------------------
@@ -616,6 +618,8 @@ class InMemoryBackend:
         self, doc_name: str | None = None, *, key: str | None = None, **kwargs: Any
     ) -> SheetManager:
         """Devuelve un ``SheetManager`` que opera contra el backend en memoria."""
-        from gspreadmanager.facade import SheetManager  # noqa: PLC0415  (evita ciclo de import)
+        from gsuite_sheets.engine.facade import (
+            SheetManager,  # noqa: PLC0415  (evita ciclo de import)
+        )
 
         return SheetManager(doc_name, key=key, sheets_client=self.client, **kwargs)

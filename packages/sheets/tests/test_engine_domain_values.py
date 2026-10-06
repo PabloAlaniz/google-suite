@@ -1,4 +1,4 @@
-"""Tests unitarios de los value objects del dominio (``gspreadmanager.domain.values``).
+"""Tests unitarios de los value objects del dominio (``gsuite_sheets.engine.domain.values``).
 
 Cubren: inmutabilidad (frozen), serialización a la forma JSON de la Sheets API y
 equivalencia con los dicts que el conector arma inline para validación y formato
@@ -8,14 +8,15 @@ condicional.
 import dataclasses
 
 import pytest
-from gspread.utils import a1_range_to_grid_range
-from gspreadmanager.domain.errors import (
+
+from gsuite_sheets.a1 import grid_range as a1_range_to_grid_range
+from gsuite_sheets.engine.domain.errors import (
     GSpreadManagerError,
     InvalidColorError,
     InvalidIdentifierError,
     InvalidRangeError,
 )
-from gspreadmanager.domain.values import (
+from gsuite_sheets.engine.domain.values import (
     A1Range,
     Border,
     Borders,
@@ -128,7 +129,8 @@ class TestRanges:
             A1Range(value)
 
     def test_a1_range_with_sheet(self):
-        assert A1Range("A1:C10").with_sheet("Hoja1") == "Hoja1!A1:C10"
+        assert A1Range("A1:C10").with_sheet("Hoja1") == "'Hoja1'!A1:C10"
+        assert A1Range("A1").with_sheet("Pablo's 2024") == "'Pablo''s 2024'!A1"
 
     def test_grid_range_round_trip_with_gspread(self):
         # El conector usa a1_range_to_grid_range; GridRange debe reproducir su dict.

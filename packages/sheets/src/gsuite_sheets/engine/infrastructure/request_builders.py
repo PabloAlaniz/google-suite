@@ -7,7 +7,7 @@ lo hacen los value objects del dominio (``to_request``).
 
 from __future__ import annotations
 
-from gspreadmanager.domain.values import GridRange
+from gsuite_sheets.engine.domain.values import GridRange
 
 
 def grid_range(range_name: str, sheet_id: int) -> GridRange:

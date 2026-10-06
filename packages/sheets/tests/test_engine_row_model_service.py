@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 from unittest.mock import Mock
 
-from gspreadmanager.application.row_model_service import RowModelService
+from gsuite_sheets.engine.application.row_model_service import RowModelService
 
 
 @dataclass

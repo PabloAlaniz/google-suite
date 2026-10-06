@@ -3,8 +3,9 @@
 from unittest.mock import Mock
 
 import pytest
-from gspreadmanager.application.data_service import DataService
-from gspreadmanager.domain.errors import InsertError
+
+from gsuite_sheets.engine.application.data_service import DataService
+from gsuite_sheets.engine.domain.errors import InsertError
 
 
 @pytest.fixture
@@ -114,7 +115,8 @@ def test_insert_appends_at_end_when_no_row(service):
     ws.get_all_values.return_value = [["h"], ["1"]]  # 2 filas -> inserta en la 3
     service.insert(ws, "Hoja1", [["a", "b"]])
     args = ws.spreadsheet.values_append.call_args[0]
-    assert args[0] == "Hoja1!A3:B3"
+    # google-suite quotes sheet titles (GSpreadManager sent them bare)
+    assert args[0] == "'Hoja1'!A3:B3"
     assert args[2] == {"values": [["a", "b"]]}
 
 

@@ -60,7 +60,7 @@ event.location    # Location
 event.start       # datetime
 event.end         # datetime
 event.is_all_day  # bool
-event.timezone    # str
+event.timezone    # str, e.g. "America/Argentina/Buenos_Aires"
 
 # Recurrence
 event.is_recurring    # bool
@@ -73,13 +73,14 @@ for attendee in event.attendees:
 
 # Links
 event.html_link      # Link to Google Calendar
-event.hangout_link   # Google Meet link (if any)
+event.meet_link      # Google Meet link (if any)
 
 # Metadata
-event.created        # datetime
-event.updated        # datetime
-event.creator_email  # Who created it
-event.organizer_email # Who's organizing
+event.created            # datetime
+event.updated            # datetime
+event.creator            # email of who created it
+event.organizer          # email of who's organizing
+event.recurring_event_id # parent event, for an occurrence of a recurring one
 ```
 
 ## Creating Events
@@ -102,7 +103,8 @@ calendar.create_event(
     start=datetime(2026, 2, 15, 14, 0),
     end=datetime(2026, 2, 15, 15, 30),
     attendees=["alice@company.com", "bob@company.com"],
-    send_notifications=True,
+    send_updates="all",  # email the invitations ("all", "externalOnly", "none")
+    meet=True,           # attach a Google Meet link -> event.meet_link
 )
 
 # All-day event
@@ -123,12 +125,15 @@ calendar.quick_add("Lunch with John tomorrow at 12pm")
 events = calendar.get_upcoming(days=7)
 event = events[0]
 
-# Update it
+# Update it (only the fields you pass change)
 calendar.update_event(
     event_id=event.id,
     summary="Updated Meeting Title",
     location="New Location",
 )
+
+# Move it; end defaults to one hour after start
+calendar.update_event(event.id, start=datetime(2026, 2, 16, 10, 0), send_updates="all")
 ```
 
 ## Deleting Events
@@ -196,6 +201,10 @@ events = calendar.get_events(
     single_events=True,  # Returns each occurrence
 )
 
+# Occurrences of one recurring event
+for occurrence in calendar.get_instances(event.id, time_max=datetime(2026, 3, 31)):
+    print(occurrence.start)
+
 # Get recurring events as single items
 events = calendar.get_events(
     time_min=datetime(2026, 2, 1),
@@ -208,7 +217,7 @@ events = calendar.get_events(
 
 ```python
 from gsuite_core.exceptions import (
-    GsuiteError,
+    GSuiteError,
     NotFoundError,
     RateLimitError,
 )
@@ -219,7 +228,7 @@ except NotFoundError:
     print("Event not found")
 except RateLimitError:
     print("Rate limited, retry later")
-except GsuiteError as e:
+except GSuiteError as e:
     print(f"Calendar error: {e}")
 ```
 

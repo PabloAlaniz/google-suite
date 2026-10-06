@@ -165,3 +165,99 @@ class TestSheetsCli:
         result = runner.invoke(app, ["sheets", "delete-tab", "Budget", "Sheet1"], input="n\n")
         assert result.exit_code == 1
         client.open.return_value.del_worksheet.assert_not_called()
+
+
+class TestGmailAndCalendarCli:
+    @pytest.fixture
+    def gmail(self):
+        client = MagicMock()
+        with patch("gsuite_cli.gmail.get_gmail", return_value=client):
+            yield client
+
+    @pytest.fixture
+    def cal(self):
+        client = MagicMock()
+        client.create_event.return_value = MagicMock(
+            id="e1", summary="Sync", html_link=None, meet_link="https://meet.google.com/x"
+        )
+        with patch("gsuite_cli.calendar.get_calendar", return_value=client):
+            yield client
+
+    def test_send_with_attachment(self, gmail, tmp_path):
+        report = tmp_path / "r.pdf"
+        report.write_bytes(b"%PDF")
+
+        result = runner.invoke(
+            app, ["gmail", "send", "-t", "a@x.com", "-s", "R", "-b", "see", "-a", str(report)]
+        )
+
+        assert result.exit_code == 0, result.output
+        assert gmail.send.call_args.kwargs["attachments"] == [report]
+
+    def test_reply_all(self, gmail):
+        result = runner.invoke(app, ["gmail", "reply", "m1", "-b", "thanks", "--all"])
+        assert result.exit_code == 0, result.output
+        assert gmail.reply.call_args.kwargs["reply_all"] is True
+
+    def test_reply_missing_message(self, gmail):
+        gmail.get_message.return_value = None
+        assert runner.invoke(app, ["gmail", "reply", "nope", "-b", "x"]).exit_code == 1
+
+    def test_calendar_create_with_meet(self, cal):
+        result = runner.invoke(
+            app,
+            [
+                "calendar",
+                "create",
+                "Sync",
+                "-s",
+                "2026-03-01 10:00",
+                "--meet",
+                "-a",
+                "b@x.com",
+                "--repeat",
+                "FREQ=WEEKLY",
+                "--notify",
+            ],
+        )
+
+        assert result.exit_code == 0, result.output
+        assert "meet.google.com/x" in result.output
+        kwargs = cal.create_event.call_args.kwargs
+        assert kwargs["recurrence"] == ["RRULE:FREQ=WEEKLY"]
+        assert kwargs["send_updates"] == "all"
+        assert kwargs["attendees"] == ["b@x.com"]
+
+
+class TestGmailActionsCli:
+    @pytest.fixture
+    def gmail(self):
+        client = MagicMock()
+        with patch("gsuite_cli.gmail.get_gmail", return_value=client):
+            yield client
+
+    def test_mark(self, gmail):
+        assert runner.invoke(app, ["gmail", "mark", "m1", "--unread", "--star"]).exit_code == 0
+        gmail.batch_modify.assert_called_once_with(
+            ["m1"], add_labels=["UNREAD", "STARRED"], remove_labels=[]
+        )
+
+    @pytest.mark.parametrize("flags", [[], ["--read", "--unread"]])
+    def test_mark_needs_one_choice(self, gmail, flags):
+        assert runner.invoke(app, ["gmail", "mark", "m1", *flags]).exit_code == 2
+
+    def test_archive_and_trash(self, gmail):
+        assert runner.invoke(app, ["gmail", "archive", "m1"]).exit_code == 0
+        gmail.batch_modify.assert_called_once_with(["m1"], remove_labels=["INBOX"])
+        assert runner.invoke(app, ["gmail", "trash", "m1"]).exit_code == 0
+        gmail.get_message.return_value.trash.assert_called_once_with()
+
+
+def test_calendar_quick():
+    from datetime import datetime
+
+    client = MagicMock()
+    client.quick_add.return_value = MagicMock(summary="Lunch", start=datetime(2026, 3, 2, 13))
+    with patch("gsuite_cli.calendar.get_calendar", return_value=client):
+        result = runner.invoke(app, ["calendar", "quick", "Lunch tomorrow at 1pm"])
+    assert "Lunch — 2026-03-02 13:00" in result.output

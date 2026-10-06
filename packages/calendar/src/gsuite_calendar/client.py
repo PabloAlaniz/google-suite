@@ -1,8 +1,10 @@
 """Calendar client - high-level interface."""
 
 import logging
+import uuid
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, timedelta
+from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
 from googleapiclient.discovery import build
@@ -11,7 +13,9 @@ from gsuite_calendar.calendar_entity import CalendarEntity
 from gsuite_calendar.event import Event
 from gsuite_calendar.parser import CalendarParser
 from gsuite_core import GoogleAuth, authorized_http, execute, get_settings, paginate
-from gsuite_core.exceptions import NotFoundError
+from gsuite_core.exceptions import NotFoundError, ValidationError
+
+SendUpdates = Literal["all", "externalOnly", "none"]
 
 
 def _rfc3339(value: datetime) -> str:
@@ -63,7 +67,7 @@ class Calendar:
         self._service = None
 
     @property
-    def service(self):
+    def service(self) -> Any:
         """Lazy-load Calendar API service."""
         if self._service is None:
             self._service = build(
@@ -95,7 +99,7 @@ class Calendar:
         """
         cal_id = calendar_id or self.calendar_id
 
-        params: dict[str, object] = {
+        params: dict[str, Any] = {
             "calendarId": cal_id,
             "timeMin": _rfc3339(time_min or datetime.now(UTC)),
             "singleEvents": single_events,
@@ -203,6 +207,34 @@ class Calendar:
 
     # ========== Create/Update ==========
 
+    @staticmethod
+    def _time_bodies(
+        start: datetime | date, end: datetime | date | None, all_day: bool
+    ) -> tuple[dict[str, str], dict[str, str]]:
+        """API start/end objects; end defaults to 1 hour (or the same day)."""
+        if all_day or not isinstance(start, datetime):
+            # datetime is a subclass of date: take .date() first, or an all-day
+            # event built from a datetime sends "2026-01-01T10:00:00" as a date.
+            start_date = start.date() if isinstance(start, datetime) else start
+            end_date = end or start_date
+            if isinstance(end_date, datetime):
+                end_date = end_date.date()
+            # The API's end date is exclusive; `end` here is the last day
+            return (
+                {"date": start_date.isoformat()},
+                {"date": (end_date + timedelta(days=1)).isoformat()},
+            )
+
+        if end is None:
+            end = start + timedelta(hours=1)
+        tz = get_settings().default_timezone
+        # Naive datetimes are wall time in GSUITE_DEFAULT_TIMEZONE; aware ones
+        # carry their own offset.
+        return (
+            {"dateTime": start.isoformat(), "timeZone": tz},
+            {"dateTime": end.isoformat(), "timeZone": tz},
+        )
+
     def create_event(
         self,
         summary: str,
@@ -213,6 +245,9 @@ class Calendar:
         attendees: list[str] | None = None,
         calendar_id: str | None = None,
         all_day: bool = False,
+        recurrence: list[str] | None = None,
+        meet: bool = False,
+        send_updates: SendUpdates = "none",
     ) -> Event:
         """
         Create a new event.
@@ -226,52 +261,190 @@ class Calendar:
             attendees: List of attendee emails
             calendar_id: Calendar to create in
             all_day: Create as all-day event
+            recurrence: RRULE lines, e.g. ["RRULE:FREQ=WEEKLY;BYDAY=MO,WE"]
+            meet: Attach a new Google Meet link (see Event.meet_link)
+            send_updates: Email attendees: "all", "externalOnly" or "none"
 
         Returns:
             Created Event
         """
         cal_id = calendar_id or self.calendar_id
+        start_body, end_body = self._time_bodies(start, end, all_day)
 
-        # Handle all-day events
-        if all_day or not isinstance(start, datetime):
-            # datetime is a subclass of date: take .date() first, or an all-day
-            # event built from a datetime sends "2026-01-01T10:00:00" as a date.
-            start_date = start.date() if isinstance(start, datetime) else start
-            start_body = {"date": start_date.isoformat()}
-            end_date = end or start_date
-            if isinstance(end_date, datetime):
-                end_date = end_date.date()
-            end_body = {"date": (end_date + timedelta(days=1)).isoformat()}
-        else:
-            if end is None:
-                end = start + timedelta(hours=1)
-            settings = get_settings()
-            tz = settings.default_timezone
-            start_body = {"dateTime": start.isoformat(), "timeZone": tz}
-            end_body = {"dateTime": end.isoformat(), "timeZone": tz}
-
-        event_body = {
-            "summary": summary,
-            "start": start_body,
-            "end": end_body,
-        }
-
+        event_body: dict[str, Any] = {"summary": summary, "start": start_body, "end": end_body}
         if description:
             event_body["description"] = description
         if location:
             event_body["location"] = location
         if attendees:
             event_body["attendees"] = [{"email": email} for email in attendees]
+        if recurrence:
+            event_body["recurrence"] = recurrence
+
+        params: dict[str, Any] = {}
+        if meet:
+            event_body["conferenceData"] = {
+                "createRequest": {
+                    # Idempotency key: a retried insert won't create a second room
+                    "requestId": uuid.uuid4().hex,
+                    "conferenceSolutionKey": {"type": "hangoutsMeet"},
+                }
+            }
+            params["conferenceDataVersion"] = 1
 
         created = execute(
-            self.service.events().insert(calendarId=cal_id, body=event_body), "calendar", "event"
+            self.service.events().insert(
+                calendarId=cal_id, body=event_body, sendUpdates=send_updates, **params
+            ),
+            "calendar",
+            "event",
         )
 
         return self._parse_event(created, cal_id)
 
-    def delete_event(self, event_id: str, calendar_id: str | None = None) -> bool:
+    def quick_add(
+        self, text: str, calendar_id: str | None = None, send_updates: SendUpdates = "none"
+    ) -> Event:
+        """Create an event from natural language: "Lunch with Ana tomorrow at 1pm"."""
+        cal_id = calendar_id or self.calendar_id
+        created = execute(
+            self.service.events().quickAdd(calendarId=cal_id, text=text, sendUpdates=send_updates),
+            "calendar",
+            "event",
+        )
+        return self._parse_event(created, cal_id)
+
+    def update_event(
+        self,
+        event_id: str,
+        summary: str | None = None,
+        start: datetime | date | None = None,
+        end: datetime | date | None = None,
+        description: str | None = None,
+        location: str | None = None,
+        attendees: list[str] | None = None,
+        all_day: bool = False,
+        calendar_id: str | None = None,
+        send_updates: SendUpdates = "none",
+    ) -> Event:
+        """
+        Change an event. Only the arguments you pass are updated.
+
+        Moving an event: pass start (and end, or it becomes 1 hour long).
+        attendees replaces the whole list.
+
+        Returns:
+            The updated Event
+        """
+        cal_id = calendar_id or self.calendar_id
+        body: dict[str, Any] = {}
+        if summary is not None:
+            body["summary"] = summary
+        if description is not None:
+            body["description"] = description
+        if location is not None:
+            body["location"] = location
+        if attendees is not None:
+            body["attendees"] = [{"email": email} for email in attendees]
+        if start is not None:
+            body["start"], body["end"] = self._time_bodies(start, end, all_day)
+        elif end is not None:
+            raise ValidationError("end", "pass start too when changing the time")
+        if not body:
+            raise ValidationError("event", "nothing to update")
+
+        updated = execute(
+            self.service.events().patch(
+                calendarId=cal_id, eventId=event_id, body=body, sendUpdates=send_updates
+            ),
+            "calendar",
+            "event",
+            event_id,
+        )
+        return self._parse_event(updated, cal_id)
+
+    def get_instances(
+        self,
+        event_id: str,
+        time_min: datetime | None = None,
+        time_max: datetime | None = None,
+        max_results: int | None = 250,
+        calendar_id: str | None = None,
+    ) -> list[Event]:
+        """Occurrences of a recurring event (optionally within a time range)."""
+        cal_id = calendar_id or self.calendar_id
+        params: dict[str, Any] = {"calendarId": cal_id, "eventId": event_id}
+        if time_min:
+            params["timeMin"] = _rfc3339(time_min)
+        if time_max:
+            params["timeMax"] = _rfc3339(time_max)
+
+        items = paginate(
+            self.service.events().instances,
+            "items",
+            "calendar",
+            max_items=max_results,
+            max_page_size=2500,
+            **params,
+        )
+        return [self._parse_event(item, cal_id) for item in items]
+
+    def get_free_busy(
+        self,
+        time_min: datetime,
+        time_max: datetime,
+        calendars: list[str] | None = None,
+    ) -> dict[str, list[dict[str, datetime | None]]]:
+        """
+        Busy intervals per calendar.
+
+        Args:
+            calendars: Calendar IDs or emails ("me" = your primary calendar).
+                Default: this client's calendar.
+
+        Returns:
+            {calendar: [{"start": datetime, "end": datetime}, ...]}. A calendar
+            you can't see comes back with no busy times and a logged warning.
+        """
+        ids = calendars or [self.calendar_id]
+        query_ids = ["primary" if c == "me" else c for c in ids]
+        response = execute(
+            self.service.freebusy().query(
+                body={
+                    "timeMin": _rfc3339(time_min),
+                    "timeMax": _rfc3339(time_max),
+                    "items": [{"id": c} for c in query_ids],
+                }
+            ),
+            "calendar",
+        )
+
+        result: dict[str, list[dict[str, datetime | None]]] = {}
+        for requested, query_id in zip(ids, query_ids):
+            info = response.get("calendars", {}).get(query_id, {})
+            if info.get("errors"):
+                logger.warning(f"Free/busy unavailable for {requested}: {info['errors']}")
+            result[requested] = [
+                {
+                    "start": CalendarParser._parse_datetime(b.get("start")),
+                    "end": CalendarParser._parse_datetime(b.get("end")),
+                }
+                for b in info.get("busy", [])
+            ]
+        return result
+
+    def delete_event(
+        self,
+        event_id: str,
+        calendar_id: str | None = None,
+        send_updates: SendUpdates = "none",
+    ) -> bool:
         """
         Delete an event.
+
+        Args:
+            send_updates: Email attendees about the cancellation: "all",
+                "externalOnly" or "none"
 
         Returns:
             True if deleted, False if it didn't exist. Other failures (auth,
@@ -281,7 +454,9 @@ class Calendar:
 
         try:
             execute(
-                self.service.events().delete(calendarId=cal_id, eventId=event_id),
+                self.service.events().delete(
+                    calendarId=cal_id, eventId=event_id, sendUpdates=send_updates
+                ),
                 "calendar",
                 "event",
                 event_id,

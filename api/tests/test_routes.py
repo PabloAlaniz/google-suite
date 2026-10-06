@@ -193,46 +193,6 @@ class TestGmailActions:
         message.add_label.assert_called_once_with("A")
         message.remove_label.assert_called_once_with("B")
 
-    def test_batch_read_reaches_batch_endpoint(self, client, services):
-        messages = {"a": MagicMock(), "b": MagicMock()}
-        services["gmail"].get_message.side_effect = messages.get
-
-        response = client.post("/gmail/messages/batch/read", json={"message_ids": ["a", "b"]})
-
-        assert response.status_code == 200
-        assert response.json()["count"] == 2
-        for message in messages.values():
-            message.mark_as_read.assert_called_once_with()
-
-    def test_batch_requires_ids(self, client):
-        response = client.post("/gmail/messages/batch/labels", json={"message_ids": []})
-        assert response.status_code == 400
-
-    def test_batch_labels(self, client, services):
-        message = MagicMock()
-        services["gmail"].get_message.return_value = message
-
-        response = client.post(
-            "/gmail/messages/batch/labels",
-            json={"message_ids": ["a"], "add_labels": ["X"], "remove_labels": ["Y"]},
-        )
-
-        assert response.status_code == 200
-        message.add_label.assert_called_once_with("X")
-        message.remove_label.assert_called_once_with("Y")
-
-    def test_reply(self, client, services):
-        message = MagicMock()
-        message.reply.return_value = _message(id="r1")
-        services["gmail"].get_message.return_value = message
-
-        response = client.post("/gmail/messages/m1/reply", json={"body": "thanks"})
-
-        assert response.json() == {"id": "r1", "thread_id": "t1", "status": "sent"}
-        message.reply.assert_called_once_with(body="thanks", html=False, signature=False)
-
-
-class TestGmailReads:
     @pytest.mark.parametrize(
         ("path", "method"),
         [

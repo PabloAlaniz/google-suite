@@ -1,8 +1,9 @@
 """Gmail response parsers - converts API responses to domain entities."""
 
 import base64
-from datetime import datetime
-from email.utils import parsedate_to_datetime
+from datetime import UTC, datetime
+from email.message import Message as EmailHeaders
+from email.utils import formataddr, getaddresses, parsedate_to_datetime
 
 from gsuite_gmail.label import Label, LabelType
 from gsuite_gmail.message import Attachment, Message
@@ -27,19 +28,16 @@ class GmailParser:
             Message entity
         """
         payload = data.get("payload", {})
-        headers = payload.get("headers", [])
+        headers = GmailParser._headers(payload)
 
         def get_header(name: str) -> str:
-            for h in headers:
-                if h.get("name", "").lower() == name.lower():
-                    return h.get("value", "")
-            return ""
+            return headers.get(name.lower(), "")
 
-        # Parse date
         date = GmailParser._parse_date(get_header("Date"), data.get("internalDate"))
 
-        # Parse body and attachments
-        plain, html, attachments = None, None, []
+        plain: str | None = None
+        html: str | None = None
+        attachments: list[Attachment] = []
         if include_body:
             plain, html, attachments = GmailParser._parse_payload(payload, data["id"])
 
@@ -49,13 +47,17 @@ class GmailParser:
             subject=get_header("Subject"),
             sender=get_header("From"),
             recipient=get_header("To"),
-            cc=[addr.strip() for addr in get_header("Cc").split(",") if addr.strip()],
+            cc=GmailParser._addresses(get_header("Cc")),
+            bcc=GmailParser._addresses(get_header("Bcc")),
             date=date,
             snippet=data.get("snippet", ""),
             plain=plain,
             html=html,
             labels=data.get("labelIds", []),
             attachments=attachments,
+            reply_to=get_header("Reply-To") or None,
+            rfc822_message_id=get_header("Message-ID") or None,
+            references=get_header("References") or None,
         )
 
     @staticmethod
@@ -80,6 +82,21 @@ class GmailParser:
         )
 
     @staticmethod
+    def _headers(part: dict) -> dict[str, str]:
+        """Headers of a part, keyed by lowercase name (first occurrence wins)."""
+        result: dict[str, str] = {}
+        for header in part.get("headers", []):
+            result.setdefault(header.get("name", "").lower(), header.get("value", ""))
+        return result
+
+    @staticmethod
+    def _addresses(value: str) -> list[str]:
+        """Split an address header; '"Doe, John" <j@x.com>' stays one entry."""
+        if not value:
+            return []
+        return [formataddr((name, addr)) for name, addr in getaddresses([value]) if addr]
+
+    @staticmethod
     def _parse_date(date_header: str, internal_date: str | None) -> datetime | None:
         """Parse date from header or internal timestamp."""
         if date_header:
@@ -90,11 +107,24 @@ class GmailParser:
 
         if internal_date:
             try:
-                return datetime.fromtimestamp(int(internal_date) / 1000)
+                # Milliseconds since the epoch, UTC (was a naive local time)
+                return datetime.fromtimestamp(int(internal_date) / 1000, tz=UTC)
             except (ValueError, TypeError):
                 pass
 
         return None
+
+    @staticmethod
+    def _decode_text(data: str, headers: dict[str, str]) -> str:
+        """Decode a text part in the charset its Content-Type declares."""
+        raw = base64.urlsafe_b64decode(data)
+        content_type = EmailHeaders()
+        content_type["Content-Type"] = headers.get("content-type", "text/plain")
+        charset = content_type.get_content_charset() or "utf-8"
+        try:
+            return raw.decode(charset, errors="replace")
+        except LookupError:  # unknown charset name
+            return raw.decode("utf-8", errors="replace")
 
     @staticmethod
     def _parse_payload(
@@ -121,33 +151,29 @@ class GmailParser:
             mime_type = part.get("mimeType", "")
             body = part.get("body", {})
             data = body.get("data")
-
-            # Text content
-            if data:
-                try:
-                    decoded = base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
-                    if mime_type == "text/plain" and not plain:
-                        plain = decoded
-                    elif mime_type == "text/html" and not html:
-                        html = decoded
-                except Exception:
-                    pass
-
-            # Attachments
+            headers = GmailParser._headers(part)
             filename = part.get("filename")
-            attachment_id = body.get("attachmentId")
-            if filename and attachment_id:
+
+            if filename:
+                # Any named part is an attachment, even a text/plain one that
+                # arrives inline: it used to be taken for the message body.
                 attachments.append(
                     Attachment(
-                        id=attachment_id,
+                        id=body.get("attachmentId") or part.get("partId", ""),
                         filename=filename,
                         mime_type=mime_type,
                         size=body.get("size", 0),
                         _message_id=message_id,
+                        _data=base64.urlsafe_b64decode(data)
+                        if data and not body.get("attachmentId")
+                        else None,
                     )
                 )
+            elif data and mime_type == "text/plain" and plain is None:
+                plain = GmailParser._decode_text(data, headers)
+            elif data and mime_type == "text/html" and html is None:
+                html = GmailParser._decode_text(data, headers)
 
-            # Recurse into nested parts
             for sub_part in part.get("parts", []):
                 extract_parts(sub_part)
 

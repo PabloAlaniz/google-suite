@@ -213,3 +213,73 @@ def test_authorized_http_sets_timeout(settings):
     http = authorized_http(credentials=MagicMock())
     assert http.http.timeout == 12
     assert authorized_http(MagicMock(), timeout=3).http.timeout == 3
+
+
+class FakeBatch:
+    """Stands in for BatchHttpRequest: runs callbacks with canned outcomes."""
+
+    def __init__(self, outcomes, callback):
+        self.outcomes = outcomes
+        self.callback = callback
+        self.items = []
+
+    def add(self, request, request_id):
+        self.items.append((request, request_id))
+
+    def execute(self):
+        for request, request_id in self.items:
+            outcome = self.outcomes[request]
+            if isinstance(outcome, Exception):
+                self.callback(request_id, None, outcome)
+            else:
+                self.callback(request_id, outcome, None)
+
+
+class TestExecuteBatch:
+    def _service(self, outcomes):
+        service = MagicMock()
+        batches = []
+
+        def new_batch(callback):
+            batch = FakeBatch(outcomes, callback)
+            batches.append(batch)
+            return batch
+
+        service.new_batch_http_request.side_effect = new_batch
+        return service, batches
+
+    def test_results_in_order_and_chunked(self, sleep):
+        from gsuite_core import execute_batch
+
+        reqs = [f"r{i}" for i in range(5)]
+        service, batches = self._service({r: {"id": r} for r in reqs})
+
+        results = execute_batch(service, reqs, "gmail", batch_size=2)
+
+        assert [r["id"] for r in results] == reqs
+        assert [len(b.items) for b in batches] == [2, 2, 1]
+
+    def test_errors_are_returned_in_place(self, sleep):
+        from gsuite_core import execute_batch
+
+        service, _ = self._service({"ok": {"id": 1}, "gone": http_error(404)})
+
+        ok, gone = execute_batch(service, ["ok", "gone"], "gmail", "message")
+
+        assert ok == {"id": 1}
+        assert isinstance(gone, NotFoundError)
+
+    def test_rate_limited_items_are_retried_individually(self, sleep):
+        from gsuite_core import execute_batch
+
+        retried = request("GET", {"id": "late"})
+        service, _ = self._service({"ok": {"id": 1}, retried: http_error(429)})
+
+        assert execute_batch(service, ["ok", retried], "gmail") == [{"id": 1}, {"id": "late"}]
+
+    def test_empty(self):
+        from gsuite_core import execute_batch
+
+        service = MagicMock()
+        assert execute_batch(service, [], "gmail") == []
+        service.new_batch_http_request.assert_not_called()

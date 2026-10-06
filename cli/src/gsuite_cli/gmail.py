@@ -1,6 +1,7 @@
 """Gmail CLI commands."""
 
 import sys
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -9,7 +10,7 @@ from rich.table import Table
 
 from gsuite_cli.output import print_json
 from gsuite_core import GoogleAuth
-from gsuite_gmail import Gmail
+from gsuite_gmail import Gmail, Message
 
 console = Console()
 app = typer.Typer(no_args_is_help=True)
@@ -164,8 +165,12 @@ def send(
     subject: str = typer.Option(..., "--subject", "-s", help="Subject"),
     body: str | None = typer.Option(None, "--body", "-b", help="Body (or pipe to stdin)"),
     cc: list[str] | None = typer.Option(None, "--cc", help="CC recipient(s)"),
+    bcc: list[str] | None = typer.Option(None, "--bcc", help="BCC recipient(s)"),
+    attach: list[Path] | None = typer.Option(
+        None, "--attach", "-a", exists=True, dir_okay=False, help="File to attach (repeatable)"
+    ),
     html: bool = typer.Option(False, "--html", help="Body is HTML"),
-):
+) -> None:
     """Send an email."""
     gmail = get_gmail()
 
@@ -184,10 +189,47 @@ def send(
             subject=subject,
             body=message_body,
             cc=cc,
+            bcc=bcc,
             html=html,
+            attachments=list(attach) if attach else None,
         )
 
     console.print(f"[green]✓ Message sent![/green] ID: {message.id}")
+
+
+@app.command()
+def reply(
+    message_id: str = typer.Argument(..., help="Message ID to reply to"),
+    body: str | None = typer.Option(None, "--body", "-b", help="Body (or pipe to stdin)"),
+    reply_all: bool = typer.Option(False, "--all", help="Reply to all recipients"),
+    attach: list[Path] | None = typer.Option(
+        None, "--attach", "-a", exists=True, dir_okay=False, help="File to attach (repeatable)"
+    ),
+) -> None:
+    """Reply in the same thread."""
+    gmail = get_gmail()
+
+    message_body = body
+    if not message_body and not sys.stdin.isatty():
+        message_body = sys.stdin.read()
+    if not message_body:
+        console.print("[red]Message body required (--body or pipe to stdin)[/red]")
+        raise typer.Exit(1)
+
+    original = gmail.get_message(message_id)
+    if original is None:
+        console.print(f"[red]Message not found: {message_id}[/red]")
+        raise typer.Exit(1)
+
+    with console.status("[bold green]Sending reply..."):
+        sent = gmail.reply(
+            original,
+            message_body,
+            reply_all=reply_all,
+            attachments=list(attach) if attach else None,
+        )
+
+    console.print(f"[green]✓ Reply sent![/green] ID: {sent.id}")
 
 
 @app.command()
@@ -262,3 +304,47 @@ def profile():
     table.add_row("History ID", profile.get("historyId", ""))
 
     console.print(table)
+
+
+def _get_or_exit(gmail: Gmail, message_id: str) -> Message:
+    message = gmail.get_message(message_id)
+    if message is None:
+        console.print(f"[red]Message not found: {message_id}[/red]")
+        raise typer.Exit(1)
+    return message
+
+
+@app.command()
+def mark(
+    message_id: str = typer.Argument(..., help="Message ID"),
+    read: bool = typer.Option(False, "--read", help="Mark as read"),
+    unread: bool = typer.Option(False, "--unread", help="Mark as unread"),
+    star: bool = typer.Option(False, "--star", help="Star"),
+    unstar: bool = typer.Option(False, "--unstar", help="Remove star"),
+) -> None:
+    """Mark a message read/unread or (un)starred."""
+    if read and unread or star and unstar or not (read or unread or star or unstar):
+        console.print("[red]Give one of --read/--unread and/or one of --star/--unstar[/red]")
+        raise typer.Exit(2)
+
+    gmail = get_gmail()
+    add = ["UNREAD"] if unread else []
+    remove = ["UNREAD"] if read else []
+    add += ["STARRED"] if star else []
+    remove += ["STARRED"] if unstar else []
+    gmail.batch_modify([message_id], add_labels=add, remove_labels=remove)
+    console.print(f"[green]✓ Updated {message_id}[/green]")
+
+
+@app.command()
+def archive(message_id: str = typer.Argument(..., help="Message ID")) -> None:
+    """Remove a message from the inbox."""
+    get_gmail().batch_modify([message_id], remove_labels=["INBOX"])
+    console.print(f"[green]✓ Archived {message_id}[/green]")
+
+
+@app.command()
+def trash(message_id: str = typer.Argument(..., help="Message ID")) -> None:
+    """Move a message to the trash."""
+    _get_or_exit(get_gmail(), message_id).trash()
+    console.print(f"[green]✓ Trashed {message_id}[/green]")

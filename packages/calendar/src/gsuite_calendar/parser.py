@@ -54,7 +54,23 @@ class CalendarParser:
             calendar_id=calendar_id,
             html_link=data.get("htmlLink"),
             status=data.get("status", "confirmed"),
+            meet_link=CalendarParser._meet_link(data),
+            timezone=start_data.get("timeZone"),
+            created=CalendarParser._parse_datetime(data.get("created")),
+            updated=CalendarParser._parse_datetime(data.get("updated")),
+            creator=data.get("creator", {}).get("email"),
+            recurring_event_id=data.get("recurringEventId"),
         )
+
+    @staticmethod
+    def _meet_link(data: dict) -> str | None:
+        """Video link from conferenceData (current) or hangoutLink (legacy)."""
+        for entry in data.get("conferenceData", {}).get("entryPoints", []):
+            if entry.get("entryPointType") == "video":
+                uri: str | None = entry.get("uri")
+                return uri
+        link: str | None = data.get("hangoutLink")
+        return link
 
     @staticmethod
     def parse_attendee(data: dict) -> Attendee:

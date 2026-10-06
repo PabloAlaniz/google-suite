@@ -167,3 +167,34 @@ def http_error():
         return HttpError(httplib2.Response({"status": str(status)}), json.dumps(body).encode())
 
     return _make
+
+
+class _FakeBatch:
+    """BatchHttpRequest stand-in: runs each request's execute() and reports it."""
+
+    def __init__(self, callback):
+        self.callback = callback
+        self.items = []
+
+    def add(self, request, request_id):
+        self.items.append((request, request_id))
+
+    def execute(self):
+        for request, request_id in self.items:
+            try:
+                response = request.execute()
+            except Exception as exc:  # delivered to the callback, like the real batch
+                self.callback(request_id, None, exc)
+            else:
+                self.callback(request_id, response, None)
+
+
+@pytest.fixture
+def batching():
+    """Make a mocked service's HTTP batches run their requests: batching(service)."""
+
+    def enable(service):
+        service.new_batch_http_request.side_effect = lambda callback: _FakeBatch(callback)
+        return service
+
+    return enable

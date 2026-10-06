@@ -18,9 +18,13 @@ class Attachment:
     size: int
     _message_id: str = ""
     _gmail: Optional["Gmail"] = field(default=None, repr=False)
+    # Small attachments arrive inline in the message instead of by ID
+    _data: bytes | None = field(default=None, repr=False)
 
     def download(self) -> bytes:
         """Download attachment content."""
+        if self._data is not None:
+            return self._data
         if not self._gmail:
             raise RuntimeError("Attachment not linked to Gmail client")
         return self._gmail._download_attachment(self._message_id, self.id)
@@ -66,6 +70,10 @@ class Message:
     html: str | None = None  # HTML body
     labels: list[str] = field(default_factory=list)
     attachments: list[Attachment] = field(default_factory=list)
+    # Headers needed to reply in-thread
+    reply_to: str | None = None
+    rfc822_message_id: str | None = None
+    references: str | None = None
 
     _gmail: Optional["Gmail"] = field(default=None, repr=False)
 
@@ -185,27 +193,35 @@ class Message:
         body: str,
         html: bool = False,
         signature: bool = False,
+        reply_all: bool = False,
+        attachments: list | None = None,
     ) -> "Message":
         """
-        Reply to this message.
+        Reply to this message, in the same thread for every participant.
 
         Args:
             body: Reply body
             html: Whether body is HTML
             signature: Include account signature
+            reply_all: Also reply to the other To/Cc recipients
+            attachments: File paths or (filename, bytes) tuples
 
         Returns:
             The sent reply message
         """
         if not self._gmail:
             raise RuntimeError("Message not linked to Gmail client")
-
-        return self._gmail.send(
-            to=[self.sender],
-            subject=f"Re: {self.subject}" if not self.subject.startswith("Re:") else self.subject,
-            body=body,
+        return self._gmail.reply(
+            self,
+            body,
             html=html,
             signature=signature,
-            reply_to=self.id,
-            thread_id=self.thread_id,
+            reply_all=reply_all,
+            attachments=attachments,
         )
+
+    def forward(self, to: list[str], body: str = "", include_attachments: bool = True) -> "Message":
+        """Forward this message (with its attachments by default)."""
+        if not self._gmail:
+            raise RuntimeError("Message not linked to Gmail client")
+        return self._gmail.forward(self, to, body, include_attachments=include_attachments)

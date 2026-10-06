@@ -19,6 +19,7 @@ from googleapiclient.errors import HttpError
 
 from gsuite_core.exceptions import (
     APIError,
+    GSuiteError,
     NotFoundError,
     PermissionDeniedError,
     QuotaExceededError,
@@ -167,6 +168,65 @@ def execute(
             time.sleep(wait)
 
     raise AssertionError("unreachable")  # the loop always returns or raises
+
+
+def execute_batch(
+    service_obj: Any,
+    requests: list[Any],
+    service: str,
+    resource_type: str = "resource",
+    batch_size: int = 50,
+) -> list[Any]:
+    """
+    Run many read requests as HTTP batches (one round trip per `batch_size`).
+
+    Only for idempotent requests (gets): items that fail with a rate limit
+    or a 5xx are retried one by one through execute(), with backoff.
+
+    Args:
+        service_obj: The googleapiclient service the requests belong to
+        requests: Request objects (not executed)
+        batch_size: Items per batch; Gmail recommends at most 50
+
+    Returns:
+        One entry per request, in order: the response, or the GSuiteError
+        it failed with (the caller decides, e.g. skipping NotFoundError).
+    """
+    from gsuite_core.config import get_settings
+
+    retry_on_rate_limit = get_settings().retry_on_rate_limit
+    results: list[Any] = [None] * len(requests)
+    retry: list[int] = []
+
+    for start in range(0, len(requests), batch_size):
+        chunk = range(start, min(start + batch_size, len(requests)))
+
+        def callback(request_id: str, response: Any, exception: Exception | None) -> None:
+            index = int(request_id)
+            if exception is None:
+                results[index] = response
+            elif isinstance(exception, HttpError) and _should_retry(
+                exception, "GET", retry_on_rate_limit
+            ):
+                retry.append(index)
+            elif isinstance(exception, HttpError):
+                results[index] = map_http_error(exception, service, resource_type)
+            else:
+                results[index] = exception
+
+        batch = service_obj.new_batch_http_request(callback=callback)
+        for index in chunk:
+            batch.add(requests[index], request_id=str(index))
+        # The batch envelope itself (auth, network) is retried like a GET
+        execute(batch, service, resource_type)
+
+    for index in retry:
+        try:
+            results[index] = execute(requests[index], service, resource_type)
+        except GSuiteError as error:
+            results[index] = error
+
+    return results
 
 
 def paginate(

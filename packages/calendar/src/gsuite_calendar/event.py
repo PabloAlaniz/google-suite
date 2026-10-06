@@ -37,6 +37,12 @@ class Event:
     calendar_id: str = "primary"
     html_link: str | None = None
     status: str = "confirmed"  # confirmed, tentative, cancelled
+    meet_link: str | None = None  # Google Meet video link, if the event has one
+    timezone: str | None = None  # Time zone of the start, e.g. "America/Argentina/Buenos_Aires"
+    created: datetime | None = None
+    updated: datetime | None = None
+    creator: str | None = None  # email
+    recurring_event_id: str | None = None  # parent of an instance of a recurring event
 
     @property
     def duration_minutes(self) -> int | None:

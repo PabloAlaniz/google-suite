@@ -144,32 +144,39 @@ Uploads pass through the API server; behind Cloud Run the request limit is 32 MB
 
 ### Sheets
 
+Ranges in paths are full A1 references including the sheet, e.g.
+`Sheet1!A1:C10` or `'Q1 Budget'!A:A`.
+
 ```bash
-# Get spreadsheet info
-GET /sheets/{spreadsheet_id}
+# Spreadsheets
+GET /sheets/list?limit=50
+GET /sheets/{spreadsheet_id}                 # metadata + worksheets
+POST /sheets/create?title=Budget
 
-# Get worksheet data
-GET /sheets/{spreadsheet_id}/{sheet_name}
-GET /sheets/{spreadsheet_id}/{sheet_name}?range=A1:C10
+# Values
+GET /sheets/{spreadsheet_id}/values/Sheet1!A1:C10
+GET /sheets/{spreadsheet_id}/values:batchGet?ranges=Sheet1!A1:B2&ranges=Sheet2!C:C
+PUT /sheets/{spreadsheet_id}/values/Sheet1!A1:C2?value_input=RAW
+{"range": "Sheet1!A1:C2", "values": [["Name", "Age"], ["Alice", 30]]}
+POST /sheets/{spreadsheet_id}/values/Sheet1:append    {"values": [["Bob", 25]]}
+POST /sheets/{spreadsheet_id}/values:batchUpdate      {"data": [{"range": "A1", "values": [[1]]}]}
+DELETE /sheets/{spreadsheet_id}/values/Sheet1!A1:C10
 
-# Update data
-PUT /sheets/{spreadsheet_id}/{sheet_name}
-{
-  "range": "A1:C2",
-  "values": [
-    ["Name", "Age", "City"],
-    ["Alice", 30, "NYC"]
-  ]
-}
+# Find and replace (all sheets unless sheet_id)
+POST /sheets/{spreadsheet_id}:findReplace   {"find": "2025", "replacement": "2026"}
 
-# Append rows
-POST /sheets/{spreadsheet_id}/{sheet_name}/append
-{
-  "values": [
-    ["Bob", 25, "LA"]
-  ]
-}
+# Worksheets (sheet_id is the numeric gid)
+POST /sheets/{spreadsheet_id}/worksheets                     {"title": "Q2"}
+PATCH /sheets/{spreadsheet_id}/worksheets/{sheet_id}         {"title": "Q2 2026"}
+DELETE /sheets/{spreadsheet_id}/worksheets/{sheet_id}
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/duplicate {"title": "Backup"}
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/format   {"range": "A1:Z1", "format": {"textFormat": {"bold": true}}}
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/freeze   {"rows": 1}
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/protect  {"range": "A1:A100", "editors": ["admin@example.com"]}
 ```
+
+`value_input` is `USER_ENTERED` by default (formulas and dates are parsed as
+in the UI); send `RAW` when writing untrusted text.
 
 ## Authentication
 

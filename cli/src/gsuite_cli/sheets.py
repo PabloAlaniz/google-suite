@@ -1,19 +1,24 @@
 """Sheets CLI commands."""
 
+import csv
+import sys
+
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from gsuite_cli.output import print_json
+from gsuite_sheets import Sheets
+from gsuite_sheets.spreadsheet import Spreadsheet
+from gsuite_sheets.worksheet import Worksheet
 
 console = Console()
 app = typer.Typer(no_args_is_help=True)
 
 
-def get_sheets():
+def get_sheets() -> "Sheets":
     """Get authenticated Sheets client."""
     from gsuite_core import GoogleAuth
-    from gsuite_sheets import Sheets
 
     auth = GoogleAuth()
 
@@ -31,7 +36,7 @@ def get_sheets():
 def list_spreadsheets(
     limit: int = typer.Option(20, "--limit", "-l", help="Max results"),
     output: str = typer.Option("table", "--output", "-o", help="Output: table, json"),
-):
+) -> None:
     """List all spreadsheets."""
     sheets = get_sheets()
 
@@ -58,21 +63,10 @@ def list_spreadsheets(
 @app.command("open")
 def open_spreadsheet(
     identifier: str = typer.Argument(..., help="Title, ID, or URL"),
-):
+) -> None:
     """Open and display spreadsheet info."""
-    sheets = get_sheets()
-
     with console.status("[bold green]Opening spreadsheet..."):
-        try:
-            if identifier.startswith("http"):
-                doc = sheets.open_by_url(identifier)
-            elif len(identifier) > 30:  # Likely an ID
-                doc = sheets.open_by_key(identifier)
-            else:
-                doc = sheets.open(identifier)
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(1)
+        doc = _open(identifier)
 
     console.print(f"[bold]{doc.title}[/bold]")
     console.print(f"[dim]ID: {doc.id}[/dim]")
@@ -94,32 +88,44 @@ def open_spreadsheet(
     console.print(table)
 
 
+def _open(spreadsheet: str) -> Spreadsheet:
+    """Open by URL, ID or title."""
+    sheets_client = get_sheets()
+    try:
+        if spreadsheet.startswith("http"):
+            return sheets_client.open_by_url(spreadsheet)
+        if len(spreadsheet) > 30:  # Likely an ID
+            return sheets_client.open_by_key(spreadsheet)
+        return sheets_client.open(spreadsheet)
+    except ValueError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1) from e
+
+
+def _worksheet(doc: Spreadsheet, sheet: str | None) -> Worksheet:
+    ws = doc.worksheet(sheet) if sheet else doc.sheet1
+    if not ws:
+        console.print(f"[red]Worksheet not found: {sheet}[/red]")
+        raise typer.Exit(1)
+    return ws
+
+
+SPREADSHEET_ARG = typer.Argument(..., help="Spreadsheet title, ID or URL")
+SHEET_OPT = typer.Option(None, "--sheet", "-s", help="Worksheet name (default: first)")
+RAW_OPT = typer.Option(False, "--raw", help="Store values as-is instead of parsing formulas/dates")
+
+
 @app.command("read")
 def read_range(
-    spreadsheet: str = typer.Argument(..., help="Spreadsheet title or ID"),
-    range: str = typer.Option("A1:Z100", "--range", "-r", help="Range in A1 notation"),
-    sheet: str | None = typer.Option(None, "--sheet", "-s", help="Worksheet name"),
+    spreadsheet: str = SPREADSHEET_ARG,
+    cell_range: str = typer.Option("A1:Z100", "--range", "-r", help="Range in A1 notation"),
+    sheet: str | None = SHEET_OPT,
     output: str = typer.Option("table", "--output", "-o", help="Output: table, json, csv"),
-):
+) -> None:
     """Read values from a spreadsheet range."""
-    sheets_client = get_sheets()
-
     with console.status("[bold green]Reading data..."):
-        try:
-            if len(spreadsheet) > 30:
-                doc = sheets_client.open_by_key(spreadsheet)
-            else:
-                doc = sheets_client.open(spreadsheet)
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(1)
-
-        ws = doc.worksheet(sheet) if sheet else doc.sheet1
-        if not ws:
-            console.print(f"[red]Worksheet not found: {sheet}[/red]")
-            raise typer.Exit(1)
-
-        values = ws.get(range)
+        ws = _worksheet(_open(spreadsheet), sheet)
+        values = ws.get(cell_range)
 
     if not values:
         console.print("[yellow]No data found[/yellow]")
@@ -128,89 +134,134 @@ def read_range(
     if output == "json":
         print_json(values)
     elif output == "csv":
-        import csv
-        import sys
-
         writer = csv.writer(sys.stdout)
-        for row in values:
-            writer.writerow(row)
+        writer.writerows(values)
     else:
-        table = Table(title=f"{ws.title}!{range}")
-
-        # Add columns
-        if values:
-            for i in range(len(values[0])):
-                table.add_column(Worksheet._col_to_letter(i + 1), style="cyan")
-
+        width = max(len(row) for row in values)
+        table = Table(title=f"{ws.title}!{cell_range}")
+        for i in range(width):
+            table.add_column(Worksheet._col_to_letter(i + 1), style="cyan")
         for row in values:
-            table.add_row(*[str(cell) for cell in row])
-
+            # The API trims trailing empty cells, so rows can be shorter
+            table.add_row(*[str(cell) for cell in row], *[""] * (width - len(row)))
         console.print(table)
 
 
 @app.command("write")
 def write_cell(
-    spreadsheet: str = typer.Argument(..., help="Spreadsheet title or ID"),
+    spreadsheet: str = SPREADSHEET_ARG,
     cell: str = typer.Option(..., "--cell", "-c", help="Cell reference (e.g., A1)"),
     value: str = typer.Option(..., "--value", "-v", help="Value to write"),
-    sheet: str | None = typer.Option(None, "--sheet", "-s", help="Worksheet name"),
-):
+    sheet: str | None = SHEET_OPT,
+    raw: bool = RAW_OPT,
+) -> None:
     """Write a value to a cell."""
-    sheets_client = get_sheets()
-
     with console.status("[bold green]Writing data..."):
-        try:
-            if len(spreadsheet) > 30:
-                doc = sheets_client.open_by_key(spreadsheet)
-            else:
-                doc = sheets_client.open(spreadsheet)
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(1)
-
-        ws = doc.worksheet(sheet) if sheet else doc.sheet1
-        if not ws:
-            console.print(f"[red]Worksheet not found: {sheet}[/red]")
-            raise typer.Exit(1)
-
-        ws.update(cell, [[value]])
+        ws = _worksheet(_open(spreadsheet), sheet)
+        ws.update(cell, [[value]], value_input="RAW" if raw else "USER_ENTERED")
 
     console.print(f"[green]✓ Written '{value}' to {ws.title}!{cell}[/green]")
 
 
 @app.command("append")
 def append_row(
-    spreadsheet: str = typer.Argument(..., help="Spreadsheet title or ID"),
+    spreadsheet: str = SPREADSHEET_ARG,
     values: list[str] = typer.Option(..., "--value", "-v", help="Values (repeat for each column)"),
-    sheet: str | None = typer.Option(None, "--sheet", "-s", help="Worksheet name"),
-):
+    sheet: str | None = SHEET_OPT,
+    raw: bool = RAW_OPT,
+) -> None:
     """Append a row to a spreadsheet."""
-    sheets_client = get_sheets()
-
     with console.status("[bold green]Appending row..."):
-        try:
-            if len(spreadsheet) > 30:
-                doc = sheets_client.open_by_key(spreadsheet)
-            else:
-                doc = sheets_client.open(spreadsheet)
-        except ValueError as e:
-            console.print(f"[red]{e}[/red]")
-            raise typer.Exit(1)
-
-        ws = doc.worksheet(sheet) if sheet else doc.sheet1
-        if not ws:
-            console.print(f"[red]Worksheet not found: {sheet}[/red]")
-            raise typer.Exit(1)
-
-        ws.append_row(list(values))
+        ws = _worksheet(_open(spreadsheet), sheet)
+        ws.append_row(list(values), value_input="RAW" if raw else "USER_ENTERED")
 
     console.print(f"[green]✓ Appended row with {len(values)} values[/green]")
+
+
+@app.command("replace")
+def replace(
+    spreadsheet: str = SPREADSHEET_ARG,
+    find: str = typer.Argument(..., help="Text (or regex with --regex) to find"),
+    replacement: str = typer.Argument(..., help="Replacement text"),
+    sheet: str | None = typer.Option(
+        None, "--sheet", "-s", help="Only this worksheet (default: all)"
+    ),
+    regex: bool = typer.Option(False, "--regex", help="Treat FIND as a regular expression"),
+    match_case: bool = typer.Option(False, "--match-case", help="Case-sensitive"),
+    whole_cell: bool = typer.Option(False, "--whole-cell", help="Only cells that match entirely"),
+) -> None:
+    """Find and replace text."""
+    doc = _open(spreadsheet)
+    sheet_id = _worksheet(doc, sheet).id if sheet else None
+    assert doc._sheets is not None
+    changed = doc._sheets.find_replace(
+        doc.id,
+        find,
+        replacement,
+        sheet_id=sheet_id,
+        match_case=match_case,
+        match_entire_cell=whole_cell,
+        regex=regex,
+    )
+    console.print(f"[green]✓ Replaced {changed} occurrence(s)[/green]")
+
+
+@app.command("freeze")
+def freeze(
+    spreadsheet: str = SPREADSHEET_ARG,
+    rows: int | None = typer.Option(None, "--rows", min=0, help="Rows to freeze (0 unfreezes)"),
+    cols: int | None = typer.Option(None, "--cols", min=0, help="Columns to freeze (0 unfreezes)"),
+    sheet: str | None = SHEET_OPT,
+) -> None:
+    """Freeze header rows and/or columns."""
+    if rows is None and cols is None:
+        console.print("[red]Give --rows, --cols or both[/red]")
+        raise typer.Exit(2)
+    ws = _worksheet(_open(spreadsheet), sheet)
+    ws.freeze(rows=rows, cols=cols)
+    console.print(f"[green]✓ Frozen on {ws.title}[/green]")
+
+
+@app.command("add-tab")
+def add_tab(
+    spreadsheet: str = SPREADSHEET_ARG,
+    title: str = typer.Argument(..., help="New worksheet title"),
+) -> None:
+    """Add a worksheet."""
+    ws = _open(spreadsheet).add_worksheet(title)
+    console.print(f"[green]✓ Added worksheet {ws.title}[/green] [dim](id {ws.id})[/dim]")
+
+
+@app.command("rename-tab")
+def rename_tab(
+    spreadsheet: str = SPREADSHEET_ARG,
+    sheet: str = typer.Argument(..., help="Current worksheet name"),
+    title: str = typer.Argument(..., help="New name"),
+) -> None:
+    """Rename a worksheet."""
+    _worksheet(_open(spreadsheet), sheet).rename(title)
+    console.print(f"[green]✓ Renamed {sheet} → {title}[/green]")
+
+
+@app.command("delete-tab")
+def delete_tab(
+    spreadsheet: str = SPREADSHEET_ARG,
+    sheet: str = typer.Argument(..., help="Worksheet name"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Don't ask for confirmation"),
+) -> None:
+    """Delete a worksheet and its data."""
+    doc = _open(spreadsheet)
+    ws = _worksheet(doc, sheet)
+    if not yes:
+        typer.confirm(f"Delete worksheet {ws.title!r} and all its data?", abort=True)
+    doc.del_worksheet(ws)
+    console.print(f"[green]✓ Deleted worksheet {ws.title}[/green]")
 
 
 @app.command("create")
 def create_spreadsheet(
     title: str = typer.Argument(..., help="Spreadsheet title"),
-):
+) -> None:
     """Create a new spreadsheet."""
     sheets = get_sheets()
 
@@ -220,7 +271,3 @@ def create_spreadsheet(
     console.print(f"[green]✓ Created spreadsheet: {doc.title}[/green]")
     console.print(f"  ID: {doc.id}")
     console.print(f"  URL: {doc.url}")
-
-
-# Helper for col_to_letter
-from gsuite_sheets.worksheet import Worksheet

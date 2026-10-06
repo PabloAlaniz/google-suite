@@ -5,7 +5,7 @@ Simple, Pythonic Google Calendar API client.
 ## Installation
 
 ```bash
-pip install gsuite-calendar
+pip install gsuite-sdk   # gsuite_calendar ships inside the SDK
 ```
 
 ## Quick Start

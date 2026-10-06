@@ -65,6 +65,18 @@ class Spreadsheet:
             raise RuntimeError("Spreadsheet not linked to Sheets client")
 
         ws = self._sheets.add_worksheet(self.id, title, rows, cols)
+        # Without the link, ws.update() & co. raised "not linked to spreadsheet"
+        ws._spreadsheet = self
+        self.worksheets.append(ws)
+        return ws
+
+    def duplicate_worksheet(self, worksheet: Worksheet, new_title: str | None = None) -> Worksheet:
+        """Copy a worksheet (default name: "Copy of ...")."""
+        if not self._sheets:
+            raise RuntimeError("Spreadsheet not linked to Sheets client")
+
+        ws = self._sheets.duplicate_worksheet(self.id, worksheet.id, new_title)
+        ws._spreadsheet = self
         self.worksheets.append(ws)
         return ws
 

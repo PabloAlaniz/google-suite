@@ -5,7 +5,7 @@ Shared authentication, configuration, and utilities for Google Suite packages.
 ## Installation
 
 ```bash
-pip install gsuite-core
+pip install gsuite-sdk   # gsuite_core ships inside the SDK
 ```
 
 ## Usage

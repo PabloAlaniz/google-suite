@@ -163,29 +163,32 @@ gsuite drive share FILE_ID --anyone
 
 ## Sheets Commands
 
+SPREADSHEET can be a title, an ID or a URL.
+
 ```bash
-# List worksheets in spreadsheet
-gsuite sheets list SPREADSHEET_ID
+# Spreadsheets and their worksheets
+gsuite sheets list
+gsuite sheets open SPREADSHEET
+gsuite sheets create "Budget 2026"
 
-# Read data
-gsuite sheets read SPREADSHEET_ID
-gsuite sheets read SPREADSHEET_ID --sheet "Sheet1" --range "A1:C10"
+# Read (table, json or csv)
+gsuite sheets read SPREADSHEET
+gsuite sheets read SPREADSHEET --sheet "Data" --range "A1:C10"
+gsuite sheets read SPREADSHEET -o csv > data.csv
 
-# Read as table
-gsuite sheets read SPREADSHEET_ID --format table
+# Write and append (--raw stores "=..." as text instead of a formula)
+gsuite sheets write SPREADSHEET --cell A1 --value "Hello"
+gsuite sheets append SPREADSHEET -v Alice -v 30 -v NYC --sheet "Data"
 
-# Read as JSON
-gsuite sheets read SPREADSHEET_ID --format json
+# Find and replace (all sheets unless --sheet)
+gsuite sheets replace SPREADSHEET "2025" "2026"
+gsuite sheets replace SPREADSHEET "Mr\." "Mr" --regex
 
-# Write data
-gsuite sheets write SPREADSHEET_ID --sheet "Sheet1" --range "A1" --value "Hello"
-
-# Write from CSV
-gsuite sheets import SPREADSHEET_ID data.csv
-gsuite sheets import SPREADSHEET_ID data.csv --sheet "Imported"
-
-# Export to CSV
-gsuite sheets export SPREADSHEET_ID --output data.csv
+# Worksheets
+gsuite sheets add-tab SPREADSHEET "Q2"
+gsuite sheets rename-tab SPREADSHEET "Q2" "Q2 2026"
+gsuite sheets delete-tab SPREADSHEET "Q2 2026"
+gsuite sheets freeze SPREADSHEET --rows 1
 ```
 
 ## Server Commands

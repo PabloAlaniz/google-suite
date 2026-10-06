@@ -5,7 +5,7 @@ Simple, Pythonic Google Drive API client.
 ## Installation
 
 ```bash
-pip install gsuite-drive
+pip install gsuite-sdk   # gsuite_drive ships inside the SDK
 ```
 
 ## Quick Start

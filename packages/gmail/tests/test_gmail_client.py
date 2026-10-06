@@ -344,7 +344,7 @@ class TestAdditionalConvenienceMethods:
         """Test get_important method."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
-        
+
         mock_service = Mock()
         mock_service.users().messages().list().execute.return_value = {"messages": []}
         mock_build.return_value = mock_service
@@ -361,7 +361,7 @@ class TestAdditionalConvenienceMethods:
         """Test get_drafts method."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
-        
+
         mock_service = Mock()
         mock_service.users().messages().list().execute.return_value = {"messages": []}
         mock_build.return_value = mock_service
@@ -382,7 +382,7 @@ class TestThreadOperations:
         """Test get_thread method."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
-        
+
         mock_service = Mock()
         mock_service.users().threads().get().execute.return_value = {
             "id": "thread123",
@@ -390,17 +390,17 @@ class TestThreadOperations:
             "messages": [
                 {
                     "id": "msg1",
-                    "threadId": "thread123", 
+                    "threadId": "thread123",
                     "snippet": "Message 1",
                     "payload": {
                         "headers": [
                             {"name": "Subject", "value": "Test Subject"},
                             {"name": "From", "value": "sender@example.com"},
                         ],
-                        "body": {}
-                    }
+                        "body": {},
+                    },
                 }
-            ]
+            ],
         }
         mock_build.return_value = mock_service
 
@@ -421,7 +421,7 @@ class TestSignatureOperations:
         """Test getting email signature successfully."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
-        
+
         mock_service = Mock()
         mock_service.users().settings().sendAs().get().execute.return_value = {
             "signature": "<p>Best regards,<br>Test User</p>"
@@ -432,7 +432,7 @@ class TestSignatureOperations:
         mock_build.return_value = mock_service
 
         gmail = Gmail(mock_auth)
-        
+
         signature = gmail.get_signature()
 
         assert signature == "<p>Best regards,<br>Test User</p>"
@@ -443,13 +443,13 @@ class TestSignatureOperations:
     def test_get_signature_http_error(self, mock_build):
         """Test get_signature with HTTP error."""
         from googleapiclient.errors import HttpError
-        
+
         mock_auth = Mock()
         mock_auth.credentials = Mock()
-        
+
         mock_service = Mock()
         mock_service.users().settings().sendAs().get().execute.side_effect = HttpError(
-            Mock(status=404), b'Not found'
+            Mock(status=404), b"Not found"
         )
         mock_service.users().getProfile().execute.return_value = {
             "emailAddress": "test@example.com"
@@ -457,7 +457,7 @@ class TestSignatureOperations:
         mock_build.return_value = mock_service
 
         gmail = Gmail(mock_auth)
-        
+
         signature = gmail.get_signature()
 
         assert signature is None
@@ -467,16 +467,18 @@ class TestSignatureOperations:
         """Test get_signature with unexpected error."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
-        
+
         mock_service = Mock()
-        mock_service.users().settings().sendAs().get().execute.side_effect = Exception("Unexpected error")
+        mock_service.users().settings().sendAs().get().execute.side_effect = Exception(
+            "Unexpected error"
+        )
         mock_service.users().getProfile().execute.return_value = {
             "emailAddress": "test@example.com"
         }
         mock_build.return_value = mock_service
 
         gmail = Gmail(mock_auth)
-        
+
         signature = gmail.get_signature()
 
         assert signature is None

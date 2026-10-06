@@ -79,7 +79,8 @@ class TestOpen:
             "sheets": [{"properties": {"sheetId": 0, "title": "Sheet1", "index": 0}}],
         }
 
-        mock_build.side_effect = [mock_sheets, mock_drive]
+        services = {"sheets": mock_sheets, "drive": mock_drive}
+        mock_build.side_effect = lambda name, *args, **kwargs: services[name]
 
         sheets = Sheets(mock_auth)
         spreadsheet = sheets.open("Test Sheet")

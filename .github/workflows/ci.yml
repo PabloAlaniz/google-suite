@@ -5,60 +5,252 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    # Nightly: full matrix plus a run against the newest releases of every dependency
+    - cron: "17 6 * * *"
+  workflow_dispatch:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.10.x"
+
 jobs:
-  test:
+  changes:
+    name: Select packages
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11", "3.12"]
-    
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      packages: ${{ steps.select.outputs.packages }}
+      all: ${{ steps.select.outputs.all }}
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+
+      - uses: dorny/paths-filter@v3
+        id: filter
         with:
-          python-version: ${{ matrix.python-version }}
-          cache: pip
-      
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install pytest pytest-asyncio
-          pip install google-api-python-client google-auth-oauthlib google-auth-httplib2
-          pip install -e packages/core
-          pip install -e packages/gmail
-          pip install -e packages/calendar
-          pip install -e packages/sheets
-          pip install -e packages/drive
-          pip install -e api httpx
-      
-      - name: Run tests
-        run: |
-          python -m pytest --import-mode=importlib -v --tb=short
-      
+          filters: |
+            shared:
+              - pyproject.toml
+              - uv.lock
+              - conftest.py
+              - scripts/**
+              - .github/workflows/ci.yml
+              - packages/core/**
+            gmail: packages/gmail/**
+            calendar: packages/calendar/**
+            drive: packages/drive/**
+            sheets: packages/sheets/**
+            api: api/**
+            cli: cli/**
+
+      - id: select
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          CHANGES: ${{ steps.filter.outputs.changes }}
+        run: python3 scripts/ci_select_packages.py
+
   lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v6
         with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      # ruff comes from uv.lock, so a new release can't break main on its own
+      - run: uv sync --locked --extra dev
+      - run: uv run ruff check packages/ api/ cli/ scripts/
+      - run: uv run ruff format --check packages/ api/ cli/ scripts/
+
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --locked --all-extras
+      # Error counts may only go down; see scripts/mypy_ratchet.py
+      - run: uv run python scripts/mypy_ratchet.py
+
+  test:
+    name: test (${{ matrix.package }}, py${{ matrix.python }})
+    needs: changes
+    if: needs.changes.outputs.packages != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.changes.outputs.packages) }}
+        python: ["3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ matrix.python }}
+          enable-cache: true
+      - run: uv sync --locked --all-extras
+
+      - name: Run tests
+        env:
+          COVERAGE_FILE: .coverage.${{ matrix.package }}
+        run: |
+          case "${{ matrix.package }}" in
+            api|cli) path="${{ matrix.package }}/tests" ;;
+            *) path="packages/${{ matrix.package }}/tests" ;;
+          esac
+          uv run pytest "$path" --cov --cov-report=
+
+      - name: Upload coverage data
+        if: matrix.python == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.package }}
+          path: .coverage.${{ matrix.package }}
+          include-hidden-files: true
+          if-no-files-found: error
+
+  coverage:
+    needs: [changes, test]
+    if: needs.test.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --locked --extra dev
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+
+      - name: Combine and report
+        run: |
+          uv run coverage combine
+          uv run coverage report --format=markdown >> "$GITHUB_STEP_SUMMARY"
+          uv run coverage report
+
+      # Only meaningful when every package ran; a PR touching one package
+      # measures a slice of the code base.
+      - name: Enforce coverage floor
+        if: needs.changes.outputs.all == 'true'
+        run: uv run coverage report --fail-under=53 > /dev/null
+
+  test-os:
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked --all-extras
+      - run: uv run pytest
+
+  test-python-next:
+    name: test (py3.15, experimental)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.15"
+          enable-cache: true
+      - run: uv sync --locked --all-extras
+      - run: uv run pytest
+
+  lowest-deps:
+    name: test (lowest declared deps)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
           python-version: "3.11"
-      
-      # Pinned: new ruff releases change formatting and break main on their own
-      - name: Install ruff
-        run: pip install ruff==0.16.10
-      
-      - name: Ruff check
-        run: ruff check packages/ api/ cli/
-      
-      - name: Ruff format check
-        run: ruff format --check packages/ api/ cli/
+      # Checks that the >= floors in pyproject.toml actually work
+      - run: uv venv
+      - run: uv pip install --resolution lowest-direct -e ".[all,dev]"
+      - run: uv run --no-sync pytest
+
+  latest-deps:
+    name: test (latest deps)
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+      # Catches upstream breakage (new FastAPI, google-api-python-client, ...)
+      # before it lands in uv.lock
+      - run: uv lock --upgrade
+      - run: uv sync --all-extras
+      - run: uv run pytest
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Check metadata
+        run: uvx twine check --strict dist/*
+
+      - name: Install wheel in a clean venv
+        run: |
+          uv venv /tmp/smoke
+          uv pip install --python /tmp/smoke "$(ls dist/*.whl)[all]"
+
+      - name: Import every module and run the CLI
+        working-directory: /tmp
+        run: |
+          /tmp/smoke/bin/python -c "
+          import gsuite_core, gsuite_gmail, gsuite_calendar, gsuite_drive, gsuite_sheets
+          import gsuite_api.main, gsuite_cli.main
+          "
+          /tmp/smoke/bin/gsuite --help
+
+  # Single stable check name for branch protection; matrix jobs that were
+  # skipped by path filtering count as passing.
+  ci-ok:
+    if: always()
+    needs: [changes, lint, typecheck, test, coverage, test-os, lowest-deps, latest-deps, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check results
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "$RESULTS"
+          for r in $RESULTS; do
+            case "$r" in failure|cancelled) exit 1 ;; esac
+          done

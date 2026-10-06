@@ -7,59 +7,66 @@ Thanks for your interest in contributing! Here's how to get started.
 ### Prerequisites
 
 - Python 3.11+
+- [uv](https://docs.astral.sh/uv/)
 - Git
 - A Google Cloud project with OAuth credentials (see [Getting Credentials](#getting-credentials))
 
 ### Clone and Install
 
 ```bash
-# Clone the repo
 git clone https://github.com/PabloAlaniz/google-suite.git
 cd google-suite
 
-# Create virtual environment (recommended)
-python -m venv venv
-source venv/bin/activate  # or `venv\Scripts\activate` on Windows
-
-# Install all packages in development mode
-pip install -e "packages/core[dev]"
-pip install -e "packages/gmail[dev]"
-pip install -e "packages/calendar[dev]"
-pip install -e "packages/drive[dev]"
-pip install -e "packages/sheets[dev]"
-pip install -e "api[dev]"
-pip install -e "cli[dev]"
+# Creates .venv with every package, extra and dev tool pinned by uv.lock
+uv sync --all-extras
 ```
+
+CI installs from the same `uv.lock`. If you change dependencies in
+`pyproject.toml`, run `uv lock` and commit the updated lockfile.
 
 ### Running Tests
 
 ```bash
 # Run all tests
-pytest
+uv run pytest
 
 # Run with coverage
-pytest --cov=packages --cov-report=html
+uv run pytest --cov --cov-report=html
 
-# Run specific package tests
-pytest packages/gmail/tests/
-pytest packages/calendar/tests/
+# Run one package's tests
+uv run pytest packages/gmail/tests/
+uv run pytest api/tests/
 
-# Run single test
-pytest packages/gmail/tests/test_query.py::test_from_query
+# Run a single test
+uv run pytest packages/gmail/tests/test_query.py::TestQueryBuilder::test_from_query
 ```
 
-### Linting
+Test module names must be unique across the repo (`test_gmail_client.py`,
+not `test_client.py`); collection fails otherwise.
+
+### Linting and Type Checking
 
 ```bash
 # Check code style
-ruff check packages/ api/ cli/
+uv run ruff check packages/ api/ cli/ scripts/
 
-# Auto-fix issues
-ruff check --fix packages/ api/ cli/
+# Auto-fix issues and format
+uv run ruff check --fix packages/ api/ cli/ scripts/
+uv run ruff format packages/ api/ cli/ scripts/
 
-# Format code
-ruff format packages/ api/ cli/
+# mypy error counts may only go down (see mypy-baseline.json)
+uv run python scripts/mypy_ratchet.py
+# after fixing type errors:
+uv run python scripts/mypy_ratchet.py --update
 ```
+
+### CI
+
+Every PR runs lint, the mypy ratchet, a build/install smoke test and the
+lowest-supported dependency versions. Package tests run per package on
+Python 3.11–3.14, but only for the packages a PR touches (core or shared
+config runs all of them). macOS and Windows run the full suite. Nightly runs
+add the latest release of every dependency.
 
 ## Getting Credentials
 

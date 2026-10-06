@@ -54,7 +54,9 @@ class GoogleAuth:
         """
         settings = get_settings()
 
-        self.token_store = token_store or SQLiteTokenStore(settings.token_db_path)
+        self.token_store: TokenStore | None = token_store or SQLiteTokenStore(
+            settings.token_db_path
+        )
         self.credentials_file = Path(credentials_file or settings.credentials_file)
         self.scopes = scopes or Scopes.default()
         self.user_id = user_id
@@ -157,7 +159,7 @@ class GoogleAuth:
         Raises:
             TokenRefreshError: If refresh fails
         """
-        if not self.needs_refresh():
+        if not self.needs_refresh() or self._credentials is None:
             return False
 
         try:
@@ -183,10 +185,10 @@ class GoogleAuth:
             FileNotFoundError: If credentials file doesn't exist
         """
         if not force:
-            if self.is_authenticated():
+            if self.is_authenticated() and self._credentials is not None:
                 return self._credentials
 
-            if self.needs_refresh() and self.refresh():
+            if self.needs_refresh() and self.refresh() and self._credentials is not None:
                 return self._credentials
 
         if not self.credentials_file.exists():
@@ -251,6 +253,7 @@ class GoogleAuth:
         try:
             service = build("oauth2", "v2", credentials=self._credentials)
             user_info = service.userinfo().get().execute()
-            return user_info.get("email")
+            email = user_info.get("email")
+            return str(email) if email else None
         except Exception:
             return None

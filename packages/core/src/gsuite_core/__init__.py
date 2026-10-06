@@ -1,7 +1,15 @@
 """Google Suite Core - Shared auth, config, and utilities."""
 
 from gsuite_core._version import __version__
-from gsuite_core.api_utils import api_call, api_call_optional, map_http_error
+from gsuite_core.api_utils import (
+    api_call,
+    api_call_optional,
+    authorized_http,
+    drive_query_literal,
+    execute,
+    map_http_error,
+    paginate,
+)
 from gsuite_core.auth.oauth import GoogleAuth
 from gsuite_core.auth.scopes import Scopes
 from gsuite_core.config import Settings, get_settings
@@ -33,6 +41,10 @@ __all__ = [
     "api_call",
     "api_call_optional",
     "map_http_error",
+    "execute",
+    "paginate",
+    "authorized_http",
+    "drive_query_literal",
     # Storage
     "TokenStore",
     "SQLiteTokenStore",

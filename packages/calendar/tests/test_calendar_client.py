@@ -48,7 +48,10 @@ class TestCalendarService:
         service = cal.service
 
         # Now it's created
-        mock_build.assert_called_once_with("calendar", "v3", credentials=mock_auth.credentials)
+        http = mock_build.call_args.kwargs["http"]
+        assert mock_build.call_args.args == ("calendar", "v3")
+        assert http.credentials is mock_auth.credentials
+        assert http.http.timeout is not None
         assert service is mock_service
 
 
@@ -336,13 +339,13 @@ class TestDeleteEvent:
         mock_service.events().delete.assert_called()
 
     @patch("gsuite_calendar.client.build")
-    def test_delete_event_not_found(self, mock_build):
+    def test_delete_event_not_found(self, mock_build, http_error):
         """Test deletion of non-existent event."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
 
         mock_service = Mock()
-        mock_service.events().delete().execute.side_effect = Exception("Not found")
+        mock_service.events().delete().execute.side_effect = http_error(404)
         mock_build.return_value = mock_service
 
         cal = Calendar(mock_auth)

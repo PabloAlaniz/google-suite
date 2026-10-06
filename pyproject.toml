@@ -27,6 +27,8 @@ dependencies = [
     "google-auth>=2.27.0",
     "google-auth-oauthlib>=1.2.0",
     "google-api-python-client>=2.114.0",
+    "google-auth-httplib2>=0.2.0",
+    "httplib2>=0.19.0",
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
 ]
@@ -59,7 +61,7 @@ all = [
 ]
 
 [project.scripts]
-gsuite = "gsuite_cli.main:app"
+gsuite = "gsuite_cli.main:main"
 
 [project.urls]
 Homepage = "https://github.com/PabloAlaniz/google-suite"
@@ -100,7 +102,7 @@ mypy_path = "packages/core/src:packages/gmail/src:packages/calendar/src:packages
 
 [[tool.mypy.overrides]]
 # Google's client libraries ship without type information
-module = ["googleapiclient.*", "google_auth_oauthlib.*", "google.cloud.*"]
+module = ["googleapiclient.*", "google_auth_oauthlib.*", "google.cloud.*", "google_auth_httplib2", "httplib2"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

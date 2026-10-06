@@ -30,7 +30,7 @@ class CredentialsNotFoundError(AuthenticationError):
 class TokenExpiredError(AuthenticationError):
     """Token is expired and cannot be refreshed."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("Token expired and no refresh token available")
 
 
@@ -44,7 +44,7 @@ class TokenRefreshError(AuthenticationError):
 class NotAuthenticatedError(AuthenticationError):
     """Operation requires authentication but not authenticated."""
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("Not authenticated. Run authenticate() first")
 
 

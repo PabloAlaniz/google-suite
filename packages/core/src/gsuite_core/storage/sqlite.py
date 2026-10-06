@@ -45,7 +45,8 @@ class SQLiteTokenStore(TokenStore):
             row = cursor.fetchone()
 
             if row:
-                return json.loads(row[0])
+                token: dict[str, Any] = json.loads(row[0])
+                return token
             return None
 
     def save_token(self, token_data: dict[str, Any], user_id: str = "default") -> None:

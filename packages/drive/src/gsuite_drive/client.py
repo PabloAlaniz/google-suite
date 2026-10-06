@@ -2,17 +2,31 @@
 
 import io
 import logging
+from collections.abc import Iterator
 from typing import BinaryIO
 
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload, MediaIoBaseUpload
 
-from gsuite_core import GoogleAuth
+from gsuite_core import (
+    GoogleAuth,
+    authorized_http,
+    drive_query_literal,
+    execute,
+    get_settings,
+    map_http_error,
+    paginate,
+)
+from gsuite_core.exceptions import NotFoundError
 from gsuite_drive.file import File, Folder
 from gsuite_drive.parser import DriveParser
 
 logger = logging.getLogger(__name__)
+
+FILE_FIELDS = (
+    "id, name, mimeType, size, createdTime, modifiedTime, parents, webViewLink, webContentLink"
+)
 
 
 class Drive:
@@ -51,63 +65,77 @@ class Drive:
     def service(self):
         """Lazy-load Drive API service."""
         if self._service is None:
-            self._service = build("drive", "v3", credentials=self.auth.credentials)
+            self._service = build(
+                "drive", "v3", http=authorized_http(self.auth.credentials), cache_discovery=False
+            )
         return self._service
 
     # ========== File listing ==========
+
+    def iter_files(
+        self,
+        query: str | None = None,
+        parent_id: str | None = None,
+        mime_type: str | None = None,
+        max_results: int | None = 100,
+        order_by: str = "modifiedTime desc",
+    ) -> Iterator[File]:
+        """
+        Lazily yield files, following result pages.
+
+        Args:
+            query: Drive API query string (raw; quote values with drive_query_literal)
+            parent_id: Filter by parent folder ID
+            mime_type: Filter by MIME type
+            max_results: Maximum files to yield (None = all)
+            order_by: Sort order
+        """
+        query_parts = []
+        if query:
+            query_parts.append(f"({query})")
+        if parent_id:
+            query_parts.append(f"{drive_query_literal(parent_id)} in parents")
+        if mime_type:
+            query_parts.append(f"mimeType={drive_query_literal(mime_type)}")
+        query_parts.append("trashed=false")
+
+        items = paginate(
+            self.service.files().list,
+            "files",
+            "drive",
+            max_items=max_results,
+            page_size_param="pageSize",
+            max_page_size=1000,
+            q=" and ".join(query_parts),
+            orderBy=order_by,
+            # nextPageToken must be requested explicitly when fields is set
+            fields=f"nextPageToken, files({FILE_FIELDS})",
+        )
+        for item in items:
+            yield self._parse_file(item)
 
     def list_files(
         self,
         query: str | None = None,
         parent_id: str | None = None,
         mime_type: str | None = None,
-        max_results: int = 100,
+        max_results: int | None = 100,
         order_by: str = "modifiedTime desc",
     ) -> list[File]:
         """
         List files in Drive.
 
         Args:
-            query: Drive API query string
+            query: Drive API query string (raw; quote values with drive_query_literal)
             parent_id: Filter by parent folder ID
             mime_type: Filter by MIME type
-            max_results: Maximum files to return
+            max_results: Maximum files to return (None = all)
             order_by: Sort order
 
         Returns:
             List of File objects
         """
-        # Build query
-        query_parts = []
-        if query:
-            query_parts.append(query)
-        if parent_id:
-            query_parts.append(f"'{parent_id}' in parents")
-        if mime_type:
-            query_parts.append(f"mimeType='{mime_type}'")
-
-        # Don't include trashed files
-        query_parts.append("trashed=false")
-
-        full_query = " and ".join(query_parts)
-
-        response = (
-            self.service.files()
-            .list(
-                q=full_query,
-                pageSize=min(max_results, 1000),
-                orderBy=order_by,
-                fields="files(id, name, mimeType, size, createdTime, modifiedTime, parents, webViewLink, webContentLink)",
-            )
-            .execute()
-        )
-
-        files = []
-        for item in response.get("files", []):
-            file = self._parse_file(item)
-            files.append(file)
-
-        return files
+        return list(self.iter_files(query, parent_id, mime_type, max_results, order_by))
 
     def list_folders(self, parent_id: str | None = None) -> list[Folder]:
         """List folders."""
@@ -130,36 +158,25 @@ class Drive:
         Returns:
             Matching files
         """
-        if exact:
-            query = f"name='{name}'"
-        else:
-            query = f"name contains '{name}'"
+        literal = drive_query_literal(name)
+        query = f"name={literal}" if exact else f"name contains {literal}"
 
         return self.list_files(query=query)
 
     # ========== File operations ==========
 
     def get(self, file_id: str) -> File | None:
-        """Get a file by ID."""
+        """Get a file by ID, or None if it doesn't exist."""
         try:
-            item = (
-                self.service.files()
-                .get(
-                    fileId=file_id,
-                    fields="id, name, mimeType, size, createdTime, modifiedTime, parents, webViewLink, webContentLink",
-                )
-                .execute()
+            item = execute(
+                self.service.files().get(fileId=file_id, fields=FILE_FIELDS),
+                "drive",
+                "file",
+                file_id,
             )
-            return self._parse_file(item)
-        except HttpError as e:
-            if e.resp.status == 404:
-                logger.debug(f"File not found: {file_id}")
-                return None
-            logger.error(f"Error getting file {file_id}: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Unexpected error getting file {file_id}: {e}")
+        except NotFoundError:
             return None
+        return self._parse_file(item)
 
     def get_content(self, file_id: str) -> bytes:
         """Download file content as bytes."""
@@ -168,8 +185,12 @@ class Drive:
         downloader = MediaIoBaseDownload(buffer, request)
 
         done = False
-        while not done:
-            _, done = downloader.next_chunk()
+        try:
+            while not done:
+                # Chunks retry 5xx/429 themselves; downloads are idempotent
+                _, done = downloader.next_chunk(num_retries=get_settings().max_retries)
+        except HttpError as e:
+            raise map_http_error(e, "drive", "file", file_id) from e
 
         return buffer.getvalue()
 
@@ -220,14 +241,10 @@ class Drive:
 
         media = MediaFileUpload(path, mimetype=mime_type, resumable=True)
 
-        created = (
-            self.service.files()
-            .create(
-                body=metadata,
-                media_body=media,
-                fields="id, name, mimeType, size, createdTime, modifiedTime, parents, webViewLink",
-            )
-            .execute()
+        created = execute(
+            self.service.files().create(body=metadata, media_body=media, fields=FILE_FIELDS),
+            "drive",
+            "file",
         )
 
         return self._parse_file(created)
@@ -262,14 +279,10 @@ class Drive:
 
         media = MediaIoBaseUpload(buffer, mimetype=mime_type, resumable=True)
 
-        created = (
-            self.service.files()
-            .create(
-                body=metadata,
-                media_body=media,
-                fields="id, name, mimeType, size, createdTime, modifiedTime, parents, webViewLink",
-            )
-            .execute()
+        created = execute(
+            self.service.files().create(body=metadata, media_body=media, fields=FILE_FIELDS),
+            "drive",
+            "file",
         )
 
         return self._parse_file(created)
@@ -298,13 +311,8 @@ class Drive:
         if parent_id:
             metadata["parents"] = [parent_id]
 
-        created = (
-            self.service.files()
-            .create(
-                body=metadata,
-                fields="id, name, mimeType, createdTime, modifiedTime, parents, webViewLink",
-            )
-            .execute()
+        created = execute(
+            self.service.files().create(body=metadata, fields=FILE_FIELDS), "drive", "folder"
         )
 
         file = self._parse_file(created)
@@ -313,39 +321,40 @@ class Drive:
     # ========== Delete/Trash ==========
 
     def trash(self, file_id: str) -> bool:
-        """Move file to trash."""
+        """
+        Move file to trash.
+
+        Returns:
+            True if trashed, False if the file doesn't exist. Other failures
+            (auth, permissions, rate limit) raise.
+        """
         try:
-            self.service.files().update(
-                fileId=file_id,
-                body={"trashed": True},
-            ).execute()
-            logger.info(f"Trashed file {file_id}")
-            return True
-        except HttpError as e:
-            if e.resp.status == 404:
-                logger.warning(f"File not found for trash: {file_id}")
-            else:
-                logger.error(f"Error trashing file {file_id}: {e}")
+            execute(
+                self.service.files().update(fileId=file_id, body={"trashed": True}),
+                "drive",
+                "file",
+                file_id,
+            )
+        except NotFoundError:
+            logger.warning(f"File not found for trash: {file_id}")
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error trashing file {file_id}: {e}")
-            return False
+        logger.info(f"Trashed file {file_id}")
+        return True
 
     def delete(self, file_id: str) -> bool:
-        """Permanently delete file."""
+        """
+        Permanently delete file.
+
+        Returns:
+            True if deleted, False if the file doesn't exist. Other failures raise.
+        """
         try:
-            self.service.files().delete(fileId=file_id).execute()
-            logger.info(f"Deleted file {file_id}")
-            return True
-        except HttpError as e:
-            if e.resp.status == 404:
-                logger.warning(f"File not found for deletion: {file_id}")
-            else:
-                logger.error(f"Error deleting file {file_id}: {e}")
+            execute(self.service.files().delete(fileId=file_id), "drive", "file", file_id)
+        except NotFoundError:
+            logger.warning(f"File not found for deletion: {file_id}")
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error deleting file {file_id}: {e}")
-            return False
+        logger.info(f"Deleted file {file_id}")
+        return True
 
     # ========== Sharing ==========
 
@@ -366,31 +375,25 @@ class Drive:
             notify: Send notification email
 
         Returns:
-            True if successful
+            True if shared, False if the file doesn't exist. Other failures
+            (invalid role or email, permissions) raise.
         """
         try:
-            self.service.permissions().create(
-                fileId=file_id,
-                body={
-                    "type": "user",
-                    "role": role,
-                    "emailAddress": email,
-                },
-                sendNotificationEmail=notify,
-            ).execute()
-            logger.info(f"Shared file {file_id} with {email} ({role})")
-            return True
-        except HttpError as e:
-            if e.resp.status == 404:
-                logger.error(f"File not found for sharing: {file_id}")
-            elif e.resp.status == 400:
-                logger.error(f"Invalid share request for {file_id}: {e}")
-            else:
-                logger.error(f"Error sharing file {file_id}: {e}")
+            execute(
+                self.service.permissions().create(
+                    fileId=file_id,
+                    body={"type": "user", "role": role, "emailAddress": email},
+                    sendNotificationEmail=notify,
+                ),
+                "drive",
+                "file",
+                file_id,
+            )
+        except NotFoundError:
+            logger.error(f"File not found for sharing: {file_id}")
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error sharing file {file_id}: {e}")
-            return False
+        logger.info(f"Shared file {file_id} with {email} ({role})")
+        return True
 
     # ========== Parsing ==========
 

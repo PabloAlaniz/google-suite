@@ -2,6 +2,8 @@
 
 from unittest.mock import Mock, patch
 
+import pytest
+
 from gsuite_gmail.client import Gmail
 from gsuite_gmail.label import Label, LabelType
 from gsuite_gmail.message import Message
@@ -47,7 +49,12 @@ class TestGmailService:
         service = gmail.service
 
         # Now it's created
-        mock_build.assert_called_once_with("gmail", "v1", credentials=mock_auth.credentials)
+        mock_build.assert_called_once()
+        assert mock_build.call_args.args == ("gmail", "v1")
+        # Requests go through an authorized transport with a timeout
+        http = mock_build.call_args.kwargs["http"]
+        assert http.credentials is mock_auth.credentials
+        assert http.http.timeout is not None
         assert service is mock_service
 
     @patch("gsuite_gmail.client.build")
@@ -463,8 +470,8 @@ class TestSignatureOperations:
         assert signature is None
 
     @patch("gsuite_gmail.client.build")
-    def test_get_signature_unexpected_error(self, mock_build):
-        """Test get_signature with unexpected error."""
+    def test_get_signature_unexpected_error_propagates(self, mock_build):
+        """Only API errors are tolerated; a bug must not be silently swallowed."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
 
@@ -479,6 +486,5 @@ class TestSignatureOperations:
 
         gmail = Gmail(mock_auth)
 
-        signature = gmail.get_signature()
-
-        assert signature is None
+        with pytest.raises(Exception, match="Unexpected error"):
+            gmail.get_signature()

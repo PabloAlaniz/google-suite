@@ -91,3 +91,17 @@ def test_gmail_list_json_builds_query():
             "is_starred": False,
         }
     ]
+
+
+def test_sdk_errors_are_reported_without_traceback(capsys):
+    from gsuite_cli.main import main
+    from gsuite_core.exceptions import RateLimitError
+
+    with (
+        patch("gsuite_cli.main.app", side_effect=RateLimitError("gmail", retry_after=30)),
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        main()
+
+    assert exc_info.value.code == 1
+    assert "Rate limit exceeded" in capsys.readouterr().out

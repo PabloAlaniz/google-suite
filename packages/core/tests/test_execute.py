@@ -60,6 +60,11 @@ class TestMapHttpErrorReasons:
             map_http_error(http_error(403, "dailyLimitExceeded"), "gmail"), QuotaExceededError
         )
 
+    def test_storage_quota_is_not_api_quota(self):
+        # A full Drive mentions "quota" but retrying or backing off won't help
+        error = map_http_error(http_error(403, "storageQuotaExceeded"), "drive")
+        assert isinstance(error, PermissionDeniedError)
+
     def test_403_other_reason_is_permission_denied(self):
         assert isinstance(
             map_http_error(http_error(403, "insufficientPermissions"), "gmail"),

@@ -24,7 +24,7 @@ ALL_COMMANDS = list(_command_paths(get_command(app)))
 
 def test_expected_groups_registered():
     groups = {path[0] for path in ALL_COMMANDS if path}
-    assert {"auth", "gmail", "calendar", "sheets", "status", "serve"} <= groups
+    assert {"auth", "gmail", "calendar", "drive", "sheets", "status", "serve"} <= groups
 
 
 @pytest.mark.parametrize("path", ALL_COMMANDS, ids=lambda p: " ".join(p) or "gsuite")

@@ -77,196 +77,147 @@ file.is_owned_by_me # bool
 
 ```python
 # Download by ID
-file = drive.get("file_id")
-file.download("/path/to/save/file.pdf")
+file = drive.get("file_id")          # None if it doesn't exist
+file.download("/path/to/file.pdf")
+file.download()                      # current dir, original name
 
-# Download with automatic naming
-file.download("/path/to/save/")  # Uses original filename
+# Content in memory
+content = drive.get_content("file_id")
 
-# Download Google Docs as different formats
+# Google Docs/Sheets/Slides can't be downloaded as-is; they are exported.
+# file.download() picks docx/xlsx/pptx unless you choose a format.
 doc = drive.get("google_doc_id")
-doc.download("document.docx", export_format="docx")
-doc.download("document.pdf", export_format="pdf")
+doc.download()                            # "Name.docx"
+doc.download("report.pdf", export_format="pdf")
+pdf_bytes = drive.export("google_doc_id", "pdf")
 
-# Export formats for Google Docs:
-# - document: docx, odt, pdf, txt, html, rtf, epub
-# - spreadsheet: xlsx, ods, pdf, csv, tsv
-# - presentation: pptx, odp, pdf, txt
-# - drawing: png, pdf, jpg, svg
-
-# Download to memory
-content = file.download_bytes()
+# Formats: pdf, docx, xlsx, pptx, odt, ods, odp, rtf, txt, md, html,
+# epub, csv, tsv, png, jpeg, svg (see gsuite_drive.EXPORT_FORMATS)
+# or any MIME type Drive supports. Drive caps exports at 10 MB.
 ```
 
 ## Uploading Files
 
+Uploads are resumable and sent in chunks; a failed chunk is retried from
+the last byte Drive acknowledged, so a retry can't duplicate the file.
+
 ```python
-# Upload a file
 uploaded = drive.upload("local_file.pdf")
-print(f"Uploaded: {uploaded.id}")
-print(f"Link: {uploaded.web_view_link}")
+print(uploaded.id, uploaded.web_view_link)
 
-# Upload to specific folder
-uploaded = drive.upload(
-    "report.pdf",
-    parent_id="folder_id_here",
-)
+# To a folder, with another name
+drive.upload("report.pdf", parent_id="folder_id", name="Q1 Report.pdf")
 
-# Upload with custom name
-uploaded = drive.upload(
-    "local_name.pdf",
-    name="Public Report Q1 2026.pdf",
-)
+# From bytes or a file-like object
+drive.upload_content(b"Hello, World!", name="hello.txt", mime_type="text/plain")
 
-# Upload from bytes
-content = b"Hello, World!"
-uploaded = drive.upload_bytes(
-    content,
-    name="hello.txt",
-    mime_type="text/plain",
-)
-
-# Upload and convert to Google Docs format
-uploaded = drive.upload(
-    "document.docx",
-    convert=True,  # Converts to Google Docs
-)
+# Progress (fraction 0.0-1.0)
+drive.upload("big.zip", on_progress=lambda done: print(f"{done:.0%}"))
 ```
 
 ## Creating Folders
 
 ```python
-# Create folder in root
-folder = drive.create_folder("My New Folder")
-
-# Create nested folder
-parent = drive.create_folder("Projects")
-subfolder = drive.create_folder("Project A", parent_id=parent.id)
-
-# Upload to new folder
-folder = drive.create_folder("Reports 2026")
-drive.upload("q1_report.pdf", parent_id=folder.id)
+folder = drive.create_folder("Projects")
+subfolder = drive.create_folder("Project A", parent_id=folder.id)
+drive.upload("q1_report.pdf", parent_id=subfolder.id)
 ```
 
-## Moving and Copying
+## Updating, Moving and Copying
 
 ```python
-# Move file to folder
-drive.move("file_id", to_folder_id="new_folder_id")
-
-# Copy file
-copy = drive.copy("file_id")
-copy = drive.copy("file_id", name="Copy of Document")
-
-# Rename file
 drive.rename("file_id", "New Name.pdf")
+drive.update("file_id", description="Final version", starred=True)
+
+drive.move("file_id", "new_folder_id")       # leaves its old folders
+copy = drive.copy("file_id", name="Copy of Document", parent_id="folder_id")
 ```
 
 ## Deleting Files
 
 ```python
-# Move to trash
-drive.trash("file_id")
+drive.trash("file_id")       # True, or False if the file doesn't exist
+drive.restore("file_id")     # back from the trash
+drive.delete("file_id")      # permanent, careful
 
-# Restore from trash
-drive.untrash("file_id")
-
-# Permanently delete (careful!)
-drive.delete("file_id")
-
-# Empty trash
-drive.empty_trash()
+# What's in the trash
+for f in drive.list_files(trashed=True):
+    print(f.name)
 ```
+
+Any failure other than "not found" (permissions, auth, rate limits) raises.
 
 ## Sharing
 
 ```python
-# Share with specific user
-drive.share(
-    "file_id",
-    email="user@example.com",
-    role="reader",  # reader, writer, commenter
-)
+# With a user (emails them by default)
+drive.share("file_id", "user@example.com", role="writer")
 
-# Share with anyone who has link
-drive.share(
-    "file_id",
-    anyone=True,
-    role="reader",
-)
+# Anyone with the link, a whole domain, or a group
+drive.add_permission("file_id", type="anyone", role="reader")
+drive.add_permission("file_id", type="domain", domain="example.com")
+drive.add_permission("file_id", type="group", email="team@example.com", notify=False)
 
-# Get sharing permissions
-permissions = drive.get_permissions("file_id")
-for perm in permissions:
-    print(f"{perm.email}: {perm.role}")
-
-# Remove sharing
-drive.unshare("file_id", permission_id="permission_id")
+# Who has access, and revoking it
+for perm in drive.list_permissions("file_id"):
+    print(perm.id, perm.role, perm.email_address or perm.domain or perm.type)
+drive.remove_permission("file_id", "permission_id")
 ```
 
 ## Searching
 
 ```python
-# Search by name
+# By name (quotes in the name are escaped for you)
 files = drive.search("quarterly report")
+files = drive.search("Pablo's notes.txt", exact=True)
 
-# Full-text search (searches content)
-files = drive.search("budget projections", full_text=True)
+# Raw Drive query; quote values with drive_query_literal
+from gsuite_core import drive_query_literal
 
-# Advanced query
 files = drive.list_files(
-    query="name contains 'report' and mimeType='application/pdf' and modifiedTime > '2026-01-01'"
+    query=f"fullText contains {drive_query_literal('budget')} and modifiedTime > '2026-01-01'"
 )
+
+# Everything, page after page (max_results=None), lazily
+for f in drive.iter_files(mime_type="application/pdf", max_results=None):
+    ...
 ```
+
+Listings include shared drives.
 
 ## Folder Operations
 
 ```python
-# Get folder contents
-folder = drive.get_folder("folder_id")
-for item in folder.list_children():
-    print(f"{'📁' if item.is_folder else '📄'} {item.name}")
+folders = drive.list_folders(parent_id="folder_id")
 
-# Get folder tree
-tree = drive.get_folder_tree("folder_id", max_depth=3)
-```
-
-## Watching for Changes
-
-```python
-# Get changes since last check
-changes = drive.get_changes(start_page_token="token")
-for change in changes:
-    if change.removed:
-        print(f"Removed: {change.file_id}")
-    else:
-        print(f"Modified: {change.file.name}")
-
-# Get initial page token
-token = drive.get_start_page_token()
+folder = folders[0]
+folder.list_files()                 # direct children
+folder.list_files(recursive=True)   # whole tree, breadth-first
 ```
 
 ## Error Handling
 
 ```python
 from gsuite_core.exceptions import (
-    GsuiteError,
+    GSuiteError,
     NotFoundError,
     PermissionDeniedError,
-    QuotaExceededError,
+    RateLimitError,
 )
 
 try:
-    file = drive.get("nonexistent_id")
+    drive.move("file_id", "folder_id")
 except NotFoundError:
     print("File not found")
 except PermissionDeniedError:
-    print("No access to this file")
-except QuotaExceededError:
-    print("Storage quota exceeded")
-except GsuiteError as e:
+    print("No access, or the Drive is full")
+except RateLimitError:
+    print("Still rate limited after retries")
+except GSuiteError as e:
     print(f"Drive error: {e}")
 ```
+
+`get()` returns `None` for a missing file instead of raising.
 
 ## Configuration
 

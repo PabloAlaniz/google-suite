@@ -90,7 +90,10 @@ def map_http_error(
     if _is_rate_limit(error):
         return RateLimitError(service, _retry_after(error))
     if status == 403:
-        if reason in QUOTA_REASONS or "quota" in message.lower():
+        # Match API quota by reason; the message is only a fallback when
+        # Google sent none. "storageQuotaExceeded" (the user's Drive is full)
+        # is not an API quota and must not look retryable later.
+        if reason in QUOTA_REASONS or (reason is None and "quota" in message.lower()):
             return QuotaExceededError(service)
         return PermissionDeniedError(service, "operation")
     return APIError(message, service, status, cause=error)

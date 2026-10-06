@@ -1,11 +1,10 @@
 """Authentication CLI commands."""
 
-import json
-
 import typer
 from rich.console import Console
 from rich.panel import Panel
 
+from gsuite_cli.output import print_json
 from gsuite_core import (
     CredentialsNotFoundError,
     GoogleAuth,
@@ -136,7 +135,7 @@ def export_token():
 
     token_data = auth.export_token()
     if token_data:
-        console.print_json(json.dumps(token_data, indent=2))
+        print_json(token_data)
     else:
         console.print("[red]No token to export[/red]")
         raise typer.Exit(1)

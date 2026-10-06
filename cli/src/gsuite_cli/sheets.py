@@ -1,10 +1,10 @@
 """Sheets CLI commands."""
 
-import json
-
 import typer
 from rich.console import Console
 from rich.table import Table
+
+from gsuite_cli.output import print_json
 
 console = Console()
 app = typer.Typer(no_args_is_help=True)
@@ -39,7 +39,7 @@ def list_spreadsheets(
         spreadsheets = sheets.list_spreadsheets(max_results=limit)
 
     if output == "json":
-        console.print(json.dumps(spreadsheets, indent=2))
+        print_json(spreadsheets)
     else:
         if not spreadsheets:
             console.print("[yellow]No spreadsheets found[/yellow]")
@@ -126,7 +126,7 @@ def read_range(
         return
 
     if output == "json":
-        console.print(json.dumps(values, indent=2))
+        print_json(values)
     elif output == "csv":
         import csv
         import sys

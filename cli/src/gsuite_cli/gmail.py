@@ -1,6 +1,5 @@
 """Gmail CLI commands."""
 
-import json
 import sys
 
 import typer
@@ -8,6 +7,7 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
+from gsuite_cli.output import print_json
 from gsuite_core import GoogleAuth
 from gsuite_gmail import Gmail
 
@@ -69,7 +69,7 @@ def list_messages(
             }
             for m in messages
         ]
-        console.print(json.dumps(data, indent=2))
+        print_json(data)
     else:
         if not messages:
             console.print("[yellow]No messages found[/yellow]")
@@ -129,7 +129,7 @@ def read_message(
             "labels": message.labels,
             "attachments": [{"filename": a.filename, "size": a.size} for a in message.attachments],
         }
-        console.print(json.dumps(data, indent=2))
+        print_json(data)
     elif output == "html":
         console.print(message.html or message.plain or "(no body)")
     else:

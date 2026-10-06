@@ -1,6 +1,5 @@
 """Calendar CLI commands."""
 
-import json
 from datetime import datetime
 
 import typer
@@ -8,6 +7,7 @@ from rich.console import Console
 from rich.table import Table
 
 from gsuite_calendar import Calendar
+from gsuite_cli.output import print_json
 from gsuite_core import GoogleAuth
 
 console = Console()
@@ -53,7 +53,7 @@ def list_events(
             }
             for e in events
         ]
-        console.print(json.dumps(data, indent=2))
+        print_json(data)
     else:
         if not events:
             console.print("[yellow]No upcoming events[/yellow]")

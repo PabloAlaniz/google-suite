@@ -127,34 +127,39 @@ gsuite calendar delete EVENT_ID
 ## Drive Commands
 
 ```bash
-# List files
+# List files (newest first)
 gsuite drive list
-gsuite drive list --folder FOLDER_ID
+gsuite drive list FOLDER_ID
+gsuite drive list --name "quarterly report"
+gsuite drive list --trashed
+gsuite drive list -o json
 
-# Search files
-gsuite drive search "quarterly report"
-
-# File info
+# File info and who has access
 gsuite drive info FILE_ID
 
-# Download file
+# Download (Google Docs/Sheets/Slides are exported; docx/xlsx/pptx by default)
 gsuite drive download FILE_ID
-gsuite drive download FILE_ID --output local_name.pdf
+gsuite drive download FILE_ID --out local_name.pdf
+gsuite drive download DOC_ID --export pdf
 
-# Upload file
+# Upload (resumable, with a progress bar)
 gsuite drive upload document.pdf
-gsuite drive upload document.pdf --folder FOLDER_ID
+gsuite drive upload document.pdf --to FOLDER_ID --name "Q1 Report.pdf"
 
-# Create folder
-gsuite drive mkdir "New Folder"
-gsuite drive mkdir "Subfolder" --parent FOLDER_ID
+# Folders and moving
+gsuite drive mkdir "New Folder" --in PARENT_ID
+gsuite drive move FILE_ID FOLDER_ID
 
-# Delete file (to trash)
+# Delete (to trash; --permanent asks for confirmation unless -y)
 gsuite drive delete FILE_ID
+gsuite drive delete FILE_ID --permanent -y
 
-# Share file
-gsuite drive share FILE_ID --email user@example.com --role reader
+# Share
+gsuite drive share FILE_ID user@example.com --role writer
+gsuite drive share FILE_ID --anyone
 ```
+
+`ls`, `mv` and `rm` work as aliases.
 
 ## Sheets Commands
 

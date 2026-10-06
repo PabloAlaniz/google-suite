@@ -187,20 +187,33 @@ export GSUITE_GCP_PROJECT_ID=my-project
 gsuite serve
 ```
 
-### API Key Protection
+### API Key
 
-Protect endpoints with an API key:
+Every endpoint except `GET /health` requires the `X-API-Key` header:
 
 ```bash
 export GSUITE_API_KEY=your-secret-api-key
 gsuite serve
-```
-
-Then include the key in requests:
-
-```bash
 curl -H "X-API-Key: your-secret-api-key" http://localhost:8080/gmail/messages
 ```
+
+The API **fails closed**: if `GSUITE_API_KEY` is not set, every request gets
+a 401. If access is already restricted some other way (Cloud Run with
+`--no-allow-unauthenticated` and IAM, or a server bound to localhost), opt out
+explicitly with `GSUITE_ALLOW_NO_API_KEY=true`.
+
+`GET /health/admin/logs` uses a separate key in the `X-Admin-Key` header
+(`ADMIN_API_KEY` env var). Keys are not accepted in query strings.
+
+### CORS
+
+CORS is disabled unless you list origins:
+
+```bash
+export GSUITE_CORS_ORIGINS="https://app.example.com,https://admin.example.com"
+```
+
+Cookies/credentials are never allowed; browsers send the API key as a header.
 
 ## Configuration
 
@@ -208,9 +221,13 @@ Environment variables:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GSUITE_HOST` | 0.0.0.0 | Server host |
+| `GSUITE_HOST` | 127.0.0.1 | Server host (`0.0.0.0` exposes it to your network) |
 | `GSUITE_PORT` | 8080 | Server port |
-| `GSUITE_API_KEY` | - | API key for auth (optional) |
+| `GSUITE_API_KEY` | - | API key required in `X-API-Key` |
+| `GSUITE_ALLOW_NO_API_KEY` | false | Serve without an API key (see above) |
+| `GSUITE_CORS_ORIGINS` | - | Comma-separated allowed origins |
+| `GSUITE_LOG_LEVEL` | INFO | Log level |
+| `GSUITE_LOG_FORMAT` | text | `json` for one JSON object per line (Cloud Logging) |
 | `GSUITE_CREDENTIALS_FILE` | credentials.json | OAuth credentials |
 | `GSUITE_TOKEN_STORAGE` | sqlite | Token storage backend |
 | `GSUITE_TOKEN_DB_PATH` | tokens.db | SQLite token path |
@@ -218,28 +235,34 @@ Environment variables:
 
 ## Error Responses
 
-All errors follow this format:
+Errors use [RFC 9457 problem details](https://www.rfc-editor.org/rfc/rfc9457)
+with `Content-Type: application/problem+json`:
 
 ```json
 {
-  "error": {
-    "code": 404,
-    "message": "Message not found",
-    "details": {}
-  }
+  "type": "about:blank",
+  "title": "Too Many Requests",
+  "status": 429,
+  "detail": "Rate limit exceeded for gmail",
+  "instance": "/gmail/messages",
+  "request_id": "3f2a9c...",
+  "service": "gmail"
 }
 ```
 
-Common status codes:
+| Code | When |
+|------|------|
+| 401 | Missing/invalid API key, or the server has no valid Google token |
+| 403 | Google denied the operation |
+| 404 | Resource or route not found |
+| 422 | Invalid request (`errors` lists each field) |
+| 429 | Google rate limit or quota (`Retry-After` when Google sends one) |
+| 502 | Google returned an error the API doesn't map |
+| 500 | Unexpected error; the response never includes internals |
 
-| Code | Description |
-|------|-------------|
-| 400 | Bad request (invalid parameters) |
-| 401 | Not authenticated |
-| 403 | Permission denied |
-| 404 | Resource not found |
-| 429 | Rate limited |
-| 500 | Internal error |
+Every response carries an `X-Request-ID` header (yours, if you send a valid
+one), and `request_id` appears in error bodies and logs so a failed call can
+be traced.
 
 ## OpenAPI Schema
 

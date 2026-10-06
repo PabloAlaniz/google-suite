@@ -21,4 +21,5 @@ USER appuser
 
 EXPOSE 8080
 
-CMD ["uvicorn", "gsuite_api.main:app", "--host", "0.0.0.0", "--port", "8080"]
+# --no-access-log: RequestContextMiddleware already logs each request with its ID
+CMD ["uvicorn", "gsuite_api.main:app", "--host", "0.0.0.0", "--port", "8080", "--no-access-log"]

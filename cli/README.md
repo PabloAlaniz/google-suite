@@ -189,7 +189,8 @@ gsuite sheets export SPREADSHEET_ID --output data.csv
 # Start REST API server
 gsuite serve
 gsuite serve --port 9000
-gsuite serve --host 0.0.0.0 --port 8080
+gsuite serve --port 8080              # localhost only
+gsuite serve --host 0.0.0.0 --port 8080   # reachable from your network
 
 # With auto-reload (development)
 gsuite serve --reload

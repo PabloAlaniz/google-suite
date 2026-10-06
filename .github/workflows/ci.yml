@@ -157,7 +157,7 @@ jobs:
       # measures a slice of the code base.
       - name: Enforce coverage floor
         if: needs.changes.outputs.all == 'true'
-        run: uv run coverage report --fail-under=53 > /dev/null
+        run: uv run coverage report --fail-under=63 > /dev/null
 
   test-os:
     name: test (${{ matrix.os }})

@@ -275,7 +275,10 @@ Environment variables (prefix `GSUITE_`):
 | `GSUITE_TOKEN_STORAGE` | `sqlite` or `secretmanager` |
 | `GSUITE_TOKEN_DB_PATH` | SQLite token database path |
 | `GSUITE_GCP_PROJECT_ID` | GCP project (for Secret Manager) |
-| `GSUITE_API_KEY` | API key for REST endpoints |
+| `GSUITE_API_KEY` | API key for REST endpoints (required unless `GSUITE_ALLOW_NO_API_KEY=true`) |
+| `GSUITE_CORS_ORIGINS` | Comma-separated origins allowed by CORS (off by default) |
+
+See [api/README.md](api/README.md#configuration) for every REST API setting.
 
 ## Development
 
@@ -312,8 +315,13 @@ gcloud run deploy gsuite-api \
   --region us-central1 \
   --set-env-vars GSUITE_TOKEN_STORAGE=secretmanager \
   --set-env-vars GSUITE_GCP_PROJECT_ID=YOUR_PROJECT \
-  --allow-unauthenticated  # or use --no-allow-unauthenticated + IAM
+  --set-secrets GSUITE_API_KEY=gsuite-api-key:latest \
+  --allow-unauthenticated
 ```
+
+The API rejects every request until `GSUITE_API_KEY` is set. If you protect
+the service with IAM instead (`--no-allow-unauthenticated`), set
+`GSUITE_ALLOW_NO_API_KEY=true` rather than the key.
 
 **Note:** For Secret Manager token storage, ensure your Cloud Run service account has `secretmanager.versions.access` permission.
 

@@ -4,6 +4,8 @@
   "calendar": 0,
   "drive": 0,
   "sheets": 0,
+  "tasks": 0,
+  "contacts": 0,
   "api": 33,
   "cli": 17
 }

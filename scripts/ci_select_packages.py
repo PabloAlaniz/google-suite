@@ -13,8 +13,8 @@ $GITHUB_OUTPUT.
 import json
 import os
 
-PACKAGES = ["core", "gmail", "calendar", "drive", "sheets", "api", "cli"]
-SERVICES = {"gmail", "calendar", "drive", "sheets"}
+PACKAGES = ["core", "gmail", "calendar", "drive", "sheets", "tasks", "contacts", "api", "cli"]
+SERVICES = {"gmail", "calendar", "drive", "sheets", "tasks", "contacts"}
 
 
 def select(event: str, changes: list[str]) -> list[str]:

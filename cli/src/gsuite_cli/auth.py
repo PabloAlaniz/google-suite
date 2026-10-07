@@ -17,11 +17,40 @@ console = Console()
 app = typer.Typer(no_args_is_help=True)
 
 
+SCOPE_SETS = {
+    "default": Scopes.default,
+    "gmail": Scopes.gmail,
+    "calendar": Scopes.calendar,
+    "drive": Scopes.drive,
+    "sheets": Scopes.sheets,
+    "tasks": Scopes.tasks,
+    "contacts": Scopes.contacts,
+    "all": Scopes.all,
+}
+
+
+def _resolve_scopes(value: str) -> list[str]:
+    """Union of the named scope sets, in order. An unknown name is an error, not the default."""
+    selected: list[str] = []
+    for name in (n.strip().lower() for n in value.split(",") if n.strip()):
+        if name not in SCOPE_SETS:
+            console.print(f"[red]Unknown scope set: {name}.[/red] Use: {', '.join(SCOPE_SETS)}")
+            raise typer.Exit(1)
+        selected += [s for s in SCOPE_SETS[name]() if s not in selected]
+    return selected or Scopes.default()
+
+
 @app.command()
 def login(
     force: bool = typer.Option(False, "--force", "-f", help="Force re-authentication"),
     scopes: str = typer.Option(
-        "default", "--scopes", "-s", help="Scopes: default, gmail, calendar, drive, all"
+        "default",
+        "--scopes",
+        "-s",
+        help=(
+            "Comma-separated: default, gmail, calendar, drive, sheets, tasks, contacts, all "
+            "(e.g. default,tasks)"
+        ),
     ),
 ):
     """
@@ -29,15 +58,7 @@ def login(
 
     This will open a browser window for OAuth consent.
     """
-    scope_map = {
-        "default": Scopes.default(),
-        "gmail": Scopes.gmail(),
-        "calendar": Scopes.calendar(),
-        "drive": Scopes.drive(),
-        "all": Scopes.all(),
-    }
-
-    selected_scopes = scope_map.get(scopes, Scopes.default())
+    selected_scopes = _resolve_scopes(scopes)
 
     auth = GoogleAuth(scopes=selected_scopes)
 

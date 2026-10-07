@@ -50,6 +50,8 @@ jobs:
             calendar: packages/calendar/**
             drive: packages/drive/**
             sheets: packages/sheets/**
+            tasks: packages/tasks/**
+            contacts: packages/contacts/**
             api: api/**
             cli: cli/**
 
@@ -263,7 +265,7 @@ jobs:
         working-directory: /tmp
         run: |
           /tmp/smoke/bin/python -c "
-          import gsuite_core, gsuite_gmail, gsuite_calendar, gsuite_drive, gsuite_sheets
+          import gsuite_core, gsuite_gmail, gsuite_calendar, gsuite_drive, gsuite_sheets, gsuite_tasks, gsuite_contacts
           import gsuite_api.main, gsuite_cli.main
           "
           /tmp/smoke/bin/gsuite --help

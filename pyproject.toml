@@ -5,14 +5,14 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gsuite-sdk"
 version = "0.1.3"
-description = "Unified Google Workspace SDK - Gmail, Calendar, Drive, Sheets"
+description = "Unified Google Workspace SDK - Gmail, Calendar, Drive, Sheets, Tasks, Contacts"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"
 authors = [
     {name = "Pablo Alaniz", email = "alanizpablo@gmail.com"}
 ]
-keywords = ["google", "workspace", "gmail", "calendar", "drive", "sheets", "oauth", "api"]
+keywords = ["google", "workspace", "gmail", "calendar", "drive", "sheets", "tasks", "contacts", "oauth", "api"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -101,7 +101,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["gsuite_core", "gsuite_gmail", "gsuite_calendar", "gsuite_drive", "gsuite_sheets", "gsuite_api", "gsuite_cli"]
+known-first-party = ["gsuite_core", "gsuite_gmail", "gsuite_calendar", "gsuite_drive", "gsuite_sheets", "gsuite_tasks", "gsuite_contacts", "gsuite_api", "gsuite_cli"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -110,7 +110,7 @@ warn_unused_ignores = true
 disallow_untyped_defs = true
 # Editable installs use an import hook mypy can't follow; point it at the
 # sources so cross-package imports type-check instead of erroring.
-mypy_path = "packages/core/src:packages/gmail/src:packages/calendar/src:packages/drive/src:packages/sheets/src:api/src:cli/src"
+mypy_path = "packages/core/src:packages/gmail/src:packages/calendar/src:packages/drive/src:packages/sheets/src:packages/tasks/src:packages/contacts/src:api/src:cli/src"
 
 [[tool.mypy.overrides]]
 # Google's client libraries ship without type information
@@ -123,14 +123,14 @@ testpaths = ["packages/*/tests", "api/tests", "cli/tests"]
 addopts = "-v --tb=short --import-mode=importlib"
 
 [tool.setuptools.packages.find]
-where = ["packages/core/src", "packages/gmail/src", "packages/calendar/src", "packages/drive/src", "packages/sheets/src", "api/src", "cli/src"]
+where = ["packages/core/src", "packages/gmail/src", "packages/calendar/src", "packages/drive/src", "packages/sheets/src", "packages/tasks/src", "packages/contacts/src", "api/src", "cli/src"]
 include = ["gsuite_*"]
 
 [tool.setuptools.package-data]
 "*" = ["py.typed"]
 
 [tool.coverage.run]
-source = ["gsuite_core", "gsuite_gmail", "gsuite_calendar", "gsuite_drive", "gsuite_sheets", "gsuite_api", "gsuite_cli"]
+source = ["gsuite_core", "gsuite_gmail", "gsuite_calendar", "gsuite_drive", "gsuite_sheets", "gsuite_tasks", "gsuite_contacts", "gsuite_api", "gsuite_cli"]
 branch = true
 relative_files = true
 

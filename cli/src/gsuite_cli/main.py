@@ -4,12 +4,12 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from gsuite_cli import auth, calendar, drive, gmail, sheets
+from gsuite_cli import auth, calendar, contacts, drive, gmail, sheets, tasks
 
 console = Console()
 app = typer.Typer(
     name="gsuite",
-    help="Google Suite CLI - Unified access to Gmail, Calendar, Drive, Sheets",
+    help="Google Suite CLI - Unified access to Gmail, Calendar, Drive, Sheets, Tasks, Contacts",
     no_args_is_help=True,
 )
 
@@ -19,6 +19,8 @@ app.add_typer(gmail.app, name="gmail", help="Gmail operations")
 app.add_typer(calendar.app, name="calendar", help="Calendar operations")
 app.add_typer(drive.app, name="drive", help="Drive operations")
 app.add_typer(sheets.app, name="sheets", help="Sheets operations")
+app.add_typer(tasks.app, name="tasks", help="Tasks operations")
+app.add_typer(contacts.app, name="contacts", help="Contacts operations")
 
 
 @app.command()

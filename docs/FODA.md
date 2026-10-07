@@ -3,6 +3,37 @@
 **Fecha:** 2026-02-10  
 **Analizado por:** Margarita (heartbeat de análisis de repos)
 
+## 🔄 Revisión 2026-10-07 (después de los sprints 1–13)
+
+El análisis original de abajo es de febrero (v0.1.2). Estado actual de lo que
+señalaba:
+
+| Punto del FODA | Estado |
+|----------------|--------|
+| Tests no ejecutables sin setup | ✅ Resuelto: `uv sync` + `uv run pytest`; ~1600 tests |
+| Coverage no medida | ✅ Resuelto: combinado en CI, 87%, piso del 85% |
+| Drive y Sheets básicos | ✅ Resuelto: Drive completo; Sheets con el motor de GSpreadManager |
+| Docs de API REST limitadas | ⚠️ Parcial: sitio MkDocs con referencia; falta guía de deploy |
+| Sin versionado semántico | ✅ Resuelto: release-please + conventional commits |
+| Oportunidad: más APIs | ✅ Tasks y Contacts; Meet y Admin SDK pendientes |
+| Oportunidad: async | ⚠️ Parcial: base + Sheets; Gmail/Calendar/Drive pendientes |
+| Amenaza: cambios en Google APIs | Mitigada: nightly con dependencias latest y tests de integración opt-in |
+
+| Métrica | Valor |
+|---------|-------|
+| **Madurez** | Beta (0.2.0 en preparación) |
+| **Packages** | 7 (core, gmail, calendar, drive, sheets, tasks, contacts) |
+| **Python** | 3.11–3.14 en CI (+ 3.15 experimental), Linux/macOS/Windows |
+| **Seguridad** | gitleaks, pip-audit, CodeQL, Scorecard, actions pinneadas por SHA |
+| **Docker** | 355 MB multi-stage (antes 525 MB) |
+
+Nuevas debilidades:
+- Las rutas de la API son síncronas y el rate limiting es solo del lado cliente.
+- Los tests de integración dependen de un token OAuth que, con la app en modo
+  "Testing", vence cada 7 días.
+
+---
+
 ## 📊 Resumen Ejecutivo
 
 **google-suite** es un SDK unificado de Python para Google Workspace APIs (Gmail, Calendar, Drive, Sheets) con arquitectura limpia. Publicado en PyPI como `gsuite-sdk`.

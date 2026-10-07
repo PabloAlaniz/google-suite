@@ -1,64 +1,45 @@
 # Roadmap - google-suite
 
-**Actualizado:** 2026-02-10  
+**Actualizado:** 2026-10-07  
 **Basado en:** [Análisis FODA](./FODA.md)
 
-## 🎯 Versión Actual: 0.1.2 (Beta)
+## 🎯 Versión: 0.2.0 (próximo release)
+
+Los sprints 1–13 (2026-10) cubrieron la estabilización y la expansión
+planificadas para el primer semestre: CI dividida por paquete, gobernanza del
+repo, endurecimiento de la API, resiliencia del core, Drive y Sheets
+completos, el motor de GSpreadManager incorporado ([ADR 0001](adr/0001-incorporate-gspreadmanager.md)),
+async (base + Sheets), Tasks, Contacts, sitio de docs, tests de integración e
+imagen Docker más chica. 0.2.0 los publica.
 
 ---
 
-## 📍 Q1 2026 - Estabilización
+## ✅ Estabilización (hecho)
 
-### P0 - Crítico (Esta semana)
-
-- [ ] **Fix test imports** - Agregar `pip install -e .` a conftest.py o documentar setup
-- [ ] **Agregar coverage a CI** - pytest-cov + badge en README
-- [ ] **Actualizar CHANGELOG.md** - Documentar Gmail API expansion (PR #1)
-
-### P1 - Alta (Este mes)
-
-- [ ] **Completar Drive module**
-  - [ ] `drive.share()` - Compartir archivos
-  - [ ] `drive.trash()` / `drive.restore()` - Papelera
-  - [ ] `drive.copy()` - Copiar archivos
-  - [ ] `drive.move()` - Mover entre carpetas
-  - [ ] Tests para todas las operaciones
-
-- [ ] **Completar Sheets module**
-  - [ ] `sheets.format()` - Formateo de celdas
-  - [ ] `sheets.create_chart()` - Gráficos
-  - [ ] `sheets.add_sheet()` / `sheets.delete_sheet()` - Gestión de hojas
-  - [ ] `sheets.protect()` - Protección de rangos
-  - [ ] Tests completos
-
+- [x] **Tests ejecutables sin setup** - `uv sync` + `uv run pytest`; nombres de módulo únicos verificados
+- [x] **Coverage en CI** - combinado entre paquetes, piso del 85%
+- [x] **CHANGELOG** - automatizado con release-please (conventional commits)
+- [x] **Drive completo** - share, trash/restore, copy, move, export, upload resumable; tests
+- [x] **Sheets completo** - format, charts, pivots, add/del worksheet, protecciones, validaciones,
+      formato condicional, upsert, modelos tipados, export (motor de GSpreadManager)
+- [x] **CLI** - `drive upload`, `sheets read/write/export/import-csv/share`, `tasks`, `contacts`
+- [x] **REST API**
+  - [x] Request logging con X-Request-ID
+  - [x] Errores RFC 9457 (problem+json)
+  - [x] API key obligatoria por router (fail closed)
+  - [ ] Rate limiting de la API (hoy solo hay token bucket del lado cliente: `GSUITE_RATE_LIMIT`)
+- [x] **Sitio de documentación** - MkDocs + referencia de la API generada de los docstrings
+- [x] **Tests de integración** - opt-in contra una cuenta real (`tests/integration`)
 - [ ] **Documentación de deploy**
-  - [ ] `docs/DEPLOY_CLOUD_RUN.md` - Guía paso a paso
-  - [ ] `docs/DEPLOY_DOCKER.md` - Docker compose
-  - [ ] `docs/TROUBLESHOOTING.md` - Problemas comunes
-
-### P2 - Media (Q1)
-
-- [ ] **CLI improvements**
-  - [ ] `gsuite drive upload <file>` - Upload desde CLI
-  - [ ] `gsuite sheets read <id> <range>` - Leer sheets
-  - [ ] `gsuite sheets write <id> <range> <data>` - Escribir
-
-- [ ] **REST API improvements**
-  - [ ] Rate limiting middleware
-  - [ ] Request logging
-  - [ ] Better error responses (RFC 7807)
+  - [ ] Guía paso a paso de Cloud Run (hoy hay una sección en `api/README.md`)
+  - [ ] Docker compose
+  - [ ] Troubleshooting
 
 ---
 
-## 📍 Q2 2026 - Expansión
+## 📍 Expansión
 
-### Nuevos Módulos
-
-- [ ] **Google Meet**
-  - [ ] Crear reuniones
-  - [ ] Listar reuniones
-  - [ ] Obtener recording links
-  - [ ] Integracion con Calendar
+### Nuevos módulos
 
 - [x] **Google Tasks** (`gsuite_tasks`, REST `/tasks`, CLI `gsuite tasks`)
   - [x] CRUD de tareas (subtareas, mover, completar/reabrir, filtros por vencimiento)
@@ -70,62 +51,35 @@
   - [ ] Grupos de contactos
   - [ ] Directorio de la organización (Workspace)
 
+- [ ] **Google Meet**
+  - [ ] Crear y listar reuniones
+  - [ ] Links de grabaciones
+
 ### Performance
 
-- [ ] **Async support**
-  - [ ] `AsyncGmail`, `AsyncDrive`, etc.
-  - [ ] Batch operations optimizadas
-  - [ ] Connection pooling
+- [ ] **Async support** ([docs/ASYNC.md](./ASYNC.md))
+  - [x] Base en `gsuite_core.aio` (httpx, reintentos y errores compartidos con sync)
+  - [x] `AsyncSheets`
+  - [ ] `AsyncGmail`, `AsyncCalendar`, `AsyncDrive`
 
 - [ ] **Caching**
-  - [ ] Cache de tokens mejorado
-  - [ ] Cache de metadata de archivos
-  - [ ] Invalidación inteligente
+  - [x] Caché de lecturas de Sheets (`Sheets(auth, cache=True)`)
+  - [ ] Caché de metadata de archivos de Drive
 
 ---
 
-## 📍 Q3-Q4 2026 - Madurez
+## 📍 Madurez
 
-### Enterprise Features
+### Enterprise
 
-- [ ] **Admin SDK**
-  - [ ] User management
-  - [ ] Group management
-  - [ ] Domain settings
+- [ ] **Admin SDK** - usuarios, grupos, settings del dominio
+- [ ] **Multi-cuenta** - varias cuentas, impersonation de service accounts, acceso delegado
 
-- [ ] **Multi-tenant**
-  - [ ] Soporte para múltiples cuentas
-  - [ ] Service account impersonation
-  - [ ] Delegated access
+### v1.0
 
-### Plugin System
-
-- [ ] **Extensibilidad**
-  - [ ] Plugin discovery
-  - [ ] Custom module registration
-  - [ ] Third-party integrations
-
-### v1.0 Release
-
-- [ ] **Estabilidad garantizada**
-  - [ ] API freeze
-  - [ ] Migration guide desde 0.x
-  - [ ] Long-term support
-
----
-
-## 📊 Tareas Extraídas para Mission Control
-
-Las siguientes tareas serán creadas en Mission Control:
-
-| ID | Título | Prioridad | Asignado |
-|----|--------|-----------|----------|
-| - | Fix test imports en google-suite | HIGH | houdini |
-| - | Agregar coverage a CI en google-suite | HIGH | marikondo |
-| - | Actualizar CHANGELOG.md de google-suite | MEDIUM | cortazar |
-| - | Completar Drive module | MEDIUM | alex |
-| - | Completar Sheets module | MEDIUM | alex |
-| - | Docs: Deploy Cloud Run para google-suite | MEDIUM | cortazar |
+- [ ] API freeze
+- [ ] Guía de migración desde 0.x
+- [ ] Soporte de largo plazo
 
 ---
 
@@ -133,7 +87,6 @@ Las siguientes tareas serán creadas en Mission Control:
 
 - **Owner**: Pablo Alaniz
 - **Repo**: https://github.com/PabloAlaniz/google-suite
+- **Docs**: https://pabloalaniz.github.io/google-suite/
 - **PyPI**: https://pypi.org/project/gsuite-sdk/
 - **License**: MIT
-
-Este roadmap se revisa mensualmente. Última revisión: 2026-02-10.

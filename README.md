@@ -2,6 +2,7 @@
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Docs](https://img.shields.io/badge/docs-gsuite--sdk-indigo.svg)](https://pabloalaniz.github.io/google-suite/)
 
 Unified Python SDK for Google Workspace APIs with Clean Architecture.
 
@@ -276,8 +277,9 @@ google-suite/
 │   └── contacts/       # Contacts client (People API)
 ├── api/                # Unified FastAPI REST gateway
 ├── cli/                # Unified CLI (Typer + Rich)
-├── skill/              # AI agent skill (OpenClaw compatible)
-└── tests/              # Integration tests
+├── gsuite-sdk/         # AI agent skill (OpenClaw compatible)
+├── docs/               # Documentation site (MkDocs)
+└── tests/integration/  # Opt-in tests against a real Google account
 ```
 
 ### Design Principles
@@ -295,9 +297,8 @@ For detailed architecture decisions and design patterns, see [Architecture Docum
 This repo includes an [OpenClaw](https://openclaw.ai)-compatible skill for AI agents:
 
 ```
-skill/
-├── SKILL.md      # Usage documentation for agents
-└── skill.json    # Skill metadata
+gsuite-sdk/
+└── SKILL.md      # Usage documentation and metadata for agents
 ```
 
 Agents can use this skill to interact with Google Workspace on behalf of users.

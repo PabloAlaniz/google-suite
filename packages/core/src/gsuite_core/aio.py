@@ -138,8 +138,8 @@ class AsyncGoogleClient:
         """Send a request; returns the ``httpx.Response`` of a successful call.
 
         Raises:
-            GSuiteError subclass for HTTP errors; the httpx network error once
-            retries are exhausted.
+            GSuiteError: A subclass of it for HTTP errors.
+            httpx.TransportError: A network error, once retries are exhausted.
         """
         from gsuite_core.config import get_settings
 

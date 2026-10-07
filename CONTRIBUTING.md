@@ -68,6 +68,21 @@ Python 3.11 (oldest supported) and 3.14 (latest), but only for the packages
 a PR touches (core or shared config runs all of them). macOS and Windows run
 the full suite. Nightly runs add the latest release of every dependency.
 
+### Documentation
+
+The site at https://pabloalaniz.github.io/google-suite/ is built with MkDocs
+from `docs/`, the READMEs (root and packages) and the docstrings:
+
+```bash
+uv run --group docs mkdocs serve   # http://127.0.0.1:8000, live reload
+uv run --group docs mkdocs build   # strict: broken links and bad docstrings fail
+```
+
+The READMEs are not copied into `docs/`: `scripts/mkdocs_hooks.py` adds them as
+pages and rewrites their relative links. A new package needs its README in
+`PACKAGES` there, a `docs/reference/<pkg>.md` page and entries in the `nav`
+of `mkdocs.yml`. Docstrings use the Google style.
+
 ### The Sheets engine
 
 `packages/sheets/src/gsuite_sheets/engine/` is the engine incorporated from
@@ -228,6 +243,7 @@ To add a new Google API (e.g., Contacts):
    - `PACKAGES`/`SERVICES` in `scripts/ci_select_packages.py` and a filter in `.github/workflows/ci.yml`
    - `TARGETS` in `scripts/mypy_ratchet.py`, then `uv run python scripts/mypy_ratchet.py --update`
 7. Update main README with new package
+8. Add the docs pages (see [Documentation](#documentation))
 
 ## Code Style
 

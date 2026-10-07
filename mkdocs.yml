@@ -1,0 +1,105 @@
+site_name: gsuite-sdk
+site_description: Unified Python SDK, REST API and CLI for Google Workspace
+site_url: https://pabloalaniz.github.io/google-suite/
+repo_url: https://github.com/PabloAlaniz/google-suite
+repo_name: PabloAlaniz/google-suite
+edit_uri: edit/main/docs/
+copyright: MIT License
+
+docs_dir: docs
+strict: true
+
+# README, CHANGELOG, CONTRIBUTING, SECURITY and the package READMEs are added
+# as generated pages (see the hook), so they stay the single source.
+hooks:
+  - scripts/mkdocs_hooks.py
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - search.suggest
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.details
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          paths:
+            - packages/core/src
+            - packages/gmail/src
+            - packages/calendar/src
+            - packages/drive/src
+            - packages/sheets/src
+            - packages/tasks/src
+            - packages/contacts/src
+          options:
+            docstring_style: google
+            show_source: false
+            show_root_heading: true
+            show_root_full_path: false
+            members_order: source
+            filters: ["!^_"]
+            merge_init_into_class: true
+            separate_signature: true
+            show_signature_annotations: true
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Credentials: GETTING_CREDENTIALS.md
+      - Service accounts: SERVICE_ACCOUNTS.md
+  - Services:
+      - Core and auth: services/core.md
+      - Gmail: services/gmail.md
+      - Calendar: services/calendar.md
+      - Drive: services/drive.md
+      - Sheets: services/sheets.md
+      - Tasks: services/tasks.md
+      - Contacts: services/contacts.md
+  - Guides:
+      - Async: ASYNC.md
+      - Migrating from GSpreadManager: MIGRATING_FROM_GSPREADMANAGER.md
+      - Architecture: ARCHITECTURE.md
+  - API reference:
+      - Core: reference/core.md
+      - Gmail: reference/gmail.md
+      - Calendar: reference/calendar.md
+      - Drive: reference/drive.md
+      - Sheets: reference/sheets.md
+      - Tasks: reference/tasks.md
+      - Contacts: reference/contacts.md
+  - Project:
+      - Changelog: project/changelog.md
+      - Contributing: project/contributing.md
+      - Security: project/security.md
+      - Roadmap: ROADMAP.md
+      - FODA: FODA.md
+      - "ADR 0001: GSpreadManager": adr/0001-incorporate-gspreadmanager.md

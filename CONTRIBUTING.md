@@ -94,6 +94,12 @@ uv run pytest packages/sheets/tests --engine-backend=adapter  # through the adap
 A test that inspects the emulator itself (not port behavior) is marked
 `@pytest.mark.memory_only`.
 
+The async engine works the same way: `engine_async_adapter.py` implements the
+async ports over `gsuite_core.aio`, and with `--engine-backend=adapter` the
+async engine tests go through it, against a fake Sheets/Drive REST server
+(`engine/testing/rest_fake.py`, an `httpx.MockTransport`) backed by the same
+emulator.
+
 ## Getting Credentials
 
 To test the library locally, you need Google OAuth credentials:

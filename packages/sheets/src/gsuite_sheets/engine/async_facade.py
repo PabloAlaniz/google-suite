@@ -9,7 +9,7 @@ export). El formato/validación/charts siguen, por ahora, solo en la API síncro
 
 Reutiliza toda la lógica pura (numericise, schema/codecs, batching, planners de tabla,
 CSV); solo el IO cambia de transporte. Para testear sin red:
-``gspreadmanager.testing.AsyncInMemoryBackend``.
+``gsuite_sheets.engine.testing.AsyncInMemoryBackend``.
 """
 
 from __future__ import annotations
@@ -34,9 +34,6 @@ from .domain.numericise import numericise_all, numericise_records
 from .domain.values import SpreadsheetId
 from .facade import _resolve_render
 from .infrastructure.async_rate_limit import AsyncTokenBucketRateLimiter
-from .infrastructure.auth import build_credentials
-from .infrastructure.native import DEFAULT_HTTP_TIMEOUT, AsyncSheetsApiClient
-from .infrastructure.native.async_http import build_async_session
 from .ports.async_sheets import AsyncClientPort, AsyncSpreadsheetPort, AsyncWorksheetPort
 from .ports.rate_limit import AsyncRateLimiter
 from .retry import retry_on_rate_limit_async
@@ -54,26 +51,20 @@ class AsyncSheetManager:
     def __init__(
         self,
         doc_name: str | None = None,
-        json_google_file: str | None = None,
         *,
         key: str | None = None,
-        max_retries: int = 3,
+        sheets_client: AsyncClientPort,
+        max_retries: int = 0,
         retry_backoff: float = 1.0,
-        credentials: Any = None,
-        service_account_info: dict[str, Any] | None = None,
-        use_adc: bool = False,
-        http_timeout: float | None = DEFAULT_HTTP_TIMEOUT,
-        sheets_client: AsyncClientPort | None = None,
         rate_limit: float | None = None,
         rate_limit_burst: float | None = None,
         batch_cell_limit: int | None = DEFAULT_MAX_CELLS_PER_REQUEST,
     ) -> None:
-        """Configura la autenticación y el cliente async (nativo sobre httpx).
+        """Configura los servicios sobre un ``AsyncClientPort`` inyectado.
 
-        Mismos parámetros de identidad/credenciales/robustez que ``SheetManager``; no hay
-        ``backend`` (async solo existe el nativo) ni ``cache`` (pendiente). El retry y el
-        rate limiting son cooperativos (``asyncio.sleep``). ``sheets_client`` inyecta un
-        ``AsyncClientPort`` propio (ej. ``gspreadmanager.testing.AsyncInMemoryBackend``).
+        En google-suite el transporte es ``gsuite_sheets.engine_async_adapter`` (sobre
+        ``gsuite_core.aio``, que ya reintenta y aplica el rate limit de la suite; por eso
+        ``max_retries`` es 0) o ``gsuite_sheets.engine.testing.AsyncInMemoryBackend``.
         """
         if doc_name is None and key is None:
             raise GSpreadManagerError("Indicá 'doc_name' o 'key' al crear AsyncSheetManager.")
@@ -87,18 +78,7 @@ class AsyncSheetManager:
             if rate_limit is not None
             else None
         )
-        self._session: Any = None
-        if sheets_client is not None:
-            self._client: AsyncClientPort = sheets_client
-        else:
-            creds = build_credentials(
-                credentials=credentials,
-                service_account_info=service_account_info,
-                json_google_file=json_google_file,
-                use_adc=use_adc,
-            )
-            self._session = build_async_session(creds, timeout=http_timeout)
-            self._client = AsyncSheetsApiClient(self._session)
+        self._client: AsyncClientPort = sheets_client
         self._rows = RowModelService()
 
     async def __aenter__(self) -> AsyncSheetManager:
@@ -110,25 +90,17 @@ class AsyncSheetManager:
         await self.aclose()
 
     async def aclose(self) -> None:
-        """Cierra la sesión httpx (no-op con un ``sheets_client`` inyectado)."""
-        if self._session is not None:
-            await self._session.__aexit__(None, None, None)
+        """No-op: el transporte inyectado lo cierra quien lo creó."""
 
     @classmethod
-    def open_by_key(
-        cls, key: str, json_google_file: str | None = None, **kwargs: Any
-    ) -> AsyncSheetManager:
+    def open_by_key(cls, key: str, **kwargs: Any) -> AsyncSheetManager:
         """Crea un gestor para el documento con ``key`` (id de Drive)."""
-        return cls(key=key, json_google_file=json_google_file, **kwargs)
+        return cls(key=key, **kwargs)
 
     @classmethod
-    def open_by_url(
-        cls, url: str, json_google_file: str | None = None, **kwargs: Any
-    ) -> AsyncSheetManager:
+    def open_by_url(cls, url: str, **kwargs: Any) -> AsyncSheetManager:
         """Crea un gestor para el documento de una URL de Google Sheets."""
-        return cls(
-            key=SpreadsheetId.from_url(url).value, json_google_file=json_google_file, **kwargs
-        )
+        return cls(key=SpreadsheetId.from_url(url).value, **kwargs)
 
     async def _spreadsheet(self) -> AsyncSpreadsheetPort:
         if self.doc_name is not None:
@@ -416,9 +388,7 @@ class AsyncWorksheetContext:
     # Streaming (hojas grandes)
     # ------------------------------------------------------------------
 
-    async def iter_rows(
-        self, page_size: int = 1000, skiprows: int = 0
-    ) -> AsyncIterator[list[str]]:
+    async def iter_rows(self, page_size: int = 1000, skiprows: int = 0) -> AsyncIterator[list[str]]:
         """Itera las filas de a páginas (lectura perezosa, una petición por página)."""
         if page_size < 1:
             raise GSpreadManagerError(f"page_size inválido: {page_size} (debe ser >= 1).")

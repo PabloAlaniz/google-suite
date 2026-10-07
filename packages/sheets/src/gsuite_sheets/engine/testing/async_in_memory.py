@@ -14,13 +14,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from gspreadmanager.ports.async_sheets import AsyncSpreadsheetPort, AsyncWorksheetPort
-from gspreadmanager.ports.sheets import SpreadsheetPort, WorksheetPort
+from gsuite_sheets.engine.ports.async_sheets import AsyncSpreadsheetPort, AsyncWorksheetPort
+from gsuite_sheets.engine.ports.sheets import SpreadsheetPort, WorksheetPort
 
 from .in_memory import InMemoryBackend, InMemoryClient
 
 if TYPE_CHECKING:
-    from gspreadmanager.async_facade import AsyncSheetManager
+    from gsuite_sheets.engine.async_facade import AsyncSheetManager
 
 
 class AsyncWorksheetAdapter:
@@ -57,9 +57,7 @@ class AsyncWorksheetAdapter:
         """Añade filas al final."""
         return self._inner.append_rows(data, value_input_option)
 
-    async def batch_update(
-        self, range_data: list[dict[str, Any]], value_input_option: str
-    ) -> None:
+    async def batch_update(self, range_data: list[dict[str, Any]], value_input_option: str) -> None:
         """Actualiza varios rangos."""
         self._inner.batch_update(range_data, value_input_option)
 
@@ -232,7 +230,9 @@ class AsyncInMemoryBackend:
         """Cliente síncrono subyacente (inspección en tests: grillas, requests, permisos)."""
         return self._backend.client
 
-    def add_spreadsheet(self, doc_name: str, sheets: dict[str, list[list[Any]]] | None = None) -> Any:
+    def add_spreadsheet(
+        self, doc_name: str, sheets: dict[str, list[list[Any]]] | None = None
+    ) -> Any:
         """Crea un documento con hojas precargadas (``{titulo: filas}``) y lo registra."""
         return self._backend.add_spreadsheet(doc_name, sheets)
 
@@ -245,6 +245,6 @@ class AsyncInMemoryBackend:
         self, doc_name: str | None = None, *, key: str | None = None, **kwargs: Any
     ) -> AsyncSheetManager:
         """Devuelve un ``AsyncSheetManager`` cableado al fake (sin red)."""
-        from gspreadmanager.async_facade import AsyncSheetManager  # noqa: PLC0415
+        from gsuite_sheets.engine.async_facade import AsyncSheetManager  # noqa: PLC0415
 
         return AsyncSheetManager(doc_name, key=key, sheets_client=self.async_client, **kwargs)

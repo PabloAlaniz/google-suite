@@ -12,7 +12,7 @@ import logging
 import time
 from collections.abc import Awaitable, Callable
 
-from gspreadmanager.domain.errors import GSpreadManagerError
+from gsuite_sheets.engine.domain.errors import GSpreadManagerError
 
 logger = logging.getLogger(__name__)
 

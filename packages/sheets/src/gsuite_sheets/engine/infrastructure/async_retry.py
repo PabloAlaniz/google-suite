@@ -11,8 +11,8 @@ import logging
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
 
-from gspreadmanager.domain.errors import ApiError
-from gspreadmanager.infrastructure.retry import RETRYABLE_STATUS
+from gsuite_sheets.engine.domain.errors import ApiError
+from gsuite_sheets.engine.infrastructure.retry import RETRYABLE_STATUS
 
 T = TypeVar("T")
 

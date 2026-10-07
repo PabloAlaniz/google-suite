@@ -11,8 +11,9 @@ from dataclasses import dataclass
 from typing import Any
 
 import pytest
-from gspreadmanager import AsyncSheetManager, GSpreadManagerError, WorksheetNotFoundError
-from gspreadmanager.testing import AsyncInMemoryBackend
+
+from gsuite_sheets.engine import AsyncSheetManager, GSpreadManagerError, WorksheetNotFoundError
+from gsuite_sheets.engine.testing import AsyncInMemoryBackend
 
 
 def run(coro: Any) -> Any:
@@ -43,7 +44,7 @@ def mgr(backend):
 class TestAsyncManager:
     def test_requires_name_or_key(self):
         with pytest.raises(GSpreadManagerError, match="doc_name"):
-            AsyncSheetManager()
+            AsyncSheetManager(sheets_client=AsyncInMemoryBackend().async_client)
 
     def test_read_list_and_dict(self, mgr):
         async def scenario() -> None:
@@ -98,7 +99,12 @@ class TestAsyncManager:
 
         run(scenario())
         requests = backend.client.spreadsheet_by_key("doc0").requests
-        assert {"updateSpreadsheetProperties": {"properties": {"title": "Renombrado"}, "fields": "title"}} in requests
+        assert {
+            "updateSpreadsheetProperties": {
+                "properties": {"title": "Renombrado"},
+                "fields": "title",
+            }
+        } in requests
 
 
 class TestAsyncStreamingAndTable:

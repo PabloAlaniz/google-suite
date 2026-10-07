@@ -75,6 +75,8 @@ Environment variables (prefix `GSUITE_`):
 | `GSUITE_RETRY_DELAY` | 1.0 | Base backoff in seconds (exponential, full jitter) |
 | `GSUITE_RETRY_ON_RATE_LIMIT` | true | Retry 429 / rate-limit 403 responses |
 | `GSUITE_DEFAULT_TIMEZONE` | UTC | Timezone for new events and `Calendar.get_today()` |
+| `GSUITE_RATE_LIMIT` | - | Max Google requests per second for the process (sync and async); off by default |
+| `GSUITE_RATE_LIMIT_BURST` | max(1, rate) | Token bucket size |
 
 ## Retries, errors and pagination
 
@@ -104,3 +106,8 @@ labels = execute(gmail.service.users().labels().list(userId="me"), "gmail")
 for ref in paginate(gmail.service.users().drafts().list, "drafts", "gmail", userId="me"):
     ...
 ```
+
+## Async
+
+`gsuite_core.aio.AsyncGoogleClient` is the async counterpart (httpx, same
+auth, retries, rate limit and errors); see [docs/ASYNC.md](../../docs/ASYNC.md).

@@ -41,9 +41,7 @@ class AsyncWorksheetPort(Protocol):
         """Añade filas al final."""
         ...
 
-    async def batch_update(
-        self, range_data: list[dict[str, Any]], value_input_option: str
-    ) -> None:
+    async def batch_update(self, range_data: list[dict[str, Any]], value_input_option: str) -> None:
         """Actualiza varios rangos en una sola petición."""
         ...
 

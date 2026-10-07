@@ -52,6 +52,127 @@ def _rectangular(rows: list[list[Any]]) -> list[list[Any]]:
     return [row + [""] * (width - len(row)) for row in rows]
 
 
+# ---- Request building shared with the async adapter ----
+
+
+def cells_in_range(name: str, sheet_id: int, rows: list[list[Any]]) -> list[Cell]:
+    """Every cell of ``name`` given the values API answer for it, empty ones included."""
+    cell_range = name.split("!", 1)[1] if "!" in name else name
+    grid = grid_range(cell_range, sheet_id)
+    start_row = grid.get("startRowIndex", 0)
+    start_col = grid.get("startColumnIndex", 0)
+    end_row = grid.get("endRowIndex", start_row + len(rows))
+    end_col = grid.get("endColumnIndex", start_col + max((len(r) for r in rows), default=0))
+
+    cells = []
+    for r in range(end_row - start_row):
+        row = rows[r] if r < len(rows) else []
+        for c in range(end_col - start_col):
+            value = row[c] if c < len(row) else ""
+            cells.append(Cell(row=start_row + r + 1, col=start_col + c + 1, value=value))
+    return cells
+
+
+def find_cell(values: list[list[str]], query: str, case_sensitive: bool) -> Cell | None:
+    """First cell whose value equals ``query``."""
+    needle = query if case_sensitive else query.lower()
+    for r, row in enumerate(values, start=1):
+        for c, value in enumerate(row, start=1):
+            if (value if case_sensitive else value.lower()) == needle:
+                return Cell(row=r, col=c, value=value)
+    return None
+
+
+def format_body(
+    sheet_id: int, ranges: str | list[str], cell_format: dict[str, Any]
+) -> dict[str, Any]:
+    """batchUpdate body applying a serialized CellFormat to ranges."""
+    targets = [ranges] if isinstance(ranges, str) else ranges
+    fields = f"userEnteredFormat({','.join(cell_format)})" if cell_format else "userEnteredFormat"
+    return {
+        "requests": [
+            {
+                "repeatCell": {
+                    "range": grid_range(t.split("!", 1)[-1], sheet_id),
+                    "cell": {"userEnteredFormat": cell_format},
+                    "fields": fields,
+                }
+            }
+            for t in targets
+        ]
+    }
+
+
+def freeze_body(sheet_id: int, rows: int | None, cols: int | None) -> dict[str, Any]:
+    """batchUpdate body freezing rows and/or columns."""
+    grid: dict[str, int] = {}
+    if rows is not None:
+        grid["frozenRowCount"] = rows
+    if cols is not None:
+        grid["frozenColumnCount"] = cols
+    return {
+        "requests": [
+            {
+                "updateSheetProperties": {
+                    "properties": {"sheetId": sheet_id, "gridProperties": grid},
+                    "fields": ",".join(f"gridProperties.{k}" for k in grid),
+                }
+            }
+        ]
+    }
+
+
+def merge_body(sheet_id: int, range_name: str, merge_type: str) -> dict[str, Any]:
+    """batchUpdate body merging a range."""
+    return {
+        "requests": [
+            {
+                "mergeCells": {
+                    "range": grid_range(range_name.split("!", 1)[-1], sheet_id),
+                    "mergeType": merge_type,
+                }
+            }
+        ]
+    }
+
+
+def share_request(
+    email_address: str,
+    perm_type: str,
+    role: str,
+    notify: bool,
+    email_message: str | None,
+    with_link: bool,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """(permission body, query params) for Drive ``permissions.create``.
+
+    GSpreadManager's native client dropped the domain of domain shares.
+    """
+    body: dict[str, Any] = {"type": perm_type, "role": role}
+    if perm_type in ("user", "group"):
+        body["emailAddress"] = email_address
+    elif perm_type == "domain":
+        body["domain"] = email_address
+    if perm_type in ("domain", "anyone"):
+        body["allowFileDiscovery"] = not with_link
+    params: dict[str, Any] = {}
+    if perm_type in ("user", "group"):
+        params["sendNotificationEmail"] = notify
+        if email_message:
+            params["emailMessage"] = email_message
+    return body, params
+
+
+def spreadsheet_query(title: str | None, folder_id: str | None) -> str:
+    """Drive query for spreadsheets, values escaped."""
+    clauses = [f"mimeType = '{SPREADSHEET_MIME}'", "trashed = false"]
+    if title is not None:
+        clauses.append(f"name = {drive_query_literal(title)}")
+    if folder_id is not None:
+        clauses.append(f"{drive_query_literal(folder_id)} in parents")
+    return " and ".join(clauses)
+
+
 class GoogleApiClient:
     """``ClientPort``: opens spreadsheets and works at the Drive level.
 
@@ -181,11 +302,6 @@ class GoogleApiClient:
         self, title: str | None, folder_id: str | None
     ) -> list[dict[str, Any]]:
         """Spreadsheets visible to the user (Drive), following every page."""
-        clauses = [f"mimeType = '{SPREADSHEET_MIME}'", "trashed = false"]
-        if title is not None:
-            clauses.append(f"name = {drive_query_literal(title)}")
-        if folder_id is not None:
-            clauses.append(f"{drive_query_literal(folder_id)} in parents")
         return list(
             paginate(
                 self._sheets.drive.files().list,
@@ -193,7 +309,7 @@ class GoogleApiClient:
                 "sheets",
                 page_size_param="pageSize",
                 max_page_size=1000,
-                q=" and ".join(clauses),
+                q=spreadsheet_query(title, folder_id),
                 fields="nextPageToken,files(id,name)",
                 supportsAllDrives=True,
                 includeItemsFromAllDrives=True,
@@ -307,18 +423,9 @@ class GoogleApiSpreadsheet:
         with_link: bool,
     ) -> Any:
         """Grant a permission (Drive ``permissions.create``)."""
-        body: dict[str, Any] = {"type": perm_type, "role": role}
-        if perm_type in ("user", "group"):
-            body["emailAddress"] = email_address
-        elif perm_type == "domain":
-            body["domain"] = email_address
-        if perm_type in ("domain", "anyone"):
-            body["allowFileDiscovery"] = not with_link
-        params: dict[str, Any] = {}
-        if perm_type in ("user", "group"):
-            params["sendNotificationEmail"] = notify
-            if email_message:
-                params["emailMessage"] = email_message
+        body, params = share_request(
+            email_address, perm_type, role, notify, email_message, with_link
+        )
         return execute(
             self._sheets.drive.permissions().create(
                 fileId=self.id, body=body, supportsAllDrives=True, **params
@@ -471,12 +578,7 @@ class GoogleApiWorksheet:
 
     def find(self, query: str, case_sensitive: bool) -> Cell | None:
         """First cell whose value equals ``query`` (client-side scan)."""
-        needle = query if case_sensitive else query.lower()
-        for r, row in enumerate(self.get_all_values(), start=1):
-            for c, value in enumerate(row, start=1):
-                if (value if case_sensitive else value.lower()) == needle:
-                    return Cell(row=r, col=c, value=value)
-        return None
+        return find_cell(self.get_all_values(), query, case_sensitive)
 
     def range(self, name: str) -> list[Cell]:
         """Every cell of an A1 range, empty ones included (gspread semantics).
@@ -484,79 +586,20 @@ class GoogleApiWorksheet:
         GSpreadManager's native client returned only cells with data, which broke
         row_with_empty_in_column (it looks for the first "" in the range).
         """
-        cell_range = name.split("!", 1)[1] if "!" in name else name
-        grid = grid_range(cell_range, self._sheet_id)
-        response = self._parent.values_get(_qualify(self._title, name))
-        rows: list[list[Any]] = response.get("values", [])
-
-        start_row = grid.get("startRowIndex", 0)
-        start_col = grid.get("startColumnIndex", 0)
-        end_row = grid.get("endRowIndex", start_row + len(rows))
-        end_col = grid.get("endColumnIndex", start_col + max((len(r) for r in rows), default=0))
-
-        cells = []
-        for r in range(end_row - start_row):
-            row = rows[r] if r < len(rows) else []
-            for c in range(end_col - start_col):
-                value = row[c] if c < len(row) else ""
-                cells.append(Cell(row=start_row + r + 1, col=start_col + c + 1, value=value))
-        return cells
+        rows = self._parent.values_get(_qualify(self._title, name)).get("values", [])
+        return cells_in_range(name, self._sheet_id, rows)
 
     def format(self, ranges: str | list[str], cell_format: dict[str, Any]) -> Any:
         """Apply a (serialized) CellFormat to one or more ranges."""
-        targets = [ranges] if isinstance(ranges, str) else ranges
-        fields = (
-            f"userEnteredFormat({','.join(cell_format)})" if cell_format else "userEnteredFormat"
-        )
-        return self._parent.batch_update(
-            {
-                "requests": [
-                    {
-                        "repeatCell": {
-                            "range": grid_range(t.split("!", 1)[-1], self._sheet_id),
-                            "cell": {"userEnteredFormat": cell_format},
-                            "fields": fields,
-                        }
-                    }
-                    for t in targets
-                ]
-            }
-        )
+        return self._parent.batch_update(format_body(self._sheet_id, ranges, cell_format))
 
     def freeze(self, rows: int | None, cols: int | None) -> Any:
         """Freeze rows and/or columns."""
-        grid: dict[str, int] = {}
-        if rows is not None:
-            grid["frozenRowCount"] = rows
-        if cols is not None:
-            grid["frozenColumnCount"] = cols
-        return self._parent.batch_update(
-            {
-                "requests": [
-                    {
-                        "updateSheetProperties": {
-                            "properties": {"sheetId": self._sheet_id, "gridProperties": grid},
-                            "fields": ",".join(f"gridProperties.{k}" for k in grid),
-                        }
-                    }
-                ]
-            }
-        )
+        return self._parent.batch_update(freeze_body(self._sheet_id, rows, cols))
 
     def merge_cells(self, range_name: str, merge_type: str) -> Any:
         """Merge the cells of a range."""
-        return self._parent.batch_update(
-            {
-                "requests": [
-                    {
-                        "mergeCells": {
-                            "range": grid_range(range_name.split("!", 1)[-1], self._sheet_id),
-                            "mergeType": merge_type,
-                        }
-                    }
-                ]
-            }
-        )
+        return self._parent.batch_update(merge_body(self._sheet_id, range_name, merge_type))
 
     def copy_to(self, destination_spreadsheet_id: str) -> Any:
         """Copy this tab into another spreadsheet (``sheets.copyTo``)."""

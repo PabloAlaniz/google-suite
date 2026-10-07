@@ -44,6 +44,7 @@ jobs:
               - uv.lock
               - conftest.py
               - scripts/**
+              - tests/**
               - .github/workflows/ci.yml
               - packages/core/**
             gmail: packages/gmail/**
@@ -73,8 +74,12 @@ jobs:
           enable-cache: true
       # ruff comes from uv.lock, so a new release can't break main on its own
       - run: uv sync --locked --extra dev
-      - run: uv run ruff check packages/ api/ cli/ scripts/ conftest.py
-      - run: uv run ruff format --check packages/ api/ cli/ scripts/ conftest.py
+      - run: uv run ruff check packages/ api/ cli/ scripts/ tests/ conftest.py
+      - run: uv run ruff format --check packages/ api/ cli/ scripts/ tests/ conftest.py
+      # The integration tests only run on demand (integration.yml); collecting
+      # them here keeps their imports and fixtures from rotting in between.
+      - name: Collect integration tests
+        run: uv run --all-extras pytest tests/integration --collect-only -q
 
   typecheck:
     runs-on: ubuntu-latest

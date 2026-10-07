@@ -44,6 +44,23 @@ uv run pytest packages/gmail/tests/test_query.py::TestQueryBuilder::test_from_qu
 Test module names must be unique across the repo (`test_gmail_client.py`,
 not `test_client.py`); collection fails otherwise.
 
+#### Integration tests
+
+`tests/integration/` runs real flows (create, read, delete) against a Google
+account. They are not part of `uv run pytest` and skip themselves unless
+enabled. Use a throwaway account:
+
+```bash
+gsuite auth login --force --scopes all     # with the test account
+GSUITE_INTEGRATION=1 uv run pytest tests/integration -rs
+```
+
+Every test deletes what it creates. Tasks and Contacts tests skip when the
+token lacks their scopes. In CI, `integration.yml` runs them weekly and on
+demand with the `GSUITE_INTEGRATION_TOKEN` secret (the output of
+`gsuite auth export`) in the `integration` environment. OAuth apps in
+"Testing" status issue refresh tokens that expire after 7 days.
+
 ### Linting and Type Checking
 
 ```bash

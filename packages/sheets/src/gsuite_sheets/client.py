@@ -43,16 +43,96 @@ class Sheets:
         ws.update("A1", [["Hello", "World"]])
     """
 
-    def __init__(self, auth: GoogleAuth):
+    def __init__(
+        self,
+        auth: GoogleAuth,
+        *,
+        cache: bool = False,
+        cache_ttl: float | None = None,
+        cache_max_entries: int | None = None,
+        dataframe_backend: Literal["pandas", "polars"] = "pandas",
+        batch_cell_limit: int | None = 50_000,
+    ):
         """
         Initialize Sheets client.
 
         Args:
             auth: GoogleAuth instance with valid credentials
+            cache: Cache reads made through the engine features (upsert,
+                iter_rows, read_as, ...); invalidated by this client's own
+                writes, not by other processes. See clear_cache().
+            cache_ttl: Seconds before a cached read expires (enables the cache)
+            cache_max_entries: LRU size bound (enables the cache)
+            dataframe_backend: "pandas" or "polars" for read/write_dataframe
+            batch_cell_limit: Split big writes into requests of at most this
+                many cells (None disables chunking)
         """
         self.auth = auth
         self._sheets_service: Any = None
         self._drive_service: Any = None
+        self._cache_enabled = cache or cache_ttl is not None or cache_max_entries is not None
+        self._cache_ttl = cache_ttl
+        self._cache_max_entries = cache_max_entries
+        self._engine_options: dict[str, Any] = {
+            "dataframe_backend": dataframe_backend,
+            "batch_cell_limit": batch_cell_limit,
+        }
+        self._api_client: Any = None
+        self._port_client: Any = None
+        self._managers: dict[str, Any] = {}
+
+    # ========== Engine wiring (internal) ==========
+
+    def _engine_port(self) -> Any:
+        """ClientPort for the engine: the adapter, behind the read cache if enabled."""
+        if self._port_client is None:
+            from gsuite_sheets.engine.infrastructure.cache import CachingClient
+            from gsuite_sheets.engine_adapter import GoogleApiClient
+
+            self._api_client = GoogleApiClient(self)
+            self._port_client = (
+                CachingClient(
+                    self._api_client, ttl=self._cache_ttl, max_entries=self._cache_max_entries
+                )
+                if self._cache_enabled
+                else self._api_client
+            )
+        return self._port_client
+
+    def _engine_manager(self, spreadsheet_id: str) -> Any:
+        """The engine's SheetManager for a spreadsheet (one per ID)."""
+        if spreadsheet_id not in self._managers:
+            from gsuite_sheets.engine.facade import SheetManager
+
+            self._managers[spreadsheet_id] = SheetManager(
+                key=spreadsheet_id, sheets_client=self._engine_port(), **self._engine_options
+            )
+        return self._managers[spreadsheet_id]
+
+    def _engine_worksheet(self, spreadsheet_id: str, title: str) -> Any:
+        """The engine's WorksheetContext for a tab."""
+        from gsuite_sheets.engine.domain.errors import WorksheetNotFoundError
+
+        manager = self._engine_manager(spreadsheet_id)
+        try:
+            return manager.worksheet(title)
+        except WorksheetNotFoundError:
+            # The tab list was cached before this tab was created or renamed
+            self._forget(spreadsheet_id)
+            return manager.worksheet(title)
+
+    def _forget(self, spreadsheet_id: str) -> None:
+        """Tabs of a spreadsheet changed: drop cached tab lists and reads."""
+        if self._api_client is not None:
+            self._api_client.forget(spreadsheet_id)
+        self.clear_cache()
+
+    def clear_cache(self) -> None:
+        """Drop every cached read (no-op unless the cache is enabled)."""
+        from gsuite_sheets.engine.infrastructure.cache import CachingClient
+
+        if isinstance(self._port_client, CachingClient):
+            self._port_client.clear()
 
     @property
     def service(self) -> Any:
@@ -169,6 +249,22 @@ class Sheets:
         response = execute(self.service.spreadsheets().create(body=body), "sheets", "spreadsheet")
         return self._parse_spreadsheet(response)
 
+    def copy(
+        self,
+        spreadsheet_id: str,
+        title: str | None = None,
+        copy_permissions: bool = False,
+        folder_id: str | None = None,
+    ) -> Spreadsheet:
+        """Copy a spreadsheet (optionally with its sharing, except ownership)."""
+        copied = self._engine_port().copy(spreadsheet_id, title, copy_permissions, folder_id)
+        return self.open_by_key(copied.id)
+
+    def delete(self, spreadsheet_id: str) -> None:
+        """Delete a spreadsheet permanently (Drive)."""
+        self._engine_port().del_spreadsheet(spreadsheet_id)
+        self._managers.pop(spreadsheet_id, None)
+
     # ========== Listing ==========
 
     def list_spreadsheets(self, max_results: int | None = 100) -> list[dict]:
@@ -255,6 +351,7 @@ class Sheets:
                 ("=SUM(A1:A3)" becomes a formula, "2026-01-01" a date). Use RAW
                 for untrusted data so text starting with "=" stays text.
         """
+        self.clear_cache()  # keep engine reads consistent with direct writes
         result: dict = execute(
             self.service.spreadsheets()
             .values()
@@ -278,6 +375,7 @@ class Sheets:
         value_input: ValueInput = "USER_ENTERED",
     ) -> dict:
         """Append rows after the table found in `range` (see update_values for value_input)."""
+        self.clear_cache()  # keep engine reads consistent with direct writes
         result: dict = execute(
             self.service.spreadsheets()
             .values()
@@ -296,6 +394,7 @@ class Sheets:
 
     def clear_values(self, spreadsheet_id: str, range: str) -> dict:
         """Clear values from a range (formatting is kept)."""
+        self.clear_cache()  # keep engine reads consistent with direct writes
         result: dict = execute(
             self.service.spreadsheets().values().clear(spreadsheetId=spreadsheet_id, range=range),
             "sheets",
@@ -318,6 +417,7 @@ class Sheets:
             data: List of {range, values} dicts
             value_input: See update_values
         """
+        self.clear_cache()  # keep engine reads consistent with direct writes
         result: dict = execute(
             self.service.spreadsheets()
             .values()
@@ -341,6 +441,7 @@ class Sheets:
         Use for anything this client doesn't wrap; see the Sheets API
         reference for request types. Returns one reply per request.
         """
+        self.clear_cache()  # keep engine reads consistent with direct writes
         response = execute(
             self.service.spreadsheets().batchUpdate(
                 spreadsheetId=spreadsheet_id, body={"requests": requests}

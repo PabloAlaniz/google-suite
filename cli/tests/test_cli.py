@@ -261,3 +261,47 @@ def test_calendar_quick():
     with patch("gsuite_cli.calendar.get_calendar", return_value=client):
         result = runner.invoke(app, ["calendar", "quick", "Lunch tomorrow at 1pm"])
     assert "Lunch — 2026-03-02 13:00" in result.output
+
+
+class TestSheetsEngineCli:
+    @pytest.fixture
+    def doc(self):
+        from gsuite_sheets.engine.testing import InMemoryBackend
+        from gsuite_sheets.engine.testing.google_api_fake import fake_sheets
+
+        backend = InMemoryBackend()
+        backend.add_spreadsheet("Budget", {"Data": [["name", "total"], ["Ana", "10"]]})
+        with patch("gsuite_cli.sheets.get_sheets", return_value=fake_sheets(backend.client)):
+            yield backend.client.open("Budget")
+
+    def test_export(self, doc, tmp_path):
+        out = tmp_path / "b.csv"
+        result = runner.invoke(app, ["sheets", "export", "Budget", "-f", "csv", "--out", str(out)])
+        assert result.exit_code == 0, result.output
+        assert out.read_bytes() == b"name,total\nAna,10"
+
+    def test_import_and_append(self, doc, tmp_path):
+        data = tmp_path / "d.csv"
+        data.write_text("a,b\n1,2\n")
+        assert (
+            runner.invoke(
+                app, ["sheets", "import-csv", "Budget", str(data), "-s", "Data"]
+            ).exit_code
+            == 0
+        )
+        assert doc.worksheet("Data").get_all_values() == [["a", "b"], ["1", "2"]]
+        runner.invoke(app, ["sheets", "import-csv", "Budget", str(data), "-s", "Data", "--append"])
+        assert len(doc.worksheet("Data").get_all_values()) == 4
+
+    def test_upsert(self, doc, tmp_path):
+        data = tmp_path / "u.csv"
+        data.write_text("name,total\nAna,20\nBo,5\n")
+        result = runner.invoke(app, ["sheets", "upsert", "Budget", str(data), "-k", "name"])
+        assert "1 updated, 1 appended" in result.output
+
+    def test_share(self, doc):
+        result = runner.invoke(
+            app, ["sheets", "share", "Budget", "ana@example.com", "-r", "writer"]
+        )
+        assert result.exit_code == 0, result.output
+        assert doc.permissions[0]["emailAddress"] == "ana@example.com"

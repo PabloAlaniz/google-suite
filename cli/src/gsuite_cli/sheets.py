@@ -2,6 +2,7 @@
 
 import csv
 import sys
+from pathlib import Path
 
 import typer
 from rich.console import Console
@@ -271,3 +272,72 @@ def create_spreadsheet(
     console.print(f"[green]✓ Created spreadsheet: {doc.title}[/green]")
     console.print(f"  ID: {doc.id}")
     console.print(f"  URL: {doc.url}")
+
+
+@app.command("export")
+def export(
+    spreadsheet: str = SPREADSHEET_ARG,
+    format: str = typer.Option("pdf", "--format", "-f", help="pdf, xlsx, ods, csv, tsv or html"),
+    out: Path | None = typer.Option(
+        None, "--out", help="File to write (default: <title>.<format>)"
+    ),
+) -> None:
+    """Download a spreadsheet (csv/tsv: first sheet only)."""
+    doc = _open(spreadsheet)
+    with console.status("[bold green]Exporting..."):
+        content = doc.export(format)
+    path = out or Path(f"{doc.title}.{'zip' if format == 'html' else format}")
+    path.write_bytes(content)
+    console.print(f"[green]✓ Saved[/green] {path}")
+
+
+@app.command("import-csv")
+def import_csv(
+    spreadsheet: str = SPREADSHEET_ARG,
+    csv_file: Path = typer.Argument(..., exists=True, dir_okay=False, help="CSV file"),
+    sheet: str | None = SHEET_OPT,
+    append: bool = typer.Option(False, "--append", help="Keep existing data (default: replace)"),
+    delimiter: str = typer.Option(",", "--delimiter", "-d", help="Field separator"),
+) -> None:
+    """Load a CSV into a worksheet, replacing its contents unless --append."""
+    ws = _worksheet(_open(spreadsheet), sheet)
+    with (
+        csv_file.open(newline="", encoding="utf-8") as handle,
+        console.status("[bold green]Importing..."),
+    ):
+        if append:
+            rows = list(csv.reader(handle, delimiter=delimiter))
+            ws.append_rows(rows, value_input="RAW")
+        else:
+            ws.import_csv(handle, delimiter=delimiter)
+    console.print(f"[green]✓ Imported[/green] {csv_file} into {ws.title}")
+
+
+@app.command("upsert")
+def upsert(
+    spreadsheet: str = SPREADSHEET_ARG,
+    csv_file: Path = typer.Argument(..., exists=True, dir_okay=False, help="CSV with a header row"),
+    key: str = typer.Option(..., "--key", "-k", help="Column that identifies a row"),
+    sheet: str | None = SHEET_OPT,
+) -> None:
+    """Update rows matching on --key from a CSV, appending the new ones."""
+    ws = _worksheet(_open(spreadsheet), sheet)
+    with csv_file.open(newline="", encoding="utf-8") as handle:
+        records = list(csv.DictReader(handle))
+    result = ws.upsert(records, key=key)
+    console.print(f"[green]✓ {result['updated']} updated, {result['appended']} appended[/green]")
+
+
+@app.command("share")
+def share(
+    spreadsheet: str = SPREADSHEET_ARG,
+    email: str = typer.Argument(..., help="Email to share with"),
+    role: str = typer.Option("reader", "--role", "-r", help="reader, commenter or writer"),
+    notify: bool = typer.Option(True, "--notify/--no-notify", help="Email the user"),
+) -> None:
+    """Share a spreadsheet with someone."""
+    doc = _open(spreadsheet)
+    if not doc.share(email, role=role, notify=notify):
+        console.print(f"[red]Spreadsheet not found: {spreadsheet}[/red]")
+        raise typer.Exit(1)
+    console.print(f"[green]✓ Shared {doc.title} with {email} ({role})[/green]")

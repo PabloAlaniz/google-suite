@@ -63,6 +63,10 @@ class GoogleApiClient:
         self._sheets = sheets
         self._open: dict[str, GoogleApiSpreadsheet] = {}
 
+    def forget(self, spreadsheet_id: str) -> None:
+        """Drop a spreadsheet from the open cache (its tabs changed elsewhere)."""
+        self._open = {k: v for k, v in self._open.items() if v.id != spreadsheet_id}
+
     def open(self, doc_name: str) -> GoogleApiSpreadsheet:
         """Open by title (Drive search; quotes in the title are escaped)."""
         if doc_name not in self._open:

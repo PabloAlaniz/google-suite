@@ -170,6 +170,13 @@ gsuite sheets add-tab SPREADSHEET "Q2"
 gsuite sheets rename-tab SPREADSHEET "Q2" "Q2 2026"
 gsuite sheets delete-tab SPREADSHEET "Q2 2026"
 gsuite sheets freeze SPREADSHEET --rows 1
+
+# Export, import, upsert, share
+gsuite sheets export SPREADSHEET --format xlsx --out budget.xlsx
+gsuite sheets import-csv SPREADSHEET data.csv --sheet "Data"            # replaces
+gsuite sheets import-csv SPREADSHEET data.csv --sheet "Data" --append
+gsuite sheets upsert SPREADSHEET changes.csv --key id
+gsuite sheets share SPREADSHEET ana@example.com --role writer
 ```
 
 ## Server Commands

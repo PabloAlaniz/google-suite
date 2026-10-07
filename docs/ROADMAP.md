@@ -60,10 +60,15 @@
   - [ ] Obtener recording links
   - [ ] Integracion con Calendar
 
-- [ ] **Google Tasks**
-  - [ ] CRUD de tareas
-  - [ ] Listas de tareas
+- [x] **Google Tasks** (`gsuite_tasks`, REST `/tasks`, CLI `gsuite tasks`)
+  - [x] CRUD de tareas (subtareas, mover, completar/reabrir, filtros por vencimiento)
+  - [x] Listas de tareas
   - [ ] Sync con Calendar
+
+- [x] **Google Contacts** (`gsuite_contacts` sobre People API, REST `/contacts`, CLI `gsuite contacts`)
+  - [x] Listar, buscar, crear, actualizar (con etag) y borrar
+  - [ ] Grupos de contactos
+  - [ ] Directorio de la organización (Workspace)
 
 ### Performance
 

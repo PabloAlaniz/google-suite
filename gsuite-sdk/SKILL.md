@@ -1,6 +1,6 @@
 ---
 name: gsuite-sdk
-description: Interact with Google Workspace APIs (Gmail, Calendar, Drive, Sheets) using gsuite-sdk.
+description: Interact with Google Workspace APIs (Gmail, Calendar, Drive, Sheets, Tasks, Contacts) using gsuite-sdk.
 metadata:
   openclaw:
     requires:
@@ -16,7 +16,7 @@ metadata:
 
 # Google Suite Skill
 
-Skill para interactuar con Google Workspace APIs (Gmail, Calendar, Drive, Sheets) usando `gsuite-sdk`.
+Skill para interactuar con Google Workspace APIs (Gmail, Calendar, Drive, Sheets, Tasks, Contacts) usando `gsuite-sdk`.
 
 ## Instalación
 
@@ -242,6 +242,55 @@ ws.append([
 ])
 ```
 
+## Tasks
+
+Requiere el scope de Tasks: `gsuite auth login --force --scopes default,tasks`.
+
+```python
+from datetime import date
+
+from gsuite_tasks import Tasks
+
+tasks = Tasks(auth)  # lista por defecto: "@default"
+
+# Listas
+for tl in tasks.list_tasklists():
+    print(tl.id, tl.title)
+
+# Pendientes que vencen antes de fin de mes
+for t in tasks.list_tasks(show_completed=False, due_max=date(2026, 2, 28)):
+    print(t.title, t.due, t.is_overdue)
+
+# Crear, subtarea, completar
+task = tasks.create_task("Pagar alquiler", due=date(2026, 2, 1), notes="Antes del 5")
+tasks.create_task("Transferir", parent=task.id)
+tasks.complete_task(task.id)
+tasks.reopen_task(task.id)
+tasks.update_task(task.id, due=None)  # None borra la fecha
+```
+
+`due` es una fecha (`date`): la API de Tasks descarta la hora.
+
+## Contacts
+
+Requiere el scope de Contacts: `gsuite auth login --force --scopes default,contacts`.
+
+```python
+from gsuite_contacts import Contacts
+
+contacts = Contacts(auth)
+
+# Buscar (prefijo de nombre, email, teléfono u organización; máx. 30)
+for c in contacts.search("ana"):
+    print(c.id, c.display_name, c.email, c.phone)
+
+# Crear y actualizar
+ana = contacts.create(given_name="Ana", family_name="Pérez", emails=["ana@example.com"])
+contacts.update(ana.id, phones=["+54 11 5555-5555"])  # emails/phones reemplazan la lista
+contacts.update(ana.id, given_name="Anita")           # conserva el apellido
+contacts.delete(ana.id)
+```
+
 ## CLI
 
 Si instalaste `gsuite-cli`:
@@ -265,13 +314,21 @@ gsuite drive upload archivo.pdf
 
 # Sheets
 gsuite sheets read SPREADSHEET_ID --range "A1:C10"
+
+# Tasks
+gsuite tasks ls
+gsuite tasks add "Pagar alquiler" --due 2026-02-01
+gsuite tasks done TASK_ID
+
+# Contacts
+gsuite contacts search ana -o json
 ```
 
 ## Notas para agentes
 
 1. **Primera autenticación requiere navegador** - El usuario debe completar OAuth manualmente la primera vez
 2. **Tokens persisten** - Después de autenticar, los tokens se guardan en `tokens.db` y se refrescan automáticamente
-3. **Scopes** - Por defecto pide acceso a Gmail, Calendar, Drive y Sheets. Se puede limitar con `--scopes`
+3. **Scopes** - Por defecto pide acceso a Gmail, Calendar, Drive y Sheets. Tasks y Contacts son opt-in: `--scopes default,tasks,contacts` (o `all`). Un `PermissionDeniedError` con un token viejo suele ser un scope que falta: re-autenticar con `--force`
 4. **Errores comunes:**
    - `CredentialsNotFoundError`: Falta `credentials.json`
    - `TokenRefreshError`: Token expiró y no se pudo refrescar (re-autenticar)

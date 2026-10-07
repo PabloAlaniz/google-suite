@@ -19,6 +19,8 @@ Enable the APIs you want to use:
    - **Google Calendar API** (for gsuite-calendar)
    - **Google Drive API** (for gsuite-drive)
    - **Google Sheets API** (for gsuite-sheets)
+   - **Google Tasks API** (for gsuite-tasks)
+   - **People API** (for gsuite-contacts)
 
 Click each one and press **Enable**.
 

@@ -28,31 +28,38 @@ class TestAppCreation:
         assert len(app.user_middleware) > 0
 
 
+def _paths() -> list[str]:
+    # app.routes is not flat in recent FastAPI (included routers are wrapped);
+    # the OpenAPI schema is the public, stable view of registered paths.
+    return list(app.openapi()["paths"])
+
+
 class TestRoutes:
     """Tests for route configuration."""
 
     def test_health_route_registered(self):
         """Test health route is registered."""
-        routes = [r.path for r in app.routes]
-        assert "/health" in routes or any("/health" in str(r.path) for r in app.routes)
+        assert "/health" in _paths()
 
     def test_gmail_routes_prefixed(self):
         """Test Gmail routes have correct prefix."""
-        routes = [r.path for r in app.routes]
-        gmail_routes = [r for r in routes if "/gmail" in str(r)]
+        gmail_routes = [p for p in _paths() if p.startswith("/gmail/")]
         assert len(gmail_routes) > 0
 
     def test_calendar_routes_prefixed(self):
         """Test Calendar routes have correct prefix."""
-        routes = [r.path for r in app.routes]
-        calendar_routes = [r for r in routes if "/calendar" in str(r)]
+        calendar_routes = [p for p in _paths() if p.startswith("/calendar/")]
         assert len(calendar_routes) > 0
 
     def test_drive_routes_prefixed(self):
         """Test Drive routes have correct prefix."""
-        routes = [r.path for r in app.routes]
-        drive_routes = [r for r in routes if "/drive" in str(r)]
+        drive_routes = [p for p in _paths() if p.startswith("/drive/")]
         assert len(drive_routes) > 0
+
+    def test_sheets_routes_prefixed(self):
+        """Test Sheets routes have correct prefix."""
+        sheets_routes = [p for p in _paths() if p.startswith("/sheets/")]
+        assert len(sheets_routes) > 0
 
     def test_docs_available(self):
         """Test OpenAPI docs endpoints are available."""

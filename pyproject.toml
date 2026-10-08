@@ -63,6 +63,8 @@ Documentation = "https://github.com/PabloAlaniz/google-suite#readme"
 [tool.ruff]
 target-version = "py311"
 line-length = 100
+# README examples are hand-aligned; newer ruff formats Markdown code blocks
+extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
 select = ["E", "W", "F", "I", "B", "C4", "UP"]
@@ -89,7 +91,7 @@ disallow_untyped_defs = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["tests", "packages/*/tests"]
+testpaths = ["packages/*/tests", "api/tests"]
 addopts = "-v --tb=short --import-mode=importlib"
 
 [tool.setuptools.packages.find]

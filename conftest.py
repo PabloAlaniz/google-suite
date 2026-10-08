@@ -1,7 +1,25 @@
 """Shared pytest fixtures for google-suite tests."""
 
+from collections import defaultdict
+from pathlib import Path
+
 import pytest
 from unittest.mock import Mock, MagicMock
+
+
+def pytest_collection_finish(session):
+    """Fail if two test modules share a basename.
+
+    Every tests/ dir is a package named ``tests``; with --import-mode=importlib
+    same-named modules collapse into one and the others silently never run.
+    """
+    paths = defaultdict(set)
+    for item in session.items:
+        path = Path(item.path)
+        paths[path.name].add(path)
+    duplicates = {name: sorted(map(str, ps)) for name, ps in paths.items() if len(ps) > 1}
+    if duplicates:
+        raise pytest.UsageError(f"Duplicate test module names (rename them): {duplicates}")
 
 
 @pytest.fixture

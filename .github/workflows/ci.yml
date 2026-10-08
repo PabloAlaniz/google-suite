@@ -37,6 +37,7 @@ jobs:
           pip install -e packages/calendar
           pip install -e packages/sheets
           pip install -e packages/drive
+          pip install -e api httpx
       
       - name: Run tests
         run: |
@@ -52,8 +53,9 @@ jobs:
         with:
           python-version: "3.11"
       
+      # Pinned: new ruff releases change formatting and break main on their own
       - name: Install ruff
-        run: pip install ruff
+        run: pip install ruff==0.16.10
       
       - name: Ruff check
         run: ruff check packages/ api/ cli/

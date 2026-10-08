@@ -2,6 +2,8 @@
 
 import json
 import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
@@ -25,9 +27,24 @@ class SQLiteTokenStore(TokenStore):
         self.db_path = Path(db_path)
         self._init_db()
 
+    @contextmanager
+    def _connect(self) -> Iterator[sqlite3.Connection]:
+        """A connection that commits on success and is always closed.
+
+        ``with sqlite3.connect(...)`` only commits or rolls back; it leaves the
+        connection open until garbage collection, which on Windows keeps the
+        database file locked (it can't be deleted or replaced meanwhile).
+        """
+        conn = sqlite3.connect(self.db_path)
+        try:
+            with conn:
+                yield conn
+        finally:
+            conn.close()
+
     def _init_db(self) -> None:
         """Create tokens table if it doesn't exist."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS tokens (
                     user_id TEXT PRIMARY KEY,
@@ -36,11 +53,10 @@ class SQLiteTokenStore(TokenStore):
                     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            conn.commit()
 
     def get_token(self, user_id: str = "default") -> dict[str, Any] | None:
         """Retrieve stored token data."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.execute("SELECT token_data FROM tokens WHERE user_id = ?", (user_id,))
             row = cursor.fetchone()
 
@@ -53,7 +69,7 @@ class SQLiteTokenStore(TokenStore):
         """Store token data."""
         token_json = json.dumps(token_data)
 
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             conn.execute(
                 """
                 INSERT INTO tokens (user_id, token_data, updated_at)
@@ -64,17 +80,15 @@ class SQLiteTokenStore(TokenStore):
             """,
                 (user_id, token_json),
             )
-            conn.commit()
 
     def delete_token(self, user_id: str = "default") -> bool:
         """Delete stored token."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.execute("DELETE FROM tokens WHERE user_id = ?", (user_id,))
-            conn.commit()
             return cursor.rowcount > 0
 
     def exists(self, user_id: str = "default") -> bool:
         """Check if token exists."""
-        with sqlite3.connect(self.db_path) as conn:
+        with self._connect() as conn:
             cursor = conn.execute("SELECT 1 FROM tokens WHERE user_id = ?", (user_id,))
             return cursor.fetchone() is not None

@@ -82,3 +82,31 @@ class TestSQLiteTokenStore:
 
         retrieved = store.get_token()
         assert retrieved["token"] == "new_token"
+
+
+def test_connections_are_closed(tmp_path, monkeypatch):
+    """Every operation closes its connection: on Windows an open one keeps the
+    database file locked, so it could not be deleted or replaced."""
+    import sqlite3
+
+    opened = []
+    real_connect = sqlite3.connect
+
+    def tracking_connect(*args, **kwargs):
+        conn = real_connect(*args, **kwargs)
+        opened.append(conn)
+        return conn
+
+    monkeypatch.setattr(sqlite3, "connect", tracking_connect)
+    db = tmp_path / "tokens.db"
+    store = SQLiteTokenStore(db_path=str(db))
+    store.save_token({"token": "t"})
+    assert store.get_token() == {"token": "t"}
+    assert store.exists()
+    assert store.delete_token()
+
+    assert len(opened) == 5
+    for conn in opened:
+        with pytest.raises(sqlite3.ProgrammingError):
+            conn.execute("SELECT 1")  # closed
+    db.unlink()  # fails on Windows while a connection is open

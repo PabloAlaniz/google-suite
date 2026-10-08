@@ -18,7 +18,7 @@ dependencies = [
     "gsuite-drive>=0.1.0",
     "gsuite-sheets>=0.1.0",
     "rich>=13.0.0",
-    "typer>=0.9.0",
+    "typer>=0.15.4",
 ]
 
 [project.scripts]

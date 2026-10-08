@@ -19,6 +19,8 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
@@ -36,6 +38,7 @@ dev = [
     "pytest-cov>=4.1.0",
     "ruff>=0.1.0",
     "mypy>=1.8.0",
+    "httpx>=0.27.0",
 ]
 cloudrun = [
     "google-cloud-secret-manager>=2.18.0",
@@ -48,12 +51,15 @@ api = [
     "email-validator>=2.1.0",
 ]
 cli = [
-    "typer>=0.9.0",
+    "typer>=0.15.4",
     "rich>=13.7.0",
 ]
 all = [
     "gsuite-sdk[api,cli,cloudrun]",
 ]
+
+[project.scripts]
+gsuite = "gsuite_cli.main:app"
 
 [project.urls]
 Homepage = "https://github.com/PabloAlaniz/google-suite"
@@ -91,12 +97,21 @@ disallow_untyped_defs = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-testpaths = ["packages/*/tests", "api/tests"]
+testpaths = ["packages/*/tests", "api/tests", "cli/tests"]
 addopts = "-v --tb=short --import-mode=importlib"
 
 [tool.setuptools.packages.find]
-where = ["packages/core/src", "packages/gmail/src", "packages/calendar/src", "packages/drive/src", "packages/sheets/src", "api/src"]
+where = ["packages/core/src", "packages/gmail/src", "packages/calendar/src", "packages/drive/src", "packages/sheets/src", "api/src", "cli/src"]
 include = ["gsuite_*"]
 
 [tool.setuptools.package-data]
 "*" = ["py.typed"]
+
+[tool.coverage.run]
+source = ["gsuite_core", "gsuite_gmail", "gsuite_calendar", "gsuite_drive", "gsuite_sheets", "gsuite_api", "gsuite_cli"]
+branch = true
+relative_files = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

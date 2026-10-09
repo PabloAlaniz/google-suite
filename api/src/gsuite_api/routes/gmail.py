@@ -1,12 +1,10 @@
 """Gmail API routes - Full featured."""
 
-import re
-from urllib.parse import quote
-
-from fastapi import APIRouter, HTTPException, Query, Response
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, EmailStr
 
 from gsuite_api.dependencies import GmailDep
+from gsuite_api.responses import download_response
 
 router = APIRouter()
 
@@ -154,18 +152,6 @@ def _message_to_detail(m) -> MessageDetailResponse:
             for a in m.attachments
         ],
     )
-
-
-def _content_disposition(filename: str | None) -> str:
-    """Attachment header that survives quotes, newlines and non-ASCII names.
-
-    The filename comes from the email sender, so it is untrusted: an ASCII
-    fallback with unsafe characters replaced, plus the exact name as an
-    RFC 5987 filename* parameter (RFC 6266).
-    """
-    name = filename or "attachment"
-    fallback = re.sub(r"[^A-Za-z0-9._ -]", "_", name).strip() or "attachment"
-    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(name, safe='')}"
 
 
 # ========== Messages Routes ==========
@@ -476,11 +462,7 @@ def download_attachment(message_id: str, attachment_id: str, gmail: GmailDep):
 
     content = attachment.download()
 
-    return Response(
-        content=content,
-        media_type=attachment.mime_type,
-        headers={"Content-Disposition": _content_disposition(attachment.filename)},
-    )
+    return download_response(content, attachment.filename, attachment.mime_type)
 
 
 # ========== Threads ==========

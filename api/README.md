@@ -104,32 +104,43 @@ GET /calendar/calendars
 ### Drive
 
 ```bash
-# List files
-GET /drive/files
-GET /drive/files?parent_id=folder_id&mime_type=application/pdf
+# List files (trashed=true for the trash)
+GET /drive/files?parent_id=folder_id&mime_type=application/pdf&limit=100
 
-# Get file info
+# Metadata
 GET /drive/files/{file_id}
 
-# Download file
-GET /drive/files/{file_id}/download
+# Download; Google Docs/Sheets/Slides are exported (export=pdf|docx|xlsx|csv|...)
+GET /drive/files/{file_id}/content
+GET /drive/files/{file_id}/content?export=pdf
 
-# Upload file
+# Upload (multipart/form-data: file, parent_id?, name?)
 POST /drive/files/upload
-Content-Type: multipart/form-data
-file: <binary>
-parent_id: <optional>
 
-# Create folder
-POST /drive/folders
-{
-  "name": "New Folder",
-  "parent_id": "optional_parent_id"
-}
+# Rename / describe / star (only the fields sent change)
+PATCH /drive/files/{file_id}
+{"name": "New name.pdf"}
 
-# Delete file
-DELETE /drive/files/{file_id}
+# Copy and move
+POST /drive/files/{file_id}/copy   {"name": "Copy", "parent_id": "folder_id"}
+POST /drive/files/{file_id}/move   {"parent_id": "folder_id"}
+
+# Trash, restore, delete (DELETE trashes unless permanent=true)
+POST /drive/files/{file_id}/trash
+POST /drive/files/{file_id}/restore
+DELETE /drive/files/{file_id}?permanent=true
+
+# Folders
+POST /drive/folders   {"name": "New Folder", "parent_id": "optional_parent_id"}
+
+# Sharing
+GET /drive/files/{file_id}/permissions
+POST /drive/files/{file_id}/permissions   {"type": "user", "email": "a@example.com", "role": "writer"}
+POST /drive/files/{file_id}/permissions   {"type": "anyone", "role": "reader"}
+DELETE /drive/files/{file_id}/permissions/{permission_id}
 ```
+
+Uploads pass through the API server; behind Cloud Run the request limit is 32 MB.
 
 ### Sheets
 

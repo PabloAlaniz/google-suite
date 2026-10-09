@@ -1,5 +1,6 @@
 """Drive response parsers - converts API responses to domain entities."""
 
+from dataclasses import fields
 from datetime import datetime
 
 from gsuite_drive.file import File, Folder
@@ -29,6 +30,10 @@ class DriveParser:
             parents=data.get("parents", []),
             web_view_link=data.get("webViewLink"),
             web_content_link=data.get("webContentLink"),
+            description=data.get("description"),
+            starred=bool(data.get("starred", False)),
+            trashed=bool(data.get("trashed", False)),
+            md5_checksum=data.get("md5Checksum"),
         )
 
     @staticmethod
@@ -42,18 +47,13 @@ class DriveParser:
         Returns:
             Folder entity
         """
-        file = DriveParser.parse_file(data)
-        return Folder(
-            id=file.id,
-            name=file.name,
-            mime_type=file.mime_type,
-            size=file.size,
-            created_time=file.created_time,
-            modified_time=file.modified_time,
-            parents=file.parents,
-            web_view_link=file.web_view_link,
-            web_content_link=file.web_content_link,
-        )
+        return DriveParser.to_folder(DriveParser.parse_file(data))
+
+    @staticmethod
+    def to_folder(file: File) -> Folder:
+        """Convert a File to a Folder, keeping every field and the client link."""
+        values = {f.name: getattr(file, f.name) for f in fields(File)}
+        return Folder(**values)
 
     @staticmethod
     def _parse_datetime(dt_string: str | None) -> datetime | None:

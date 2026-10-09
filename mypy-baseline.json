@@ -2,8 +2,8 @@
   "core": 0,
   "gmail": 7,
   "calendar": 3,
-  "drive": 6,
+  "drive": 0,
   "sheets": 12,
-  "api": 75,
+  "api": 63,
   "cli": 49
 }

@@ -155,13 +155,13 @@ class TestListFiles:
 class TestListFolders:
     """Tests for list_folders method."""
 
-    @patch.object(Drive, "list_files")
+    @patch.object(Drive, "iter_files")
     def test_list_folders(self, mock_list):
         """Test list_folders filters by folder mime type."""
         mock_auth = Mock()
         drive = Drive(mock_auth)
 
-        mock_list.return_value = []
+        mock_list.return_value = iter([])
         drive.list_folders()
 
         mock_list.assert_called_once()
@@ -249,11 +249,10 @@ class TestUpload:
         mock_auth.credentials = Mock()
 
         mock_service = Mock()
-        mock_service.files().create().execute.return_value = {
-            "id": "new_file",
-            "name": "uploaded.txt",
-            "mimeType": "text/plain",
-        }
+        mock_service.files().create().next_chunk.return_value = (
+            None,
+            {"id": "new_file", "name": "uploaded.txt", "mimeType": "text/plain"},
+        )
         mock_build.return_value = mock_service
 
         drive = Drive(mock_auth)
@@ -272,11 +271,10 @@ class TestUpload:
 
         mock_service = Mock()
         mock_create = mock_service.files().create
-        mock_create().execute.return_value = {
-            "id": "new_file",
-            "name": "test.txt",
-            "mimeType": "text/plain",
-        }
+        mock_create().next_chunk.return_value = (
+            None,
+            {"id": "new_file", "name": "test.txt", "mimeType": "text/plain"},
+        )
         mock_build.return_value = mock_service
 
         drive = Drive(mock_auth)
@@ -387,6 +385,11 @@ class TestShare:
         mock_auth.credentials = Mock()
 
         mock_service = Mock()
+        mock_service.permissions().create().execute.return_value = {
+            "id": "p1",
+            "type": "user",
+            "role": "writer",
+        }
         mock_build.return_value = mock_service
 
         drive = Drive(mock_auth)

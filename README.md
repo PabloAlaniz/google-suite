@@ -11,7 +11,7 @@ Unified Python SDK for Google Workspace APIs with Clean Architecture.
 - 📧 **Gmail** - Send, receive, search, labels, attachments
 - 📅 **Calendar** - Events, calendars, scheduling
 - 📁 **Drive** - Files, folders, sharing, upload/download
-- 📊 **Sheets** - Read, write, append, format, batch operations
+- 📊 **Sheets** - Read/write, upsert, typed rows, validation, conditional formats, charts, pivots, export (engine from [GSpreadManager](docs/MIGRATING_FROM_GSPREADMANAGER.md))
 - 🚀 **REST API** - Single FastAPI gateway for all services
 - 💻 **CLI** - Unified command-line interface
 
@@ -227,7 +227,7 @@ google-suite/
 │   ├── gmail/          # Gmail client + query builder
 │   ├── calendar/       # Calendar client
 │   ├── drive/          # Drive client (upload, download, share)
-│   └── sheets/         # Sheets client (read, write, append, batch operations)
+│   └── sheets/         # Sheets client + engine (from GSpreadManager)
 ├── api/                # Unified FastAPI REST gateway
 ├── cli/                # Unified CLI (Typer + Rich)
 ├── skill/              # AI agent skill (OpenClaw compatible)

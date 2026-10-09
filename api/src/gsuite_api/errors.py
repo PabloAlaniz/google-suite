@@ -86,6 +86,10 @@ def _gsuite_error(request: Request, exc: Exception) -> JSONResponse:
         return problem(request, 401, exc.message)
     if isinstance(exc, ValidationError):
         return problem(request, 422, exc.message, field=exc.field)
+    # Errors from the Sheets engine (gsuite_sheets.engine, from GSpreadManager)
+    engine_status = _engine_status(exc)
+    if engine_status is not None:
+        return problem(request, engine_status, exc.message)
 
     logger.exception("Unhandled SDK error", exc_info=exc)
     return problem(request, 500, "Internal error")
@@ -97,6 +101,27 @@ def _google_http_error(request: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, HttpError)
     service = request.url.path.strip("/").split("/", 1)[0] or "google"
     return _gsuite_error(request, map_http_error(exc, service))
+
+
+def _engine_status(exc: GSuiteError) -> int | None:
+    """Status for errors of the Sheets engine (gsuite_sheets.engine, from GSpreadManager)."""
+    from gsuite_sheets.engine.domain.errors import (
+        ApiError,
+        CellNotFoundError,
+        GSpreadManagerError,
+        SpreadsheetNotFoundError,
+        WorksheetNotFoundError,
+    )
+
+    if isinstance(exc, SpreadsheetNotFoundError | WorksheetNotFoundError | CellNotFoundError):
+        return 404
+    if isinstance(exc, ApiError):
+        return 502
+    if isinstance(exc, GSpreadManagerError):
+        # The engine raises its base error for invalid requests (unknown
+        # column, bad range or color, schema mismatch, ...)
+        return 422
+    return None
 
 
 def _http_exception(request: Request, exc: Exception) -> JSONResponse:

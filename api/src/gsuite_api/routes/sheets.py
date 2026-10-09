@@ -6,6 +6,8 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, EmailStr, Field
 
 from gsuite_api.dependencies import SheetsDep
+from gsuite_api.responses import download_response
+from gsuite_sheets import CellFormat, Color, TextFormat
 from gsuite_sheets.a1 import a1
 from gsuite_sheets.worksheet import Worksheet
 
@@ -77,6 +79,56 @@ class FindReplaceRequest(BaseModel):
     match_case: bool = False
     match_entire_cell: bool = False
     regex: bool = False
+
+
+class UpsertRequest(BaseModel):
+    rows: list[dict[str, Any]] = Field(..., min_length=1, description="Records keyed by header")
+    key: str = Field(..., description="Header of the column that identifies a row")
+
+
+class DropdownRequest(BaseModel):
+    range: str
+    values: list[Any] = Field(..., min_length=1)
+    strict: bool = True
+
+
+class RangeRequest(BaseModel):
+    range: str
+
+
+class ConditionalFormatRequest(BaseModel):
+    range: str
+    condition_type: str = Field(..., examples=["NUMBER_LESS", "TEXT_CONTAINS", "CUSTOM_FORMULA"])
+    values: list[Any] = Field(default_factory=list)
+    background: str | None = Field(None, description="Hex color, e.g. #F4CCCC")
+    text_color: str | None = Field(None, description="Hex color")
+    bold: bool | None = None
+
+
+class MergeRequest(BaseModel):
+    range: str
+    merge_type: Literal["MERGE_ALL", "MERGE_ROWS", "MERGE_COLUMNS"] = "MERGE_ALL"
+
+
+class SortRequest(BaseModel):
+    range: str
+    by: list[tuple[int, Literal["asc", "desc"]]] = Field(
+        ..., min_length=1, description='[[column (1-based), "asc"|"desc"], ...]'
+    )
+
+
+class DimensionRequest(BaseModel):
+    dimension: Literal["rows", "columns"]
+    start: int = Field(..., ge=1, description="1-based")
+    count: int = Field(1, ge=1)
+
+
+def _open_worksheet(sheets: Any, spreadsheet_id: str, sheet_id: int) -> Worksheet:
+    ws = sheets.open_by_key(spreadsheet_id).worksheet_by_id(sheet_id)
+    if ws is None:
+        raise HTTPException(status_code=404, detail=f"Worksheet {sheet_id} not found")
+    ws_typed: Worksheet = ws
+    return ws_typed
 
 
 def _worksheet(ws: Worksheet) -> WorksheetResponse:
@@ -330,3 +382,127 @@ def protect(
         request.warning_only,
     )
     return {"id": sheet_id, "protected_range_id": protected_id}
+
+
+# ========== Engine features ==========
+
+EXPORT_TYPES = {
+    "pdf": "application/pdf",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    "ods": "application/x-vnd.oasis.opendocument.spreadsheet",
+    "csv": "text/csv",
+    "tsv": "text/tab-separated-values",
+    "html": "application/zip",
+}
+
+
+@router.get("/{spreadsheet_id}/export")
+def export_spreadsheet(
+    sheets: SheetsDep,
+    spreadsheet_id: str,
+    format: Literal["pdf", "xlsx", "ods", "csv", "tsv", "html"] = Query("pdf"),
+) -> Any:
+    """Download the spreadsheet (csv/tsv export only the first sheet; html is a zip)."""
+    doc = sheets.open_by_key(spreadsheet_id)
+    content = doc.export(format)
+    extension = "zip" if format == "html" else format
+    return download_response(content, f"{doc.title}.{extension}", EXPORT_TYPES[format])
+
+
+@router.post("/{spreadsheet_id}/worksheets/{sheet_id}/upsert")
+def upsert(
+    sheets: SheetsDep, spreadsheet_id: str, sheet_id: int, request: UpsertRequest
+) -> dict[str, Any]:
+    """Update rows whose ``key`` column matches, append the rest."""
+    result = _open_worksheet(sheets, spreadsheet_id, sheet_id).upsert(request.rows, request.key)
+    return {"id": sheet_id, **result}
+
+
+@router.post("/{spreadsheet_id}/worksheets/{sheet_id}/dropdown")
+def add_dropdown(
+    sheets: SheetsDep, spreadsheet_id: str, sheet_id: int, request: DropdownRequest
+) -> dict[str, Any]:
+    """Dropdown validation on a range."""
+    _open_worksheet(sheets, spreadsheet_id, sheet_id).add_dropdown(
+        request.range, request.values, request.strict
+    )
+    return {"id": sheet_id, "range": request.range}
+
+
+@router.post("/{spreadsheet_id}/worksheets/{sheet_id}/checkbox")
+def add_checkbox(
+    sheets: SheetsDep, spreadsheet_id: str, sheet_id: int, request: RangeRequest
+) -> dict[str, Any]:
+    """Checkboxes on a range."""
+    _open_worksheet(sheets, spreadsheet_id, sheet_id).add_checkbox(request.range)
+    return {"id": sheet_id, "range": request.range}
+
+
+@router.post("/{spreadsheet_id}/worksheets/{sheet_id}/conditional-format")
+def add_conditional_format(
+    sheets: SheetsDep, spreadsheet_id: str, sheet_id: int, request: ConditionalFormatRequest
+) -> dict[str, Any]:
+    """Format cells meeting a condition (background, text color, bold)."""
+    text = None
+    if request.bold is not None or request.text_color:
+        text = TextFormat(
+            bold=request.bold,
+            foreground_color=Color.from_hex(request.text_color) if request.text_color else None,
+        )
+    cell_format = CellFormat(
+        background_color=Color.from_hex(request.background) if request.background else None,
+        text_format=text,
+    )
+    _open_worksheet(sheets, spreadsheet_id, sheet_id).add_conditional_format(
+        request.range, request.condition_type, request.values, cell_format
+    )
+    return {"id": sheet_id, "range": request.range}
+
+
+@router.post("/{spreadsheet_id}/worksheets/{sheet_id}/merge")
+def merge(
+    sheets: SheetsDep, spreadsheet_id: str, sheet_id: int, request: MergeRequest
+) -> dict[str, Any]:
+    """Merge cells."""
+    _open_worksheet(sheets, spreadsheet_id, sheet_id).merge(request.range, request.merge_type)
+    return {"id": sheet_id, "range": request.range, "merged": True}
+
+
+@router.post("/{spreadsheet_id}/worksheets/{sheet_id}/unmerge")
+def unmerge(
+    sheets: SheetsDep, spreadsheet_id: str, sheet_id: int, request: RangeRequest
+) -> dict[str, Any]:
+    """Undo merges in a range."""
+    _open_worksheet(sheets, spreadsheet_id, sheet_id).unmerge(request.range)
+    return {"id": sheet_id, "range": request.range, "merged": False}
+
+
+@router.post("/{spreadsheet_id}/worksheets/{sheet_id}/sort")
+def sort(
+    sheets: SheetsDep, spreadsheet_id: str, sheet_id: int, request: SortRequest
+) -> dict[str, Any]:
+    """Sort a range by one or more columns."""
+    _open_worksheet(sheets, spreadsheet_id, sheet_id).sort_range(request.range, *request.by)
+    return {"id": sheet_id, "range": request.range}
+
+
+@router.post("/{spreadsheet_id}/worksheets/{sheet_id}/dimensions:insert")
+def insert_dimension(
+    sheets: SheetsDep, spreadsheet_id: str, sheet_id: int, request: DimensionRequest
+) -> dict[str, Any]:
+    """Insert blank rows or columns before ``start``."""
+    ws = _open_worksheet(sheets, spreadsheet_id, sheet_id)
+    insert = ws.insert_rows if request.dimension == "rows" else ws.insert_cols
+    insert(request.start, request.count)
+    return {"id": sheet_id, "inserted": request.count, "dimension": request.dimension}
+
+
+@router.post("/{spreadsheet_id}/worksheets/{sheet_id}/dimensions:delete")
+def delete_dimension(
+    sheets: SheetsDep, spreadsheet_id: str, sheet_id: int, request: DimensionRequest
+) -> dict[str, Any]:
+    """Delete ``count`` rows or columns starting at ``start``."""
+    ws = _open_worksheet(sheets, spreadsheet_id, sheet_id)
+    delete = ws.delete_rows if request.dimension == "rows" else ws.delete_cols
+    delete(request.start, request.start + request.count - 1)
+    return {"id": sheet_id, "deleted": request.count, "dimension": request.dimension}

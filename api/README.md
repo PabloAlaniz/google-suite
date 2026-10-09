@@ -195,6 +195,20 @@ POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/duplicate {"title": "Backup"
 POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/format   {"range": "A1:Z1", "format": {"textFormat": {"bold": true}}}
 POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/freeze   {"rows": 1}
 POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/protect  {"range": "A1:A100", "editors": ["admin@example.com"]}
+
+# Tables, validation, structure
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/upsert              {"rows": [{"id": "7", "status": "paid"}], "key": "id"}
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/dropdown            {"range": "E2:E100", "values": ["Pending", "Done"]}
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/checkbox            {"range": "F2:F100"}
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/conditional-format  {"range": "C2:C100", "condition_type": "NUMBER_LESS", "values": [0], "background": "#F4CCCC"}
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/merge               {"range": "A1:D1"}
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/unmerge             {"range": "A1:D1"}
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/sort                {"range": "A2:C100", "by": [[2, "desc"]]}
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/dimensions:insert   {"dimension": "rows", "start": 2, "count": 3}
+POST /sheets/{spreadsheet_id}/worksheets/{sheet_id}/dimensions:delete   {"dimension": "columns", "start": 5}
+
+# Download (pdf, xlsx, ods, csv/tsv = first sheet, html = zip)
+GET /sheets/{spreadsheet_id}/export?format=xlsx
 ```
 
 `value_input` is `USER_ENTERED` by default (formulas and dates are parsed as

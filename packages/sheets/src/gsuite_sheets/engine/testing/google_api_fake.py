@@ -151,6 +151,15 @@ class _Spreadsheets:
     def get(self, spreadsheetId: str, fields: str, ranges: list[str] | None = None) -> FakeRequest:
         def run() -> Any:
             ss = self._s.spreadsheet(spreadsheetId)
+            if fields.startswith("spreadsheetId"):  # gsuite_sheets.Sheets.open_by_key
+                return {
+                    "spreadsheetId": ss.id,
+                    "properties": {"title": ss.title, "locale": "en_US", "timeZone": "UTC"},
+                    "sheets": [
+                        {"properties": {"sheetId": ws.id, "title": ws.title, "index": i}}
+                        for i, ws in enumerate(ss.worksheets)
+                    ],
+                }
             if fields == "sheets.properties(sheetId,title)":
                 return {
                     "sheets": [
@@ -196,9 +205,21 @@ class _Spreadsheets:
                     sheet_id = request["deleteSheet"]["sheetId"]
                     ss.delete_worksheet(next(w.title for w in ss.worksheets if w.id == sheet_id))
                     replies.append({})
+                elif "updateSheetProperties" in request and "title" in request[
+                    "updateSheetProperties"
+                ]["fields"].split(","):
+                    props = request["updateSheetProperties"]["properties"]
+                    ws = next(w for w in ss.worksheets if w.id == props["sheetId"])
+                    ws._title = props["title"]
+                    replies.append({})
                 else:
                     ss.batch_update({"requests": [request]})
-                    replies.append({})
+                    if "addProtectedRange" in request:
+                        replies.append({"addProtectedRange": {"protectedRange": ss._protected[-1]}})
+                    elif "addNamedRange" in request:
+                        replies.append({"addNamedRange": {"namedRange": ss._named[-1]}})
+                    else:
+                        replies.append({})
             return {"replies": replies}
 
         return FakeRequest("POST", run)
@@ -297,15 +318,29 @@ def _trim(rows: list[list[str]]) -> list[list[str]]:
     return rows
 
 
-def adapter_client(client: InMemoryClient) -> Any:
-    """A ``GoogleApiClient`` (the real adapter) whose requests hit ``client``."""
+def fake_sheets(client: InMemoryClient, **options: Any) -> Any:
+    """A real ``gsuite_sheets.Sheets`` whose Google services are faked over ``client``.
+
+    Use it to test code written against the public API without network::
+
+        backend = InMemoryBackend()
+        backend.add_spreadsheet("Budget", {"Data": [["name", "total"]]})
+        sheets = fake_sheets(backend.client)
+        ws = sheets.open("Budget").worksheet("Data")
+    """
     from unittest.mock import Mock
 
     from gsuite_sheets.client import Sheets
-    from gsuite_sheets.engine_adapter import GoogleApiClient
 
-    sheets = Sheets(Mock())
+    sheets = Sheets(Mock(), **options)
     fake = FakeGoogleService(client)
     sheets._sheets_service = fake
     sheets._drive_service = fake
-    return GoogleApiClient(sheets)
+    return sheets
+
+
+def adapter_client(client: InMemoryClient) -> Any:
+    """A ``GoogleApiClient`` (the real adapter) whose requests hit ``client``."""
+    from gsuite_sheets.engine_adapter import GoogleApiClient
+
+    return GoogleApiClient(fake_sheets(client))

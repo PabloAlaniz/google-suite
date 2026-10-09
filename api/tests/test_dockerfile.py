@@ -8,7 +8,7 @@ BUILD_CALL = re.compile(r'\bbuild\(\s*"([a-z0-9]+)",\s*"(v[0-9.]+)"')
 
 
 def _kept() -> set[str]:
-    dockerfile = (ROOT / "api" / "Dockerfile").read_text()
+    dockerfile = (ROOT / "api" / "Dockerfile").read_text(encoding="utf-8")
     match = re.search(r'ARG DISCOVERY_KEEP="([^"]+)"', dockerfile)
     assert match, "DISCOVERY_KEEP not found in api/Dockerfile"
     return set(match.group(1).split())
@@ -20,7 +20,7 @@ def _used() -> set[str]:
     return {
         f"{name}.{version}"
         for path in sources
-        for name, version in BUILD_CALL.findall(path.read_text())
+        for name, version in BUILD_CALL.findall(path.read_text(encoding="utf-8"))
     }
 
 

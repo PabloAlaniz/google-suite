@@ -35,6 +35,7 @@ class Scopes:
     TASKS_READONLY = "https://www.googleapis.com/auth/tasks.readonly"
 
     # Contacts/People
+    CONTACTS_FULL = "https://www.googleapis.com/auth/contacts"
     CONTACTS_READONLY = "https://www.googleapis.com/auth/contacts.readonly"
 
     # User info
@@ -74,9 +75,25 @@ class Scopes:
         ]
 
     @classmethod
+    def tasks(cls) -> list[str]:
+        """Standard Tasks scopes."""
+        return [
+            cls.TASKS_FULL,
+        ]
+
+    @classmethod
+    def contacts(cls) -> list[str]:
+        """Standard Contacts (People API) scopes."""
+        return [
+            cls.CONTACTS_FULL,
+        ]
+
+    @classmethod
     def all(cls) -> list[str]:
         """All standard scopes for full access."""
-        return cls.gmail() + cls.calendar() + cls.drive() + cls.sheets()
+        return (
+            cls.gmail() + cls.calendar() + cls.drive() + cls.sheets() + cls.tasks() + cls.contacts()
+        )
 
     @classmethod
     def default(cls) -> list[str]:
@@ -85,5 +102,9 @@ class Scopes:
         Drive used to be missing, so a default login got 403s from the Drive
         client and from the Sheets calls that go through Drive (open by title,
         list, share, export). Tokens created before need `gsuite auth login --force`.
+
+        Tasks and Contacts are left out on purpose: contacts is a sensitive
+        scope, and asking for both on every login would over-ask. Request them
+        with `Scopes.all()` or `gsuite auth login --scopes all`.
         """
         return cls.gmail() + cls.calendar() + cls.drive() + cls.sheets()

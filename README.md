@@ -12,6 +12,8 @@ Unified Python SDK for Google Workspace APIs with Clean Architecture.
 - 📅 **Calendar** - Events, calendars, scheduling
 - 📁 **Drive** - Files, folders, sharing, upload/download
 - 📊 **Sheets** - Read/write, upsert, typed rows, validation, conditional formats, charts, pivots, export (engine from [GSpreadManager](docs/MIGRATING_FROM_GSPREADMANAGER.md))
+- ✅ **Tasks** - Task lists, tasks, subtasks, due dates, complete/reopen
+- 👥 **Contacts** - List, search, create, update and delete contacts (People API)
 - 🚀 **REST API** - Single FastAPI gateway for all services
 - 💻 **CLI** - Unified command-line interface
 
@@ -162,6 +164,35 @@ for spreadsheet in sheets.list_spreadsheets():
     print(f"{spreadsheet['name']} - {spreadsheet['id']}")
 ```
 
+### Tasks and Contacts
+
+Tasks and Contacts are opt-in: their scopes are not in the default login
+(contacts is a sensitive scope). Log in with them and enable the **Google Tasks
+API** / **People API** in your Cloud project:
+
+```bash
+gsuite auth login --force --scopes default,tasks,contacts
+```
+
+```python
+from datetime import date
+
+from gsuite_contacts import Contacts
+from gsuite_tasks import Tasks
+
+tasks = Tasks(auth)
+task = tasks.create_task("Pay rent", due=date(2026, 2, 1))
+for t in tasks.list_tasks(show_completed=False):
+    print(t.title, t.due, "overdue" if t.is_overdue else "")
+tasks.complete_task(task.id)
+
+contacts = Contacts(auth)
+for c in contacts.search("ana"):
+    print(c.display_name, c.email, c.phone)
+ana = contacts.create(given_name="Ana", emails=["ana@example.com"])
+contacts.update(ana.id, phones=["+54 11 5555-5555"])
+```
+
 ### REST API
 
 ```bash
@@ -179,6 +210,8 @@ curl http://localhost:8080/calendar/events/upcoming
 curl http://localhost:8080/drive/files
 curl http://localhost:8080/sheets/list
 curl http://localhost:8080/sheets/{spreadsheet_id}/values/Sheet1!A1:D10
+curl http://localhost:8080/tasks/lists/@default/tasks
+curl "http://localhost:8080/contacts/search?q=ana"
 ```
 
 **Interactive API docs available at `/docs` when server is running.** See [API Documentation](#api-documentation) section below for details.
@@ -213,6 +246,17 @@ gsuite sheets write SHEET_ID "Sheet1!A1" "Name,Email"
 gsuite sheets append SHEET_ID "Sheet1" "John,john@example.com"
 gsuite sheets create "New Sheet"  # Create spreadsheet
 
+# Tasks (login with --scopes default,tasks)
+gsuite tasks lists             # Task lists
+gsuite tasks ls --due-before 2026-02-28
+gsuite tasks add "Pay rent" --due 2026-02-01
+gsuite tasks done TASK_ID
+
+# Contacts (login with --scopes default,contacts)
+gsuite contacts search ana
+gsuite contacts add -g Ana -e ana@example.com -p "+54 11 5555-5555"
+gsuite contacts show CONTACT_ID
+
 # Server
 gsuite serve --port 8080       # Start REST API
 gsuite status                  # Overall status
@@ -227,7 +271,9 @@ google-suite/
 │   ├── gmail/          # Gmail client + query builder
 │   ├── calendar/       # Calendar client
 │   ├── drive/          # Drive client (upload, download, share)
-│   └── sheets/         # Sheets client + engine (from GSpreadManager)
+│   ├── sheets/         # Sheets client + engine (from GSpreadManager)
+│   ├── tasks/          # Tasks client
+│   └── contacts/       # Contacts client (People API)
 ├── api/                # Unified FastAPI REST gateway
 ├── cli/                # Unified CLI (Typer + Rich)
 ├── skill/              # AI agent skill (OpenClaw compatible)

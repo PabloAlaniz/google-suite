@@ -34,3 +34,12 @@ class TestScopes:
         assert all(s in scopes for s in Scopes.calendar())
         assert all(s in scopes for s in Scopes.drive())
         assert all(s in scopes for s in Scopes.sheets())
+
+    def test_tasks_and_contacts_only_in_all(self):
+        """Tasks and Contacts are opt-in: contacts is a sensitive scope."""
+        assert Scopes.tasks() == [Scopes.TASKS_FULL]
+        assert Scopes.contacts() == [Scopes.CONTACTS_FULL]
+        for scope in Scopes.tasks() + Scopes.contacts():
+            assert scope in Scopes.all()
+            assert scope not in Scopes.default()
+        assert len(Scopes.all()) == len(set(Scopes.all()))

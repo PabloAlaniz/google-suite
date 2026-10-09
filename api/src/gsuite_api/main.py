@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from gsuite_api.dependencies import require_api_key
 from gsuite_api.errors import install_error_handlers
 from gsuite_api.observability import RequestContextMiddleware, configure_logging
-from gsuite_api.routes import calendar, drive, gmail, health, sheets
+from gsuite_api.routes import calendar, contacts, drive, gmail, health, sheets, tasks
 from gsuite_core import Settings, __version__, get_settings
 
 logger = logging.getLogger(__name__)
@@ -37,7 +37,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app = FastAPI(
         title="Google Suite API",
-        description="Unified REST API for Google Workspace - Gmail, Calendar, Drive, Sheets",
+        description=(
+            "Unified REST API for Google Workspace - Gmail, Calendar, Drive, Sheets, Tasks, Contacts"
+        ),
         version=__version__,
         docs_url="/docs",
         redoc_url="/redoc",
@@ -55,7 +57,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             CORSMiddleware,
             allow_origins=origins,
             allow_credentials=False,
-            allow_methods=["GET", "POST", "PUT", "DELETE"],
+            allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
             allow_headers=["X-API-Key", "Content-Type", "X-Request-ID"],
             expose_headers=["X-Request-ID", "Retry-After"],
         )
@@ -71,6 +73,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.include_router(drive.router, prefix="/drive", tags=["Drive"], dependencies=protected)
     app.include_router(sheets.router, prefix="/sheets", tags=["Sheets"], dependencies=protected)
+    app.include_router(tasks.router, prefix="/tasks", tags=["Tasks"], dependencies=protected)
+    app.include_router(
+        contacts.router, prefix="/contacts", tags=["Contacts"], dependencies=protected
+    )
 
     return app
 

@@ -25,6 +25,8 @@ TARGETS = {
     "calendar": "packages/calendar/src",
     "drive": "packages/drive/src",
     "sheets": "packages/sheets/src",
+    "tasks": "packages/tasks/src",
+    "contacts": "packages/contacts/src",
     "api": "api/src",
     "cli": "cli/src",
 }

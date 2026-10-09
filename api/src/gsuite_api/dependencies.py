@@ -8,11 +8,13 @@ from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
 
 from gsuite_calendar import Calendar
+from gsuite_contacts import Contacts
 from gsuite_core import GoogleAuth, Settings, SQLiteTokenStore, TokenStore, get_settings
 from gsuite_core.exceptions import NotAuthenticatedError
 from gsuite_drive import Drive
 from gsuite_gmail import Gmail
 from gsuite_sheets import Sheets
+from gsuite_tasks import Tasks
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
@@ -110,7 +112,17 @@ def get_sheets(auth: AuthenticatedDep) -> Sheets:
     return Sheets(auth)
 
 
+def get_tasks(auth: AuthenticatedDep) -> Tasks:
+    return Tasks(auth)
+
+
+def get_contacts(auth: AuthenticatedDep) -> Contacts:
+    return Contacts(auth)
+
+
 GmailDep = Annotated[Gmail, Depends(get_gmail)]
 CalendarDep = Annotated[Calendar, Depends(get_calendar)]
 DriveDep = Annotated[Drive, Depends(get_drive)]
 SheetsDep = Annotated[Sheets, Depends(get_sheets)]
+TasksDep = Annotated[Tasks, Depends(get_tasks)]
+ContactsDep = Annotated[Contacts, Depends(get_contacts)]

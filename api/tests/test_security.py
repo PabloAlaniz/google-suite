@@ -112,3 +112,23 @@ class TestCors:
 
         other = client.get("/health", headers={"Origin": "https://evil.example"})
         assert "access-control-allow-origin" not in other.headers
+
+    def test_preflight_allows_every_method_the_api_uses(self, make_client):
+        """PATCH routes existed while CORS only allowed GET/POST/PUT/DELETE,
+        so browsers could not call them."""
+        client = make_client(
+            Settings(api_key="k", cors_origins="https://app.example", _env_file=None)
+        )
+        methods = {
+            method.upper() for item in client.app.openapi()["paths"].values() for method in item
+        }
+        assert "PATCH" in methods
+        for method in methods:
+            response = client.options(
+                "/health",
+                headers={
+                    "Origin": "https://app.example",
+                    "Access-Control-Request-Method": method,
+                },
+            )
+            assert response.status_code == 200, method

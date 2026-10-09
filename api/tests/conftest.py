@@ -25,6 +25,8 @@ def services():
         "calendar": MagicMock(name="calendar"),
         "drive": MagicMock(name="drive"),
         "sheets": MagicMock(name="sheets"),
+        "tasks": MagicMock(name="tasks"),
+        "contacts": MagicMock(name="contacts"),
     }
 
 
@@ -48,6 +50,8 @@ def make_client(services, google_auth):
         app.dependency_overrides[dependencies.get_calendar] = lambda: services["calendar"]
         app.dependency_overrides[dependencies.get_drive] = lambda: services["drive"]
         app.dependency_overrides[dependencies.get_sheets] = lambda: services["sheets"]
+        app.dependency_overrides[dependencies.get_tasks] = lambda: services["tasks"]
+        app.dependency_overrides[dependencies.get_contacts] = lambda: services["contacts"]
         return TestClient(app, raise_server_exceptions=raise_server_exceptions)
 
     return _make

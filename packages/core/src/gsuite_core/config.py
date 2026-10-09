@@ -19,7 +19,22 @@ class Settings(BaseSettings):
 
     # API settings
     api_key: str | None = Field(default=None, description="API key for REST endpoints")
-    host: str = Field(default="0.0.0.0", description="Server host")
+    allow_no_api_key: bool = Field(
+        default=False,
+        description=(
+            "Serve the REST API without an API key. Only for deployments protected "
+            "some other way (Cloud Run IAM, localhost)"
+        ),
+    )
+    cors_origins: str = Field(
+        default="",
+        description="Comma-separated origins allowed by CORS; empty disables CORS",
+    )
+    log_level: str = Field(default="INFO", description="Log level for the REST API")
+    log_format: Literal["text", "json"] = Field(
+        default="text", description="json emits one object per line (Cloud Logging)"
+    )
+    host: str = Field(default="127.0.0.1", description="Server host")
     port: int = Field(default=8080, description="Server port")
     version: str = Field(
         default=__version__, description="Version reported by /health (override per deploy)"
@@ -64,6 +79,11 @@ class Settings(BaseSettings):
         "env_file_encoding": "utf-8",
         "extra": "ignore",
     }
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        """CORS origins parsed from the comma-separated setting."""
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     def validate_for_secretmanager(self) -> None:
         """Validate settings when using Secret Manager."""

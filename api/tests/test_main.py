@@ -1,5 +1,7 @@
 """Tests for main API application."""
 
+import re
+
 from fastapi.testclient import TestClient
 
 from gsuite_api.main import app, create_app
@@ -28,6 +30,11 @@ class TestAppCreation:
         middleware_types = [type(m).__name__ for m in app.user_middleware]
         # CORSMiddleware is wrapped, so we check the app has middleware
         assert len(app.user_middleware) > 0
+
+
+def _paths_with_methods() -> list[tuple[str, list[str]]]:
+    # OpenAPI keeps paths in registration order, which is matching order.
+    return [(p, [m.upper() for m in ops]) for p, ops in app.openapi()["paths"].items()]
 
 
 def _paths() -> list[str]:
@@ -78,3 +85,29 @@ class TestRoutes:
         # ReDoc
         response = client.get("/redoc")
         assert response.status_code == 200
+
+
+def _pattern(path: str) -> re.Pattern[str]:
+    return re.compile("^" + re.sub(r"\\\{[^}]+\\\}", "[^/]+", re.escape(path)) + "$")
+
+
+def test_no_route_is_shadowed_by_an_earlier_one():
+    """A parametric route declared first swallows later literal ones.
+
+    /gmail/messages/{message_id}/read used to capture /gmail/messages/batch/read
+    (message_id="batch"), so the batch endpoints were unreachable.
+    """
+    seen: list[tuple[str, str]] = []
+    shadowed = []
+    for path, operations in _paths_with_methods():
+        concrete = re.sub(r"\{[^}]+\}", "__param__", path)
+        for method in operations:
+            for earlier_method, earlier in seen:
+                if (
+                    earlier_method == method
+                    and earlier != path
+                    and _pattern(earlier).match(concrete)
+                ):
+                    shadowed.append(f"{method} {path} is caught by {earlier}")
+        seen.extend((method, path) for method in operations)
+    assert not shadowed

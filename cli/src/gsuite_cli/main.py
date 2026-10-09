@@ -47,7 +47,7 @@ def status():
 
 @app.command()
 def serve(
-    host: str = typer.Option("0.0.0.0", help="Host to bind"),
+    host: str = typer.Option("127.0.0.1", help="Host to bind (0.0.0.0 exposes it to your network)"),
     port: int = typer.Option(8080, help="Port to bind"),
     reload: bool = typer.Option(False, help="Enable auto-reload"),
 ):

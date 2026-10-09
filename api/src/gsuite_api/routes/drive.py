@@ -20,7 +20,7 @@ class CreateFolderRequest(BaseModel):
 
 
 @router.get("/files")
-async def list_files(
+def list_files(
     query: str | None = Query(None, description="Drive search query"),
     parent_id: str | None = Query(None, description="Parent folder ID"),
     limit: int = Query(100, le=1000),
@@ -38,7 +38,7 @@ async def list_files(
 
 
 @router.get("/files/{file_id}")
-async def get_file(file_id: str):
+def get_file(file_id: str):
     """Get a specific file."""
     return {
         "status": "placeholder",
@@ -47,7 +47,7 @@ async def get_file(file_id: str):
 
 
 @router.post("/files/upload")
-async def upload_file(
+def upload_file(
     file: UploadFile = File(...),
     parent_id: str | None = None,
 ):
@@ -60,7 +60,7 @@ async def upload_file(
 
 
 @router.post("/folders")
-async def create_folder(request: CreateFolderRequest):
+def create_folder(request: CreateFolderRequest):
     """Create a folder."""
     return {
         "status": "placeholder",
@@ -70,7 +70,7 @@ async def create_folder(request: CreateFolderRequest):
 
 
 @router.delete("/files/{file_id}")
-async def delete_file(file_id: str):
+def delete_file(file_id: str):
     """Delete a file."""
     return {
         "status": "placeholder",
@@ -79,7 +79,7 @@ async def delete_file(file_id: str):
 
 
 @router.post("/files/{file_id}/share")
-async def share_file(
+def share_file(
     file_id: str,
     email: str = Query(...),
     role: str = Query("reader"),

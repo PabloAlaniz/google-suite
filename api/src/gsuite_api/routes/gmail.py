@@ -1,5 +1,8 @@
 """Gmail API routes - Full featured."""
 
+import re
+from urllib.parse import quote
+
 from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, EmailStr
 
@@ -153,11 +156,23 @@ def _message_to_detail(m) -> MessageDetailResponse:
     )
 
 
+def _content_disposition(filename: str | None) -> str:
+    """Attachment header that survives quotes, newlines and non-ASCII names.
+
+    The filename comes from the email sender, so it is untrusted: an ASCII
+    fallback with unsafe characters replaced, plus the exact name as an
+    RFC 5987 filename* parameter (RFC 6266).
+    """
+    name = filename or "attachment"
+    fallback = re.sub(r"[^A-Za-z0-9._ -]", "_", name).strip() or "attachment"
+    return f"attachment; filename=\"{fallback}\"; filename*=UTF-8''{quote(name, safe='')}"
+
+
 # ========== Messages Routes ==========
 
 
 @router.get("/messages")
-async def list_messages(
+def list_messages(
     gmail: GmailDep,
     query: str | None = Query(None, description="Gmail search query"),
     labels: list[str] | None = Query(None, description="Filter by label IDs"),
@@ -180,7 +195,7 @@ async def list_messages(
 
 
 @router.get("/messages/unread")
-async def list_unread(gmail: GmailDep, limit: int = Query(25, le=100)):
+def list_unread(gmail: GmailDep, limit: int = Query(25, le=100)):
     """Get unread messages."""
     messages = gmail.get_unread(max_results=limit)
     return {
@@ -190,7 +205,7 @@ async def list_unread(gmail: GmailDep, limit: int = Query(25, le=100)):
 
 
 @router.get("/messages/starred")
-async def list_starred(gmail: GmailDep, limit: int = Query(25, le=100)):
+def list_starred(gmail: GmailDep, limit: int = Query(25, le=100)):
     """Get starred messages."""
     messages = gmail.get_starred(max_results=limit)
     return {
@@ -200,7 +215,7 @@ async def list_starred(gmail: GmailDep, limit: int = Query(25, le=100)):
 
 
 @router.get("/messages/important")
-async def list_important(gmail: GmailDep, limit: int = Query(25, le=100)):
+def list_important(gmail: GmailDep, limit: int = Query(25, le=100)):
     """Get important messages."""
     messages = gmail.get_important(max_results=limit)
     return {
@@ -210,7 +225,7 @@ async def list_important(gmail: GmailDep, limit: int = Query(25, le=100)):
 
 
 @router.get("/messages/sent")
-async def list_sent(gmail: GmailDep, limit: int = Query(25, le=100)):
+def list_sent(gmail: GmailDep, limit: int = Query(25, le=100)):
     """Get sent messages."""
     messages = gmail.get_sent(max_results=limit)
     return {
@@ -220,7 +235,7 @@ async def list_sent(gmail: GmailDep, limit: int = Query(25, le=100)):
 
 
 @router.get("/messages/{message_id}")
-async def get_message(message_id: str, gmail: GmailDep):
+def get_message(message_id: str, gmail: GmailDep):
     """Get a specific message with full body and attachments."""
     message = gmail.get_message(message_id)
     if not message:
@@ -229,7 +244,7 @@ async def get_message(message_id: str, gmail: GmailDep):
 
 
 @router.post("/messages/send")
-async def send_message(request: SendRequest, gmail: GmailDep):
+def send_message(request: SendRequest, gmail: GmailDep):
     """
     Send an email.
 
@@ -250,140 +265,14 @@ async def send_message(request: SendRequest, gmail: GmailDep):
     return {"id": message.id, "thread_id": message.thread_id, "status": "sent"}
 
 
-# ========== Message Actions ==========
-
-
-@router.post("/messages/{message_id}/read")
-async def mark_as_read(message_id: str, gmail: GmailDep):
-    """Mark message as read."""
-    message = gmail.get_message(message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    message.mark_as_read()
-    return {"status": "success", "is_unread": message.is_unread}
-
-
-@router.post("/messages/{message_id}/unread")
-async def mark_as_unread(message_id: str, gmail: GmailDep):
-    """Mark message as unread."""
-    message = gmail.get_message(message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    message.mark_as_unread()
-    return {"status": "success", "is_unread": message.is_unread}
-
-
-@router.post("/messages/{message_id}/star")
-async def star_message(message_id: str, gmail: GmailDep):
-    """Star a message."""
-    message = gmail.get_message(message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    message.star()
-    return {"status": "success", "is_starred": message.is_starred}
-
-
-@router.delete("/messages/{message_id}/star")
-async def unstar_message(message_id: str, gmail: GmailDep):
-    """Remove star from message."""
-    message = gmail.get_message(message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    message.unstar()
-    return {"status": "success", "is_starred": message.is_starred}
-
-
-@router.post("/messages/{message_id}/important")
-async def mark_important(message_id: str, gmail: GmailDep):
-    """Mark message as important."""
-    message = gmail.get_message(message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    message.mark_important()
-    return {"status": "success", "is_important": message.is_important}
-
-
-@router.delete("/messages/{message_id}/important")
-async def mark_not_important(message_id: str, gmail: GmailDep):
-    """Remove important mark from message."""
-    message = gmail.get_message(message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    message.mark_not_important()
-    return {"status": "success", "is_important": message.is_important}
-
-
-@router.delete("/messages/{message_id}")
-async def trash_message(message_id: str, gmail: GmailDep):
-    """Move message to trash."""
-    message = gmail.get_message(message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    message.trash()
-    return {"status": "success", "message": f"Message {message_id} moved to trash"}
-
-
-@router.post("/messages/{message_id}/untrash")
-async def untrash_message(message_id: str, gmail: GmailDep):
-    """Remove message from trash."""
-    message = gmail.get_message(message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    message.untrash()
-    return {"status": "success", "message": f"Message {message_id} removed from trash"}
-
-
-@router.post("/messages/{message_id}/archive")
-async def archive_message(message_id: str, gmail: GmailDep):
-    """Archive message (remove from inbox)."""
-    message = gmail.get_message(message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    message.archive()
-    return {"status": "success", "message": f"Message {message_id} archived"}
-
-
-@router.post("/messages/{message_id}/inbox")
-async def move_to_inbox(message_id: str, gmail: GmailDep):
-    """Move message to inbox."""
-    message = gmail.get_message(message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-    message.move_to_inbox()
-    return {"status": "success", "message": f"Message {message_id} moved to inbox"}
-
-
-# ========== Labels on Messages ==========
-
-
-@router.post("/messages/{message_id}/labels")
-async def modify_labels(message_id: str, request: ModifyLabelsRequest, gmail: GmailDep):
-    """Add or remove labels from a message."""
-    message = gmail.get_message(message_id)
-    if not message:
-        raise HTTPException(status_code=404, detail="Message not found")
-
-    if request.add_labels:
-        for label in request.add_labels:
-            message.add_label(label)
-
-    if request.remove_labels:
-        for label in request.remove_labels:
-            message.remove_label(label)
-
-    return {
-        "status": "success",
-        "labels": message.labels,
-        "added": request.add_labels or [],
-        "removed": request.remove_labels or [],
-    }
-
-
 # ========== Batch Operations ==========
+# Declared before the /messages/{message_id}/... routes: FastAPI matches in
+# order, and /messages/{message_id}/read would otherwise capture
+# /messages/batch/read with message_id="batch".
 
 
 @router.post("/messages/batch/read")
-async def batch_mark_as_read(request: BatchModifyRequest, gmail: GmailDep):
+def batch_mark_as_read(request: BatchModifyRequest, gmail: GmailDep):
     """Mark multiple messages as read."""
     if not request.message_ids:
         raise HTTPException(status_code=400, detail="message_ids cannot be empty")
@@ -400,7 +289,7 @@ async def batch_mark_as_read(request: BatchModifyRequest, gmail: GmailDep):
 
 
 @router.post("/messages/batch/labels")
-async def batch_modify_labels(request: BatchModifyRequest, gmail: GmailDep):
+def batch_modify_labels(request: BatchModifyRequest, gmail: GmailDep):
     """Modify labels on multiple messages."""
     if not request.message_ids:
         raise HTTPException(status_code=400, detail="message_ids cannot be empty")
@@ -423,11 +312,140 @@ async def batch_modify_labels(request: BatchModifyRequest, gmail: GmailDep):
     }
 
 
+# ========== Message Actions ==========
+
+
+@router.post("/messages/{message_id}/read")
+def mark_as_read(message_id: str, gmail: GmailDep):
+    """Mark message as read."""
+    message = gmail.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    message.mark_as_read()
+    return {"status": "success", "is_unread": message.is_unread}
+
+
+@router.post("/messages/{message_id}/unread")
+def mark_as_unread(message_id: str, gmail: GmailDep):
+    """Mark message as unread."""
+    message = gmail.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    message.mark_as_unread()
+    return {"status": "success", "is_unread": message.is_unread}
+
+
+@router.post("/messages/{message_id}/star")
+def star_message(message_id: str, gmail: GmailDep):
+    """Star a message."""
+    message = gmail.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    message.star()
+    return {"status": "success", "is_starred": message.is_starred}
+
+
+@router.delete("/messages/{message_id}/star")
+def unstar_message(message_id: str, gmail: GmailDep):
+    """Remove star from message."""
+    message = gmail.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    message.unstar()
+    return {"status": "success", "is_starred": message.is_starred}
+
+
+@router.post("/messages/{message_id}/important")
+def mark_important(message_id: str, gmail: GmailDep):
+    """Mark message as important."""
+    message = gmail.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    message.mark_important()
+    return {"status": "success", "is_important": message.is_important}
+
+
+@router.delete("/messages/{message_id}/important")
+def mark_not_important(message_id: str, gmail: GmailDep):
+    """Remove important mark from message."""
+    message = gmail.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    message.mark_not_important()
+    return {"status": "success", "is_important": message.is_important}
+
+
+@router.delete("/messages/{message_id}")
+def trash_message(message_id: str, gmail: GmailDep):
+    """Move message to trash."""
+    message = gmail.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    message.trash()
+    return {"status": "success", "message": f"Message {message_id} moved to trash"}
+
+
+@router.post("/messages/{message_id}/untrash")
+def untrash_message(message_id: str, gmail: GmailDep):
+    """Remove message from trash."""
+    message = gmail.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    message.untrash()
+    return {"status": "success", "message": f"Message {message_id} removed from trash"}
+
+
+@router.post("/messages/{message_id}/archive")
+def archive_message(message_id: str, gmail: GmailDep):
+    """Archive message (remove from inbox)."""
+    message = gmail.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    message.archive()
+    return {"status": "success", "message": f"Message {message_id} archived"}
+
+
+@router.post("/messages/{message_id}/inbox")
+def move_to_inbox(message_id: str, gmail: GmailDep):
+    """Move message to inbox."""
+    message = gmail.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+    message.move_to_inbox()
+    return {"status": "success", "message": f"Message {message_id} moved to inbox"}
+
+
+# ========== Labels on Messages ==========
+
+
+@router.post("/messages/{message_id}/labels")
+def modify_labels(message_id: str, request: ModifyLabelsRequest, gmail: GmailDep):
+    """Add or remove labels from a message."""
+    message = gmail.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    if request.add_labels:
+        for label in request.add_labels:
+            message.add_label(label)
+
+    if request.remove_labels:
+        for label in request.remove_labels:
+            message.remove_label(label)
+
+    return {
+        "status": "success",
+        "labels": message.labels,
+        "added": request.add_labels or [],
+        "removed": request.remove_labels or [],
+    }
+
+
 # ========== Reply ==========
 
 
 @router.post("/messages/{message_id}/reply")
-async def reply_to_message(message_id: str, request: ReplyRequest, gmail: GmailDep):
+def reply_to_message(message_id: str, request: ReplyRequest, gmail: GmailDep):
     """Reply to a message (keeps thread)."""
     message = gmail.get_message(message_id)
     if not message:
@@ -446,7 +464,7 @@ async def reply_to_message(message_id: str, request: ReplyRequest, gmail: GmailD
 
 
 @router.get("/messages/{message_id}/attachments/{attachment_id}")
-async def download_attachment(message_id: str, attachment_id: str, gmail: GmailDep):
+def download_attachment(message_id: str, attachment_id: str, gmail: GmailDep):
     """Download an attachment."""
     message = gmail.get_message(message_id)
     if not message:
@@ -461,7 +479,7 @@ async def download_attachment(message_id: str, attachment_id: str, gmail: GmailD
     return Response(
         content=content,
         media_type=attachment.mime_type,
-        headers={"Content-Disposition": f'attachment; filename="{attachment.filename}"'},
+        headers={"Content-Disposition": _content_disposition(attachment.filename)},
     )
 
 
@@ -469,7 +487,7 @@ async def download_attachment(message_id: str, attachment_id: str, gmail: GmailD
 
 
 @router.get("/threads/{thread_id}")
-async def get_thread(thread_id: str, gmail: GmailDep):
+def get_thread(thread_id: str, gmail: GmailDep):
     """Get a full email thread with all messages."""
     thread = gmail.get_thread(thread_id)
     if not thread:
@@ -512,7 +530,7 @@ async def get_thread(thread_id: str, gmail: GmailDep):
 
 
 @router.get("/labels")
-async def list_labels(gmail: GmailDep):
+def list_labels(gmail: GmailDep):
     """List all labels with stats."""
     labels = gmail.get_labels()
     return {
@@ -536,6 +554,6 @@ async def list_labels(gmail: GmailDep):
 
 
 @router.get("/profile")
-async def get_profile(gmail: GmailDep):
+def get_profile(gmail: GmailDep):
     """Get authenticated user's profile."""
     return gmail.get_profile()

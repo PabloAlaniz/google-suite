@@ -94,6 +94,14 @@ python_version = "3.11"
 warn_return_any = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
+# Editable installs use an import hook mypy can't follow; point it at the
+# sources so cross-package imports type-check instead of erroring.
+mypy_path = "packages/core/src:packages/gmail/src:packages/calendar/src:packages/drive/src:packages/sheets/src:api/src:cli/src"
+
+[[tool.mypy.overrides]]
+# Google's client libraries ship without type information
+module = ["googleapiclient.*", "google_auth_oauthlib.*", "google.cloud.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

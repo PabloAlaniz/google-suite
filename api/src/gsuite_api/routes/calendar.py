@@ -23,15 +23,15 @@ class EventResponse(BaseModel):
 
 class CreateEventRequest(BaseModel):
     summary: str
-    start: str  # ISO format
-    end: str | None = None
+    start: datetime  # ISO 8601; invalid values get a 422
+    end: datetime | None = None
     description: str | None = None
     location: str | None = None
     all_day: bool = False
 
 
 @router.get("/events")
-async def list_events(
+def list_events(
     calendar: CalendarDep,
     days: int = Query(7, le=365),
     calendar_id: str | None = None,
@@ -58,7 +58,7 @@ async def list_events(
 
 
 @router.get("/events/today")
-async def list_today(calendar: CalendarDep, calendar_id: str | None = None):
+def list_today(calendar: CalendarDep, calendar_id: str | None = None):
     """Get today's events."""
     events = calendar.get_today(calendar_id=calendar_id)
     return {
@@ -80,7 +80,7 @@ async def list_today(calendar: CalendarDep, calendar_id: str | None = None):
 
 
 @router.get("/events/{event_id}")
-async def get_event(event_id: str, calendar: CalendarDep, calendar_id: str | None = None):
+def get_event(event_id: str, calendar: CalendarDep, calendar_id: str | None = None):
     """Get a specific event."""
     event = calendar.get_event(event_id, calendar_id=calendar_id)
     if not event:
@@ -99,15 +99,12 @@ async def get_event(event_id: str, calendar: CalendarDep, calendar_id: str | Non
 
 
 @router.post("/events")
-async def create_event(request: CreateEventRequest, calendar: CalendarDep):
+def create_event(request: CreateEventRequest, calendar: CalendarDep):
     """Create a new event."""
-    start = datetime.fromisoformat(request.start)
-    end = datetime.fromisoformat(request.end) if request.end else None
-
     event = calendar.create_event(
         summary=request.summary,
-        start=start,
-        end=end,
+        start=request.start,
+        end=request.end,
         description=request.description,
         location=request.location,
         all_day=request.all_day,
@@ -121,14 +118,14 @@ async def create_event(request: CreateEventRequest, calendar: CalendarDep):
 
 
 @router.delete("/events/{event_id}")
-async def delete_event(event_id: str, calendar: CalendarDep, calendar_id: str | None = None):
+def delete_event(event_id: str, calendar: CalendarDep, calendar_id: str | None = None):
     """Delete an event."""
     success = calendar.delete_event(event_id, calendar_id=calendar_id)
     return {"status": "deleted" if success else "failed"}
 
 
 @router.get("/calendars")
-async def list_calendars(calendar: CalendarDep):
+def list_calendars(calendar: CalendarDep):
     """List all accessible calendars."""
     calendars = calendar.get_calendars()
     return {

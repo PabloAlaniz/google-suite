@@ -14,7 +14,10 @@ class TestSettings:
         """Test default configuration values."""
         settings = Settings()
 
-        assert settings.host == "0.0.0.0"
+        assert settings.host == "127.0.0.1"
+        assert settings.api_key is None
+        assert settings.allow_no_api_key is False
+        assert settings.cors_origin_list == []
         assert settings.port == 8080
         assert settings.credentials_file == "credentials.json"
         assert settings.token_storage == "sqlite"

@@ -65,5 +65,16 @@ def serve(
     )
 
 
+def main() -> None:
+    """Console entry point: SDK errors become a message and exit code 1, not a traceback."""
+    from gsuite_core.exceptions import GSuiteError
+
+    try:
+        app()
+    except GSuiteError as e:
+        console.print(f"[red]Error:[/red] {e.message}")
+        raise SystemExit(1) from e
+
+
 if __name__ == "__main__":
-    app()
+    main()

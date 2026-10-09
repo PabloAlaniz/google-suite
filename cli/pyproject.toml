@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.scripts]
-gsuite = "gsuite_cli.main:app"
+gsuite = "gsuite_cli.main:main"
 
 [project.urls]
 Homepage = "https://github.com/PabloAlaniz/google-suite"

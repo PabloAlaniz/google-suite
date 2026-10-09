@@ -3,6 +3,9 @@
 from datetime import datetime
 from unittest.mock import Mock, patch
 
+import pytest
+
+from gsuite_core.exceptions import PermissionDeniedError
 from gsuite_drive.client import Drive
 from gsuite_drive.file import File, Folder
 
@@ -39,7 +42,8 @@ class TestDriveService:
         service = drive.service
 
         # Now it's created
-        mock_build.assert_called_once_with("drive", "v3", credentials=mock_auth.credentials)
+        assert mock_build.call_args.args == ("drive", "v3")
+        assert mock_build.call_args.kwargs["http"].credentials is mock_auth.credentials
         assert service is mock_service
 
 
@@ -219,13 +223,13 @@ class TestGetFile:
         assert file.name == "test.txt"
 
     @patch("gsuite_drive.client.build")
-    def test_get_file_not_found(self, mock_build):
+    def test_get_file_not_found(self, mock_build, http_error):
         """Test getting non-existent file."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
 
         mock_service = Mock()
-        mock_service.files().get().execute.side_effect = Exception("Not found")
+        mock_service.files().get().execute.side_effect = http_error(404)
         mock_build.return_value = mock_service
 
         drive = Drive(mock_auth)
@@ -346,19 +350,31 @@ class TestTrashAndDelete:
         mock_service.files().delete.assert_called()
 
     @patch("gsuite_drive.client.build")
-    def test_delete_failure(self, mock_build):
+    def test_delete_not_found(self, mock_build, http_error):
         """Test delete failure."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
 
         mock_service = Mock()
-        mock_service.files().delete().execute.side_effect = Exception("Error")
+        mock_service.files().delete().execute.side_effect = http_error(404)
         mock_build.return_value = mock_service
 
         drive = Drive(mock_auth)
         result = drive.delete("file123")
 
         assert result is False
+
+    @patch("gsuite_drive.client.build")
+    def test_delete_other_errors_raise(self, mock_build, http_error):
+        """Auth/permission failures must not look like "file not found"."""
+        mock_service = Mock()
+        mock_service.files().delete().execute.side_effect = http_error(
+            403, "insufficientPermissions"
+        )
+        mock_build.return_value = mock_service
+
+        with pytest.raises(PermissionDeniedError):
+            Drive(Mock()).delete("file123")
 
 
 class TestShare:
@@ -383,19 +399,28 @@ class TestShare:
         assert call_kwargs["body"]["role"] == "writer"
 
     @patch("gsuite_drive.client.build")
-    def test_share_failure(self, mock_build):
+    def test_share_not_found(self, mock_build, http_error):
         """Test share failure."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
 
         mock_service = Mock()
-        mock_service.permissions().create().execute.side_effect = Exception("Error")
+        mock_service.permissions().create().execute.side_effect = http_error(404)
         mock_build.return_value = mock_service
 
         drive = Drive(mock_auth)
         result = drive.share("file123", "user@example.com")
 
         assert result is False
+
+    @patch("gsuite_drive.client.build")
+    def test_share_unexpected_error_propagates(self, mock_build):
+        mock_service = Mock()
+        mock_service.permissions().create().execute.side_effect = RuntimeError("bug")
+        mock_build.return_value = mock_service
+
+        with pytest.raises(RuntimeError):
+            Drive(Mock()).share("file123", "user@example.com")
 
 
 class TestParseFile:

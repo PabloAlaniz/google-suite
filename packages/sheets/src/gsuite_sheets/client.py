@@ -4,9 +4,9 @@ import logging
 from typing import Any
 
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
-from gsuite_core import GoogleAuth
+from gsuite_core import GoogleAuth, authorized_http, drive_query_literal, execute, paginate
+from gsuite_core.exceptions import NotFoundError
 from gsuite_sheets.parser import SheetsParser
 from gsuite_sheets.spreadsheet import Spreadsheet
 from gsuite_sheets.worksheet import Worksheet
@@ -54,14 +54,18 @@ class Sheets:
     def service(self):
         """Lazy-load Sheets API service."""
         if self._sheets_service is None:
-            self._sheets_service = build("sheets", "v4", credentials=self.auth.credentials)
+            self._sheets_service = build(
+                "sheets", "v4", http=authorized_http(self.auth.credentials), cache_discovery=False
+            )
         return self._sheets_service
 
     @property
     def drive(self):
         """Lazy-load Drive API service (for listing/sharing)."""
         if self._drive_service is None:
-            self._drive_service = build("drive", "v3", credentials=self.auth.credentials)
+            self._drive_service = build(
+                "drive", "v3", http=authorized_http(self.auth.credentials), cache_discovery=False
+            )
         return self._drive_service
 
     # ========== Opening spreadsheets (gspread-style) ==========
@@ -80,14 +84,18 @@ class Sheets:
             ValueError: If not found
         """
         # Search in Drive
-        response = (
-            self.drive.files()
-            .list(
-                q=f"name='{title}' and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
+        response = execute(
+            self.drive.files().list(
+                q=(
+                    f"name={drive_query_literal(title)}"
+                    " and mimeType='application/vnd.google-apps.spreadsheet' and trashed=false"
+                ),
                 fields="files(id, name)",
                 pageSize=1,
-            )
-            .execute()
+            ),
+            "sheets",
+            "spreadsheet",
+            title,
         )
 
         files = response.get("files", [])
@@ -106,13 +114,14 @@ class Sheets:
         Returns:
             Spreadsheet object
         """
-        response = (
-            self.service.spreadsheets()
-            .get(
+        response = execute(
+            self.service.spreadsheets().get(
                 spreadsheetId=key,
                 fields="spreadsheetId,properties,sheets.properties",
-            )
-            .execute()
+            ),
+            "sheets",
+            "spreadsheet",
+            key,
         )
 
         return self._parse_spreadsheet(response)
@@ -153,43 +162,47 @@ class Sheets:
             "sheets": [{"properties": {"title": "Sheet1"}}],
         }
 
-        response = self.service.spreadsheets().create(body=body).execute()
+        response = execute(self.service.spreadsheets().create(body=body), "sheets", "spreadsheet")
         return self._parse_spreadsheet(response)
 
     # ========== Listing ==========
 
-    def list_spreadsheets(self, max_results: int = 100) -> list[dict]:
+    def list_spreadsheets(self, max_results: int | None = 100) -> list[dict]:
         """
         List all spreadsheets accessible to the user.
+
+        Args:
+            max_results: Maximum spreadsheets to return (None = all)
 
         Returns:
             List of {id, name} dicts
         """
-        response = (
-            self.drive.files()
-            .list(
+        return list(
+            paginate(
+                self.drive.files().list,
+                "files",
+                "sheets",
+                max_items=max_results,
+                page_size_param="pageSize",
+                max_page_size=1000,
                 q="mimeType='application/vnd.google-apps.spreadsheet' and trashed=false",
-                fields="files(id, name)",
-                pageSize=max_results,
+                fields="nextPageToken, files(id, name)",
                 orderBy="modifiedTime desc",
             )
-            .execute()
         )
-
-        return response.get("files", [])
 
     # ========== Low-level operations ==========
 
     def get_values(self, spreadsheet_id: str, range: str) -> list[list[Any]]:
         """Get values from a range."""
-        response = (
+        response = execute(
             self.service.spreadsheets()
             .values()
             .get(
                 spreadsheetId=spreadsheet_id,
                 range=range,
-            )
-            .execute()
+            ),
+            "sheets",
         )
         return response.get("values", [])
 
@@ -200,7 +213,7 @@ class Sheets:
         values: list[list[Any]],
     ) -> dict:
         """Update values in a range."""
-        return (
+        return execute(
             self.service.spreadsheets()
             .values()
             .update(
@@ -208,8 +221,8 @@ class Sheets:
                 range=range,
                 valueInputOption="USER_ENTERED",
                 body={"values": values},
-            )
-            .execute()
+            ),
+            "sheets",
         )
 
     def append_values(
@@ -219,7 +232,7 @@ class Sheets:
         values: list[list[Any]],
     ) -> dict:
         """Append values to a range."""
-        return (
+        return execute(
             self.service.spreadsheets()
             .values()
             .append(
@@ -228,20 +241,20 @@ class Sheets:
                 valueInputOption="USER_ENTERED",
                 insertDataOption="INSERT_ROWS",
                 body={"values": values},
-            )
-            .execute()
+            ),
+            "sheets",
         )
 
     def clear_values(self, spreadsheet_id: str, range: str) -> dict:
         """Clear values from a range."""
-        return (
+        return execute(
             self.service.spreadsheets()
             .values()
             .clear(
                 spreadsheetId=spreadsheet_id,
                 range=range,
-            )
-            .execute()
+            ),
+            "sheets",
         )
 
     def batch_update(
@@ -256,7 +269,7 @@ class Sheets:
             spreadsheet_id: Spreadsheet ID
             data: List of {range, values} dicts
         """
-        return (
+        return execute(
             self.service.spreadsheets()
             .values()
             .batchUpdate(
@@ -265,8 +278,8 @@ class Sheets:
                     "valueInputOption": "USER_ENTERED",
                     "data": [{"range": d["range"], "values": d["values"]} for d in data],
                 },
-            )
-            .execute()
+            ),
+            "sheets",
         )
 
     # ========== Worksheet operations ==========
@@ -279,9 +292,8 @@ class Sheets:
         cols: int = 26,
     ) -> Worksheet:
         """Add a worksheet to a spreadsheet."""
-        response = (
-            self.service.spreadsheets()
-            .batchUpdate(
+        response = execute(
+            self.service.spreadsheets().batchUpdate(
                 spreadsheetId=spreadsheet_id,
                 body={
                     "requests": [
@@ -298,36 +310,36 @@ class Sheets:
                         }
                     ],
                 },
-            )
-            .execute()
+            ),
+            "sheets",
         )
 
         return SheetsParser.parse_worksheet_from_reply(response["replies"][0]["addSheet"])
 
     def delete_worksheet(self, spreadsheet_id: str, sheet_id: int) -> bool:
-        """Delete a worksheet."""
+        """
+        Delete a worksheet.
+
+        Returns:
+            True if deleted, False if the spreadsheet doesn't exist. Other
+            failures raise, e.g. ValidationError-like 400s when deleting the
+            last remaining sheet.
+        """
         try:
-            self.service.spreadsheets().batchUpdate(
-                spreadsheetId=spreadsheet_id,
-                body={
-                    "requests": [
-                        {
-                            "deleteSheet": {"sheetId": sheet_id},
-                        }
-                    ],
-                },
-            ).execute()
-            logger.info(f"Deleted worksheet {sheet_id} from {spreadsheet_id}")
-            return True
-        except HttpError as e:
-            if e.resp.status == 400:
-                logger.error(f"Cannot delete worksheet {sheet_id}: {e}")
-            else:
-                logger.error(f"Error deleting worksheet {sheet_id}: {e}")
+            execute(
+                self.service.spreadsheets().batchUpdate(
+                    spreadsheetId=spreadsheet_id,
+                    body={"requests": [{"deleteSheet": {"sheetId": sheet_id}}]},
+                ),
+                "sheets",
+                "spreadsheet",
+                spreadsheet_id,
+            )
+        except NotFoundError:
+            logger.warning(f"Spreadsheet not found: {spreadsheet_id}")
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error deleting worksheet {sheet_id}: {e}")
-            return False
+        logger.info(f"Deleted worksheet {sheet_id} from {spreadsheet_id}")
+        return True
 
     # ========== Sharing ==========
 
@@ -338,28 +350,29 @@ class Sheets:
         role: str = "reader",
         notify: bool = True,
     ) -> bool:
-        """Share a spreadsheet."""
+        """
+        Share a spreadsheet.
+
+        Returns:
+            True if shared, False if the spreadsheet doesn't exist. Other
+            failures raise.
+        """
         try:
-            self.drive.permissions().create(
-                fileId=spreadsheet_id,
-                body={
-                    "type": "user",
-                    "role": role,
-                    "emailAddress": email,
-                },
-                sendNotificationEmail=notify,
-            ).execute()
-            logger.info(f"Shared spreadsheet {spreadsheet_id} with {email} ({role})")
-            return True
-        except HttpError as e:
-            if e.resp.status == 404:
-                logger.error(f"Spreadsheet not found: {spreadsheet_id}")
-            else:
-                logger.error(f"Error sharing spreadsheet {spreadsheet_id}: {e}")
+            execute(
+                self.drive.permissions().create(
+                    fileId=spreadsheet_id,
+                    body={"type": "user", "role": role, "emailAddress": email},
+                    sendNotificationEmail=notify,
+                ),
+                "sheets",
+                "spreadsheet",
+                spreadsheet_id,
+            )
+        except NotFoundError:
+            logger.error(f"Spreadsheet not found: {spreadsheet_id}")
             return False
-        except Exception as e:
-            logger.error(f"Unexpected error sharing spreadsheet: {e}")
-            return False
+        logger.info(f"Shared spreadsheet {spreadsheet_id} with {email} ({role})")
+        return True
 
     # ========== Parsing ==========
 

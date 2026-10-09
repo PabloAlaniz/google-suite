@@ -150,3 +150,20 @@ def sample_spreadsheet():
             },
         ],
     }
+
+
+@pytest.fixture
+def http_error():
+    """Factory for real googleapiclient HttpErrors: http_error(404, reason=...)."""
+    import json
+
+    import httplib2
+    from googleapiclient.errors import HttpError
+
+    def _make(status: int, reason: str | None = None) -> HttpError:
+        body = {"error": {"code": status, "message": "error"}}
+        if reason:
+            body["error"]["errors"] = [{"reason": reason}]
+        return HttpError(httplib2.Response({"status": str(status)}), json.dumps(body).encode())
+
+    return _make

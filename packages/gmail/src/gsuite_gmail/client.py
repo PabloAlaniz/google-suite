@@ -2,13 +2,14 @@
 
 import base64
 import logging
+from collections.abc import Iterator
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
 
-from gsuite_core import GoogleAuth, api_call, api_call_optional
+from gsuite_core import GoogleAuth, authorized_http, execute, paginate
+from gsuite_core.exceptions import GSuiteError, NotFoundError
 from gsuite_gmail.label import Label
 from gsuite_gmail.message import Message
 from gsuite_gmail.parser import GmailParser
@@ -58,16 +59,51 @@ class Gmail:
     def service(self):
         """Lazy-load Gmail API service."""
         if self._service is None:
-            self._service = build("gmail", "v1", credentials=self.auth.credentials)
+            self._service = build(
+                "gmail", "v1", http=authorized_http(self.auth.credentials), cache_discovery=False
+            )
         return self._service
 
     # ========== Message retrieval ==========
+
+    def iter_messages(
+        self,
+        query: str | Query | None = None,
+        labels: list[str] | None = None,
+        max_results: int | None = 25,
+        include_body: bool = True,
+    ) -> Iterator[Message]:
+        """
+        Lazily yield messages matching criteria, following result pages.
+
+        Args:
+            query: Gmail search query (str or Query object)
+            labels: Filter by label IDs
+            max_results: Maximum messages to yield (None = all matches)
+            include_body: Whether to fetch full message content
+        """
+        params: dict[str, object] = {"userId": self.user_id}
+        if query:
+            params["q"] = str(query)
+        if labels:
+            params["labelIds"] = labels
+
+        refs = paginate(
+            self.service.users().messages().list,
+            "messages",
+            "gmail",
+            max_items=max_results,
+            max_page_size=500,
+            **params,
+        )
+        for ref in refs:
+            yield self._get_message_by_id(ref["id"], include_body)
 
     def get_messages(
         self,
         query: str | Query | None = None,
         labels: list[str] | None = None,
-        max_results: int = 25,
+        max_results: int | None = 25,
         include_body: bool = True,
     ) -> list[Message]:
         """
@@ -76,30 +112,13 @@ class Gmail:
         Args:
             query: Gmail search query (str or Query object)
             labels: Filter by label IDs
-            max_results: Maximum messages to return
+            max_results: Maximum messages to return (None = all matches; can be slow)
             include_body: Whether to fetch full message content
 
         Returns:
             List of Message objects
         """
-        request_params = {
-            "userId": self.user_id,
-            "maxResults": min(max_results, 500),
-        }
-
-        if query:
-            request_params["q"] = str(query)
-        if labels:
-            request_params["labelIds"] = labels
-
-        response = self.service.users().messages().list(**request_params).execute()
-
-        messages = []
-        for msg_ref in response.get("messages", []):
-            msg = self._get_message_by_id(msg_ref["id"], include_body)
-            messages.append(msg)
-
-        return messages
+        return list(self.iter_messages(query, labels, max_results, include_body))
 
     def search(
         self,
@@ -143,38 +162,44 @@ class Gmail:
         return self.get_messages(query="in:drafts", max_results=max_results)
 
     def get_message(self, message_id: str) -> Message | None:
-        """Get a specific message by ID."""
-        return self._get_message_by_id(message_id, include_body=True)
+        """Get a specific message by ID, or None if it doesn't exist."""
+        try:
+            return self._get_message_by_id(message_id, include_body=True)
+        except NotFoundError:
+            return None
 
     def _get_message_by_id(self, message_id: str, include_body: bool = True) -> Message:
         """Internal: fetch and parse a message."""
-        msg_data = (
+        msg_data = execute(
             self.service.users()
             .messages()
             .get(
                 userId=self.user_id,
                 id=message_id,
                 format="full" if include_body else "metadata",
-            )
-            .execute()
+            ),
+            "gmail",
+            "message",
+            message_id,
         )
 
         return self._parse_message(msg_data, include_body)
 
     # ========== Threads ==========
 
-    def get_thread(self, thread_id: str) -> Thread:
-        """Get a full thread by ID."""
-        thread_data = (
-            self.service.users()
-            .threads()
-            .get(
-                userId=self.user_id,
-                id=thread_id,
-                format="full",
+    def get_thread(self, thread_id: str) -> Thread | None:
+        """Get a full thread by ID, or None if it doesn't exist."""
+        try:
+            thread_data = execute(
+                self.service.users()
+                .threads()
+                .get(userId=self.user_id, id=thread_id, format="full"),
+                "gmail",
+                "thread",
+                thread_id,
             )
-            .execute()
-        )
+        except NotFoundError:
+            return None
 
         messages = [
             self._parse_message(msg_data, include_body=True)
@@ -191,19 +216,16 @@ class Gmail:
 
     def get_labels(self) -> list[Label]:
         """Get all labels."""
-        response = self.service.users().labels().list(userId=self.user_id).execute()
+        response = execute(self.service.users().labels().list(userId=self.user_id), "gmail")
 
         labels = []
         for label_data in response.get("labels", []):
             # Fetch full details
-            full_label = (
-                self.service.users()
-                .labels()
-                .get(
-                    userId=self.user_id,
-                    id=label_data["id"],
-                )
-                .execute()
+            full_label = execute(
+                self.service.users().labels().get(userId=self.user_id, id=label_data["id"]),
+                "gmail",
+                "label",
+                label_data["id"],
             )
 
             labels.append(GmailParser.parse_label(full_label))
@@ -234,24 +256,20 @@ class Gmail:
         Returns:
             HTML signature or None
         """
+        # Best effort: a missing signature shouldn't stop an email from sending
         try:
             email = send_as_email or self.email
-            settings = (
+            settings = execute(
                 self.service.users()
                 .settings()
                 .sendAs()
-                .get(
-                    userId=self.user_id,
-                    sendAsEmail=email,
-                )
-                .execute()
+                .get(userId=self.user_id, sendAsEmail=email),
+                "gmail",
+                "signature",
             )
             return settings.get("signature")
-        except HttpError as e:
+        except GSuiteError as e:
             logger.debug(f"Could not get signature for {send_as_email}: {e}")
-            return None
-        except Exception as e:
-            logger.warning(f"Unexpected error getting signature: {e}")
             return None
 
     def send(
@@ -322,23 +340,19 @@ class Gmail:
             body_dict["threadId"] = thread_id
 
         # Send
-        sent = (
-            self.service.users()
-            .messages()
-            .send(
-                userId=self.user_id,
-                body=body_dict,
-            )
-            .execute()
+        sent = execute(
+            self.service.users().messages().send(userId=self.user_id, body=body_dict),
+            "gmail",
         )
 
-        return self.get_message(sent["id"])
+        return self._get_message_by_id(sent["id"])
 
     # ========== Profile ==========
 
     def get_profile(self) -> dict:
         """Get authenticated user's profile."""
-        return self.service.users().getProfile(userId=self.user_id).execute()
+        profile: dict = execute(self.service.users().getProfile(userId=self.user_id), "gmail")
+        return profile
 
     @property
     def email(self) -> str:
@@ -361,38 +375,43 @@ class Gmail:
             body["removeLabelIds"] = remove
 
         if body:
-            self.service.users().messages().modify(
-                userId=self.user_id,
-                id=message_id,
-                body=body,
-            ).execute()
+            execute(
+                self.service.users()
+                .messages()
+                .modify(userId=self.user_id, id=message_id, body=body),
+                "gmail",
+                "message",
+                message_id,
+            )
 
     def _trash_message(self, message_id: str) -> None:
         """Internal: trash a message."""
-        self.service.users().messages().trash(
-            userId=self.user_id,
-            id=message_id,
-        ).execute()
+        execute(
+            self.service.users().messages().trash(userId=self.user_id, id=message_id),
+            "gmail",
+            "message",
+            message_id,
+        )
 
     def _untrash_message(self, message_id: str) -> None:
         """Internal: untrash a message."""
-        self.service.users().messages().untrash(
-            userId=self.user_id,
-            id=message_id,
-        ).execute()
+        execute(
+            self.service.users().messages().untrash(userId=self.user_id, id=message_id),
+            "gmail",
+            "message",
+            message_id,
+        )
 
     def _download_attachment(self, message_id: str, attachment_id: str) -> bytes:
         """Internal: download attachment content."""
-        attachment = (
+        attachment = execute(
             self.service.users()
             .messages()
             .attachments()
-            .get(
-                userId=self.user_id,
-                messageId=message_id,
-                id=attachment_id,
-            )
-            .execute()
+            .get(userId=self.user_id, messageId=message_id, id=attachment_id),
+            "gmail",
+            "attachment",
+            attachment_id,
         )
 
         return base64.urlsafe_b64decode(attachment.get("data", ""))

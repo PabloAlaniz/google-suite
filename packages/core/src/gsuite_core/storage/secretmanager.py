@@ -68,10 +68,11 @@ class SecretManagerTokenStore(TokenStore):
             response = self.client.access_secret_version(
                 request={"name": self._get_latest_version_path()}
             )
-            data = json.loads(response.payload.data.decode("utf-8"))
+            data: dict[str, Any] = json.loads(response.payload.data.decode("utf-8"))
 
             if user_id in data:
-                return data[user_id]
+                token: dict[str, Any] = data[user_id]
+                return token
             elif user_id == "default" and "token" in data:
                 return data
 

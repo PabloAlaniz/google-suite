@@ -39,7 +39,8 @@ class TestSheetsService:
 
         service = sheets.service
 
-        mock_build.assert_called_once_with("sheets", "v4", credentials=mock_auth.credentials)
+        assert mock_build.call_args.args == ("sheets", "v4")
+        assert mock_build.call_args.kwargs["http"].credentials is mock_auth.credentials
         assert service is mock_service
 
     @patch("gsuite_sheets.client.build")
@@ -54,7 +55,8 @@ class TestSheetsService:
 
         drive = sheets.drive
 
-        mock_build.assert_called_once_with("drive", "v3", credentials=mock_auth.credentials)
+        assert mock_build.call_args.args == ("drive", "v3")
+        assert mock_build.call_args.kwargs["http"].credentials is mock_auth.credentials
         assert drive is mock_service
 
 
@@ -324,13 +326,13 @@ class TestWorksheetOperations:
         assert result is True
 
     @patch("gsuite_sheets.client.build")
-    def test_delete_worksheet_failure(self, mock_build):
+    def test_delete_worksheet_not_found(self, mock_build, http_error):
         """Test worksheet deletion failure."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
 
         mock_service = Mock()
-        mock_service.spreadsheets().batchUpdate().execute.side_effect = Exception("Error")
+        mock_service.spreadsheets().batchUpdate().execute.side_effect = http_error(404)
         mock_build.return_value = mock_service
 
         sheets = Sheets(mock_auth)
@@ -361,13 +363,13 @@ class TestShare:
         assert call_args[1]["body"]["role"] == "writer"
 
     @patch("gsuite_sheets.client.build")
-    def test_share_failure(self, mock_build):
+    def test_share_not_found(self, mock_build, http_error):
         """Test share failure."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
 
         mock_drive = Mock()
-        mock_drive.permissions().create().execute.side_effect = Exception("Error")
+        mock_drive.permissions().create().execute.side_effect = http_error(404)
         mock_build.return_value = mock_drive
 
         sheets = Sheets(mock_auth)
@@ -425,3 +427,34 @@ class TestParseSpreadsheet:
         assert len(spreadsheet.worksheets) == 2
         assert spreadsheet.worksheets[0].title == "Sheet1"
         assert spreadsheet.worksheets[1].row_count == 500
+
+
+class TestErrorSemantics:
+    @patch("gsuite_sheets.client.build")
+    def test_deleting_last_sheet_raises(self, mock_build, http_error):
+        """A 400 (e.g. deleting the only sheet) is an error, not "not found"."""
+        from gsuite_core.exceptions import APIError
+
+        mock_service = Mock()
+        mock_service.spreadsheets().batchUpdate().execute.side_effect = http_error(400)
+        mock_build.return_value = mock_service
+
+        with pytest.raises(APIError) as exc_info:
+            Sheets(Mock()).delete_worksheet("sheet123", 0)
+        assert exc_info.value.status_code == 400
+
+    @patch("gsuite_sheets.client.build")
+    def test_open_by_title_escapes_quotes(self, mock_build):
+        mock_service = Mock()
+        mock_service.files().list().execute.return_value = {"files": [{"id": "s1"}]}
+        mock_service.spreadsheets().get().execute.return_value = {
+            "spreadsheetId": "s1",
+            "properties": {"title": "Pablo's budget"},
+            "sheets": [],
+        }
+        mock_build.return_value = mock_service
+
+        Sheets(Mock()).open("Pablo's budget")
+
+        query = mock_service.files().list.call_args.kwargs["q"]
+        assert query.startswith("name='Pablo\\'s budget' and ")

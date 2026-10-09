@@ -51,8 +51,8 @@ class Sheets:
             auth: GoogleAuth instance with valid credentials
         """
         self.auth = auth
-        self._sheets_service = None
-        self._drive_service = None
+        self._sheets_service: Any = None
+        self._drive_service: Any = None
 
     @property
     def service(self) -> Any:

@@ -23,6 +23,31 @@ def a1(title: str, cell_range: str | None = None) -> str:
     return f"{quoted}!{cell_range}" if cell_range else quoted
 
 
+def split_sheet(reference: str) -> tuple[str | None, str | None]:
+    """Split an A1 reference into (sheet title, cell range).
+
+    "'Q1 Budget'!A1:B2" -> ("Q1 Budget", "A1:B2"); "'Pablo''s'" -> ("Pablo's", None);
+    "Data!A:A" -> ("Data", "A:A"); "B2" -> (None, "B2"). Quoted titles may
+    contain "!" and doubled quotes, which a plain split("!") gets wrong.
+    """
+    if reference.startswith("'"):
+        i = 1
+        while i < len(reference):
+            if reference[i] == "'":
+                if i + 1 < len(reference) and reference[i + 1] == "'":
+                    i += 2
+                    continue
+                break
+            i += 1
+        title = reference[1:i].replace("''", "'")
+        rest = reference[i + 1 :]
+        return title, (rest[1:] or None) if rest.startswith("!") else None
+    if "!" in reference:
+        title, rest = reference.split("!", 1)
+        return title, rest or None
+    return None, reference or None
+
+
 def column_index(letters: str) -> int:
     """Zero-based index of a column letter ("A" -> 0, "AA" -> 26)."""
     index = 0
@@ -57,8 +82,11 @@ def grid_range(cell_range: str, sheet_id: int) -> dict[str, Any]:
     Convert an A1 range (without sheet title) to a Sheets API GridRange.
 
     Supports "B2", "A1:C10", "A:C" (whole columns), "1:5" (whole rows) and
-    open-ended "A2:C". Indexes are zero-based with exclusive ends.
+    open-ended "A2:C". Indexes are zero-based with exclusive ends. A sheet
+    prefix ("'Data'!A1:B2") is ignored.
     """
+    if "!" in cell_range:
+        cell_range = split_sheet(cell_range)[1] or ""
     start_ref, colon, end_ref = cell_range.partition(":")
     if colon and not end_ref:
         raise ValidationError("range", f"invalid A1 range {cell_range!r}")

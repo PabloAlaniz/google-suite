@@ -119,6 +119,15 @@ jobs:
           esac
           uv run pytest "$path" --cov --cov-report=
 
+      # The Sheets engine tests again, through gsuite_sheets.engine_adapter
+      # (real adapter over a fake googleapiclient service): a behavioral
+      # contract test of the adapter.
+      - name: Run engine tests through the adapter
+        if: matrix.package == 'sheets'
+        env:
+          COVERAGE_FILE: .coverage.${{ matrix.package }}
+        run: uv run pytest packages/sheets/tests --engine-backend=adapter --cov --cov-append --cov-report=
+
       - name: Upload coverage data
         if: matrix.python == '3.14'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -161,7 +170,7 @@ jobs:
       # measures a slice of the code base.
       - name: Enforce coverage floor
         if: needs.changes.outputs.all == 'true'
-        run: uv run coverage report --fail-under=80 > /dev/null
+        run: uv run coverage report --fail-under=82 > /dev/null
 
   test-os:
     name: test (${{ matrix.os }})
@@ -211,7 +220,7 @@ jobs:
           python-version: "3.11"
       # Checks that the >= floors in pyproject.toml actually work
       - run: uv venv
-      - run: uv pip install --resolution lowest-direct -e ".[all,dev,pandas]"
+      - run: uv pip install --resolution lowest-direct -e ".[all,dev,pandas,polars]"
       - run: uv run --no-sync pytest
 
   latest-deps:

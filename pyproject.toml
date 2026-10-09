@@ -62,6 +62,10 @@ cli = [
 pandas = [
     "pandas>=2.2.2",  # first release built for numpy 2
 ]
+# Polars DataFrames for the Sheets engine (dataframe_backend="polars")
+polars = [
+    "polars>=0.20",
+]
 all = [
     "gsuite-sdk[api,cli,cloudrun]",
 ]

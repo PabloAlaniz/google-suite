@@ -68,6 +68,32 @@ Python 3.11 (oldest supported) and 3.14 (latest), but only for the packages
 a PR touches (core or shared config runs all of them). macOS and Windows run
 the full suite. Nightly runs add the latest release of every dependency.
 
+### The Sheets engine
+
+`packages/sheets/src/gsuite_sheets/engine/` is the engine incorporated from
+[GSpreadManager](https://github.com/PabloAlaniz/GSpreadManager) (merged with its
+git history). It is hexagonal:
+
+- `domain/`: pure value objects (CellFormat, Color, ranges, validation, charts, schemas)
+- `ports/sheets.py`: `ClientPort` / `SpreadsheetPort` / `WorksheetPort`
+- `application/`: services that only talk to those ports
+- `testing/in_memory.py`: an in-memory implementation of the ports (a Sheets emulator)
+
+`gsuite_sheets/engine_adapter.py` implements the ports on top of the google-suite
+client, so requests go through `gsuite_core.execute` like every other service.
+A1 parsing lives only in `gsuite_sheets/a1.py`; the engine delegates to it.
+
+The engine tests run twice in CI: against the emulator, and through the real
+adapter over a fake googleapiclient service backed by the same emulator:
+
+```bash
+uv run pytest packages/sheets/tests                           # emulator
+uv run pytest packages/sheets/tests --engine-backend=adapter  # through the adapter
+```
+
+A test that inspects the emulator itself (not port behavior) is marked
+`@pytest.mark.memory_only`.
+
 ## Getting Credentials
 
 To test the library locally, you need Google OAuth credentials:

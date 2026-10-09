@@ -139,6 +139,10 @@ jobs:
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
           version: ${{ env.UV_VERSION }}
+          # Same Python as the data (uploaded from the 3.14 jobs): since 3.14,
+          # bare annotations like `id: int` run no code (PEP 649), so a report
+          # on another version counts them as statements that were never hit.
+          python-version: "3.14"
           enable-cache: true
       - run: uv sync --locked --extra dev
 

@@ -9,6 +9,7 @@ of google-suite's client (retries, errors and auth from gsuite_core).
 
 import logging
 
+from .async_facade import AsyncSheetManager, AsyncWorksheetContext
 from .config import DEFAULT_VALUE_INPUT_OPTION
 from .domain.errors import (
     ApiError,
@@ -31,6 +32,8 @@ logging.getLogger(__name__).addHandler(logging.NullHandler())
 
 
 __all__ = [
+    "AsyncSheetManager",
+    "AsyncWorksheetContext",
     "DEFAULT_VALUE_INPUT_OPTION",
     "ApiError",
     "Border",

@@ -66,8 +66,12 @@ pandas = [
 polars = [
     "polars>=0.20",
 ]
+# Async clients (gsuite_core.aio, AsyncSheets)
+async = [
+    "httpx>=0.27.0",
+]
 all = [
-    "gsuite-sdk[api,cli,cloudrun]",
+    "gsuite-sdk[api,cli,cloudrun,async]",
 ]
 
 [project.scripts]

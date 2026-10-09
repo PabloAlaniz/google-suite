@@ -72,6 +72,14 @@ class Settings(BaseSettings):
     retry_on_rate_limit: bool = Field(
         default=True, description="Whether to automatically retry on rate limit errors"
     )
+    rate_limit: float | None = Field(
+        default=None,
+        gt=0,
+        description="Max Google API requests per second for this process (token bucket); off by default",
+    )
+    rate_limit_burst: float | None = Field(
+        default=None, gt=0, description="Bucket size (default: max(1, rate_limit))"
+    )
 
     model_config = {
         "env_prefix": "GSUITE_",

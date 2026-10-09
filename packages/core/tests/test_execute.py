@@ -283,3 +283,38 @@ class TestExecuteBatch:
         service = MagicMock()
         assert execute_batch(service, [], "gmail") == []
         service.new_batch_http_request.assert_not_called()
+
+
+class TestRateLimit:
+    def test_bucket_allows_burst_then_waits(self):
+        from gsuite_core.rate_limit import TokenBucket
+
+        bucket = TokenBucket(rate=2, burst=2)
+        assert bucket._take() == 0 and bucket._take() == 0
+        assert 0 < bucket._take() <= 0.5
+
+    def test_invalid_rate(self):
+        from gsuite_core.rate_limit import TokenBucket
+
+        with pytest.raises(ValueError):
+            TokenBucket(0)
+
+    def test_execute_acquires_a_token_per_attempt(self, settings, sleep):
+        limiter = MagicMock()
+        with patch("gsuite_core.api_utils.get_rate_limiter", return_value=limiter):
+            execute(request("GET", http_error(503), {"ok": 1}), "gmail")
+        assert limiter.acquire.call_count == 2
+
+    def test_off_by_default(self, settings):
+        from gsuite_core.rate_limit import get_rate_limiter
+
+        assert get_rate_limiter() is None
+
+    def test_async_acquire(self):
+        import asyncio
+
+        from gsuite_core.rate_limit import TokenBucket
+
+        bucket = TokenBucket(rate=1000, burst=1)
+        asyncio.run(bucket.acquire_async())
+        asyncio.run(bucket.acquire_async())  # waits ~1 ms for the refill

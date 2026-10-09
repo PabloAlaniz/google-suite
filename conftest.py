@@ -240,3 +240,14 @@ def _engine_backend(request, monkeypatch):
         return SheetManager(doc_name, key=key, sheets_client=adapter_client(self.client), **kwargs)
 
     monkeypatch.setattr(InMemoryBackend, "manager", manager)
+
+    from gsuite_sheets.engine.async_facade import AsyncSheetManager
+    from gsuite_sheets.engine.testing import AsyncInMemoryBackend
+    from gsuite_sheets.engine.testing.rest_fake import async_adapter_client
+
+    def async_manager(self, doc_name=None, *, key=None, **kwargs):
+        return AsyncSheetManager(
+            doc_name, key=key, sheets_client=async_adapter_client(self.client), **kwargs
+        )
+
+    monkeypatch.setattr(AsyncInMemoryBackend, "manager", async_manager)

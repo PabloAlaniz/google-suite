@@ -25,6 +25,7 @@ from gsuite_core.exceptions import (
     QuotaExceededError,
     RateLimitError,
 )
+from gsuite_core.rate_limit import get_rate_limiter
 
 logger = logging.getLogger(__name__)
 
@@ -41,27 +42,83 @@ MAX_BACKOFF = 32.0
 MAX_RETRY_AFTER = 60.0
 
 
-def _error_reason(error: HttpError) -> str | None:
-    """The `reason` of the first error in a Google error body, if any."""
+# ---- Status-based policy, shared by the sync (googleapiclient) and async (httpx) paths ----
+
+
+def reason_from_body(body: bytes | str | None) -> str | None:
+    """The ``reason`` of the first error in a Google error body, if any."""
     try:
-        payload = json.loads(getattr(error, "content", b"") or b"")
+        payload = json.loads(body or b"")
         reason = payload["error"]["errors"][0]["reason"]
         return str(reason)
     except (ValueError, KeyError, IndexError, TypeError):
         return None
 
 
-def _retry_after(error: HttpError) -> int | None:
-    value = error.resp.get("retry-after")
+def parse_retry_after(value: Any) -> int | None:
+    """Seconds from a Retry-After header (the HTTP-date form falls back to backoff)."""
     try:
         return int(value) if value is not None else None
     except (TypeError, ValueError):
-        return None  # HTTP-date form; fall back to backoff
+        return None
+
+
+def is_rate_limited(status: int, reason: str | None) -> bool:
+    """Google throttling: 429, or 403 with a rate-limit reason."""
+    return status == 429 or (status == 403 and reason in RATE_LIMIT_REASONS)
+
+
+def should_retry_status(
+    status: int | None, reason: str | None, method: str, retry_on_rate_limit: bool
+) -> bool:
+    """Retry decision for an HTTP status (``None`` = network failure, no response)."""
+    if status is not None and is_rate_limited(status, reason):
+        return retry_on_rate_limit
+    if status is None:
+        # The request may or may not have been applied
+        return method in IDEMPOTENT_METHODS
+    return status in RETRYABLE_STATUSES and method in IDEMPOTENT_METHODS
+
+
+def error_for_status(
+    status: int,
+    reason: str | None,
+    message: str,
+    service: str,
+    resource_type: str = "resource",
+    resource_id: str = "unknown",
+    retry_after: int | None = None,
+    cause: Exception | None = None,
+) -> APIError:
+    """The GSuiteError subclass for a failed Google API response."""
+    if status == 404:
+        return NotFoundError(service, resource_type, resource_id)
+    if is_rate_limited(status, reason):
+        return RateLimitError(service, retry_after)
+    if status == 403:
+        # Match API quota by reason; the message is only a fallback when
+        # Google sent none. "storageQuotaExceeded" (the user's Drive is full)
+        # is not an API quota and must not look retryable later.
+        if reason in QUOTA_REASONS or (reason is None and "quota" in message.lower()):
+            return QuotaExceededError(service)
+        return PermissionDeniedError(service, "operation")
+    return APIError(message, service, status, cause=cause)
+
+
+# ---- googleapiclient HttpError wrappers ----
+
+
+def _error_reason(error: HttpError) -> str | None:
+    """The `reason` of the first error in a Google error body, if any."""
+    return reason_from_body(getattr(error, "content", b"") or b"")
+
+
+def _retry_after(error: HttpError) -> int | None:
+    return parse_retry_after(error.resp.get("retry-after"))
 
 
 def _is_rate_limit(error: HttpError) -> bool:
-    status = error.resp.status
-    return status == 429 or (status == 403 and _error_reason(error) in RATE_LIMIT_REASONS)
+    return is_rate_limited(error.resp.status, _error_reason(error))
 
 
 def map_http_error(
@@ -82,22 +139,16 @@ def map_http_error(
     Returns:
         Appropriate GSuiteError subclass
     """
-    status = error.resp.status
-    message = str(error)
-    reason = _error_reason(error)
-
-    if status == 404:
-        return NotFoundError(service, resource_type, resource_id)
-    if _is_rate_limit(error):
-        return RateLimitError(service, _retry_after(error))
-    if status == 403:
-        # Match API quota by reason; the message is only a fallback when
-        # Google sent none. "storageQuotaExceeded" (the user's Drive is full)
-        # is not an API quota and must not look retryable later.
-        if reason in QUOTA_REASONS or (reason is None and "quota" in message.lower()):
-            return QuotaExceededError(service)
-        return PermissionDeniedError(service, "operation")
-    return APIError(message, service, status, cause=error)
+    return error_for_status(
+        error.resp.status,
+        _error_reason(error),
+        str(error),
+        service,
+        resource_type,
+        resource_id,
+        retry_after=_retry_after(error),
+        cause=error,
+    )
 
 
 def _backoff(attempt: int, base: float, retry_after: int | None = None) -> float:
@@ -114,11 +165,10 @@ def _backoff(attempt: int, base: float, retry_after: int | None = None) -> float
 
 def _should_retry(error: Exception, method: str, retry_on_rate_limit: bool) -> bool:
     if isinstance(error, HttpError):
-        if _is_rate_limit(error):
-            return retry_on_rate_limit
-        return error.resp.status in RETRYABLE_STATUSES and method in IDEMPOTENT_METHODS
-    # Network failure: the request may or may not have been applied
-    return method in IDEMPOTENT_METHODS
+        return should_retry_status(
+            error.resp.status, _error_reason(error), method, retry_on_rate_limit
+        )
+    return should_retry_status(None, None, method, retry_on_rate_limit)
 
 
 def execute(
@@ -143,7 +193,11 @@ def execute(
     settings = get_settings()
     method = str(getattr(request, "method", "GET")).upper()
 
+    limiter = get_rate_limiter()
+
     for attempt in range(settings.max_retries + 1):
+        if limiter is not None:
+            limiter.acquire()
         try:
             return request.execute()
         except (HttpError, TimeoutError, ConnectionError) as error:

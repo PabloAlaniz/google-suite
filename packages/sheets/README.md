@@ -277,6 +277,21 @@ df = ws.read_dataframe(drop_empty_rows=True, index_col="id")
 sheets.clear_cache()
 ```
 
+## Async
+
+Values, streaming, tables and typed rows are also available async
+(`pip install "gsuite-sdk[async]"`; see [docs/ASYNC.md](../../docs/ASYNC.md)):
+
+```python
+from gsuite_sheets import AsyncSheets
+
+async with AsyncSheets(auth) as sheets:
+    ws = (await sheets.open("Budget")).worksheet("Data")
+    await ws.upsert(rows, key="id")
+    async for record in ws.iter_records():
+        ...
+```
+
 ## Testing Without Google
 
 The same emulator the SDK is tested with is available to your tests:

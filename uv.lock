@@ -895,6 +895,7 @@ all = [
     { name = "fastapi" },
     { name = "google-cloud-logging" },
     { name = "google-cloud-secret-manager" },
+    { name = "httpx" },
     { name = "python-multipart" },
     { name = "rich" },
     { name = "typer" },
@@ -905,6 +906,9 @@ api = [
     { name = "fastapi" },
     { name = "python-multipart" },
     { name = "uvicorn", extra = ["standard"] },
+]
+async = [
+    { name = "httpx" },
 ]
 cli = [
     { name = "rich" },
@@ -939,8 +943,9 @@ requires-dist = [
     { name = "google-auth-oauthlib", specifier = ">=1.2.0" },
     { name = "google-cloud-logging", marker = "extra == 'cloudrun'", specifier = ">=3.9.0" },
     { name = "google-cloud-secret-manager", marker = "extra == 'cloudrun'", specifier = ">=2.18.0" },
-    { name = "gsuite-sdk", extras = ["api", "cli", "cloudrun"], marker = "extra == 'all'" },
+    { name = "gsuite-sdk", extras = ["api", "cli", "cloudrun", "async"], marker = "extra == 'all'" },
     { name = "httplib2", specifier = ">=0.19.0" },
+    { name = "httpx", marker = "extra == 'async'", specifier = ">=0.27.0" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.27.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.8.0" },
     { name = "pandas", marker = "extra == 'pandas'", specifier = ">=2.2.2" },
@@ -957,7 +962,7 @@ requires-dist = [
     { name = "tzdata", marker = "sys_platform == 'win32'", specifier = ">=2024.1" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'api'", specifier = ">=0.27.0" },
 ]
-provides-extras = ["dev", "cloudrun", "api", "cli", "pandas", "polars", "all"]
+provides-extras = ["dev", "cloudrun", "api", "cli", "pandas", "polars", "async", "all"]
 
 [[package]]
 name = "h11"

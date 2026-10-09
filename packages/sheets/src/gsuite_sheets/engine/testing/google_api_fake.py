@@ -160,6 +160,14 @@ class _Spreadsheets:
                         for i, ws in enumerate(ss.worksheets)
                     ],
                 }
+            if fields == "properties(title),sheets.properties(sheetId,title)":  # async adapter
+                return {
+                    "properties": {"title": ss.title},
+                    "sheets": [
+                        {"properties": {"sheetId": ws.id, "title": ws.title}}
+                        for ws in ss.worksheets
+                    ],
+                }
             if fields == "sheets.properties(sheetId,title)":
                 return {
                     "sheets": [

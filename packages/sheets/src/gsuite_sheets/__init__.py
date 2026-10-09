@@ -7,6 +7,7 @@ streaming, ...) run on the engine incorporated from GSpreadManager.
 
 __version__ = "0.1.0"
 
+from gsuite_sheets.aio import AsyncSheets, AsyncSpreadsheet, AsyncWorksheet
 from gsuite_sheets.client import Sheets
 from gsuite_sheets.engine.domain.errors import (
     CellNotFoundError,
@@ -29,6 +30,9 @@ from gsuite_sheets.spreadsheet import Spreadsheet
 from gsuite_sheets.worksheet import Worksheet
 
 __all__ = [
+    "AsyncSheets",
+    "AsyncSpreadsheet",
+    "AsyncWorksheet",
     "Border",
     "Borders",
     "CellFormat",

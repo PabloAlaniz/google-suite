@@ -1,0 +1,36 @@
+name: Bug report
+description: Something in the SDK, REST API or CLI doesn't work
+labels: [bug]
+body:
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      options: [core / auth, gmail, calendar, drive, sheets, REST API, CLI, packaging / install]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: gsuite-sdk version
+      description: Output of `pip show gsuite-sdk | grep Version`
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version and OS
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include the full traceback. Remove tokens, emails and file IDs.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal code to reproduce
+      render: python

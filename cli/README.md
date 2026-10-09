@@ -52,75 +52,56 @@ gsuite auth export > token.json
 ## Gmail Commands
 
 ```bash
-# List recent messages
+# List messages (table or json)
 gsuite gmail list
-gsuite gmail list --max 20
+gsuite gmail list --limit 20 --unread
+gsuite gmail list --starred --from boss@company.com
+gsuite gmail list -q "has:attachment newer_than:7d" -o json
 
-# List unread messages
-gsuite gmail list --unread
-
-# List starred messages  
-gsuite gmail list --starred
-
-# Search messages
+# Search with Gmail query syntax
 gsuite gmail search "from:boss@company.com has:attachment"
-gsuite gmail search --from boss@company.com --newer 7d
 
 # Read a message
 gsuite gmail read MESSAGE_ID
-gsuite gmail read MESSAGE_ID --format json
+gsuite gmail read MESSAGE_ID --mark-read -o json
 
-# Send email
+# Send (body from --body or stdin)
 gsuite gmail send --to user@example.com --subject "Hello" --body "World"
-gsuite gmail send --to user@example.com --subject "Report" --attach report.pdf
+gsuite gmail send --to user@example.com --subject "Report" --attach report.pdf --attach data.csv
+echo "Body from a pipe" | gsuite gmail send --to user@example.com --subject "Piped"
 
-# Interactive compose
-gsuite gmail compose
+# Reply in the same thread
+gsuite gmail reply MESSAGE_ID --body "Thanks!"
+gsuite gmail reply MESSAGE_ID --all --body "Thanks, all"
 
-# List labels
+# Labels, marking, archiving
 gsuite gmail labels
-
-# Mark as read/unread
 gsuite gmail mark MESSAGE_ID --read
-gsuite gmail mark MESSAGE_ID --unread
-
-# Archive message
+gsuite gmail mark MESSAGE_ID --unread --star
 gsuite gmail archive MESSAGE_ID
-
-# Trash message
 gsuite gmail trash MESSAGE_ID
+
+gsuite gmail profile
 ```
 
 ## Calendar Commands
 
 ```bash
-# Today's events
 gsuite calendar today
-
-# This week's events
 gsuite calendar week
-
-# Upcoming events
-gsuite calendar list
 gsuite calendar list --days 14
-
-# Specific date range
-gsuite calendar list --from 2026-02-01 --to 2026-02-28
-
-# List all calendars
+gsuite calendar list --calendar work@company.com -o json
 gsuite calendar calendars
 
-# Events from specific calendar
-gsuite calendar list --calendar work@company.com
-
-# Create event
+# Create (naive times are in GSUITE_DEFAULT_TIMEZONE)
 gsuite calendar create "Team Meeting" --start "2026-02-15 10:00" --end "2026-02-15 11:00"
 gsuite calendar create "All Day Event" --start 2026-02-20 --all-day
+gsuite calendar create "Sync" --start "2026-02-16 09:00" --meet -a ana@example.com --notify
+gsuite calendar create "Standup" --start "2026-02-16 09:00" --repeat "FREQ=WEEKLY;BYDAY=MO,WE,FR"
 
 # Quick add (natural language)
 gsuite calendar quick "Lunch with John tomorrow at noon"
 
-# Delete event
 gsuite calendar delete EVENT_ID
 ```
 

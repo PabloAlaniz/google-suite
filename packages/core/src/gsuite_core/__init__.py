@@ -7,6 +7,7 @@ from gsuite_core.api_utils import (
     authorized_http,
     drive_query_literal,
     execute,
+    execute_batch,
     map_http_error,
     paginate,
 )
@@ -42,6 +43,7 @@ __all__ = [
     "api_call_optional",
     "map_http_error",
     "execute",
+    "execute_batch",
     "paginate",
     "authorized_http",
     "drive_query_literal",

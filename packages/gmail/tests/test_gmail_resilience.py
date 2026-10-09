@@ -10,9 +10,9 @@ RAW = {"id": "m", "threadId": "t", "payload": {"headers": []}, "labelIds": []}
 
 
 @pytest.fixture
-def service():
+def service(batching):
     with patch("gsuite_gmail.client.build") as build:
-        svc = MagicMock()
+        svc = batching(MagicMock())
         build.return_value = svc
         yield svc
 
@@ -61,8 +61,12 @@ def test_max_results_above_500_spans_pages(service):
     assert sizes == [500, 100]
 
 
-def test_iter_messages_is_lazy(service):
-    _pages(service, {"messages": [{"id": "1"}, {"id": "2"}]})
+def test_iter_messages_is_lazy_and_batched(service):
+    _pages(
+        service,
+        {"messages": [{"id": str(i)} for i in range(60)], "nextPageToken": "p2"},
+        {"messages": [{"id": "never"}]},
+    )
     service.users().messages().get().execute.side_effect = lambda: dict(RAW)
     get = service.users().messages().get
     get.reset_mock()
@@ -70,7 +74,10 @@ def test_iter_messages_is_lazy(service):
     first = next(Gmail(Mock()).iter_messages(max_results=None))
 
     assert first.id == "m"
-    assert get.call_count == 1
+    # One HTTP batch of 50 gets, and the second page isn't requested yet
+    assert get.call_count == 50
+    assert service.new_batch_http_request.call_count == 1
+    assert service.users().messages().list.call_count == 1
 
 
 def test_get_message_returns_none_when_missing(service, http_error):

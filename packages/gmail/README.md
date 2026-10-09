@@ -124,15 +124,18 @@ gmail.send(
     to=["user@example.com"],
     subject="Report",
     body="Please find attached.",
-    attachments=["report.pdf", "data.xlsx"],
+    attachments=["report.pdf", ("data.csv", csv_bytes)],  # paths or (name, bytes)
 )
 
-# Reply to a message
+# Reply in the same thread (In-Reply-To/References are set, so it threads
+# for the recipient too). Goes to Reply-To or the sender; replying to your
+# own message goes to its recipients.
 original = gmail.get_messages(max_results=1)[0]
 gmail.reply(
     message=original,
     body="Thanks for your email!",
 )
+original.reply("Thanks, all!", reply_all=True)
 
 # Forward a message
 gmail.forward(
@@ -183,7 +186,42 @@ messages = gmail.get_messages(labels=["IMPORTANT"])
 gmail.create_label("My Custom Label")
 
 # Delete label
-gmail.delete_label("label_id")
+gmail.delete_label("My Custom Label")   # by name or ID
+gmail.rename_label("Old", "New")
+```
+
+## Bulk Changes
+
+```python
+ids = [m.id for m in gmail.get_messages(query="from:newsletter@example.com", max_results=None)]
+
+# One batchModify call per 1000 messages; names or IDs
+gmail.batch_modify(ids, add_labels=["Newsletters"], remove_labels=["INBOX", "UNREAD"])
+```
+
+Listing is batched too: `get_messages()` fetches messages 50 per HTTP
+request, and `iter_messages()` does it lazily for large mailboxes.
+
+## Drafts
+
+```python
+draft = gmail.create_draft(to=["ana@example.com"], subject="Proposal", body="Draft text")
+for d in gmail.list_drafts():
+    print(d.id, d.message.subject)
+gmail.send_draft(draft.id)
+gmail.delete_draft("other_draft_id")
+```
+
+## Filters
+
+```python
+gmail.create_filter(
+    criteria={"from": "alerts@example.com"},
+    action={"addLabelIds": ["Alerts"], "removeLabelIds": ["INBOX"]},  # names are resolved
+)
+for f in gmail.list_filters():
+    print(f["id"], f["criteria"])
+gmail.delete_filter("filter_id")
 ```
 
 ## Attachments
@@ -196,8 +234,8 @@ for attachment in msg.attachments:
     print(f"Size: {attachment.size} bytes")
     print(f"Type: {attachment.mime_type}")
     
-    # Download
-    attachment.download(f"/tmp/{attachment.filename}")
+    content = attachment.download()           # bytes
+    attachment.save(f"/tmp/{attachment.filename}")
 ```
 
 ## Thread Operations
@@ -219,7 +257,7 @@ for thread in threads:
 
 ```python
 from gsuite_core.exceptions import (
-    GsuiteError,
+    GSuiteError,
     AuthenticationError,
     RateLimitError,
     NotFoundError,
@@ -232,7 +270,7 @@ except RateLimitError:
     time.sleep(60)
 except AuthenticationError:
     print("Need to re-authenticate")
-except GsuiteError as e:
+except GSuiteError as e:
     print(f"Gmail error: {e}")
 ```
 

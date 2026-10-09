@@ -47,57 +47,79 @@ GET /health
 ### Gmail
 
 ```bash
-# List messages
-GET /gmail/messages
-GET /gmail/messages?query=is:unread&max_results=10
-
-# Get unread
-GET /gmail/messages/unread
-
-# Get single message
+# Messages (query uses Gmail search syntax)
+GET /gmail/messages?query=from:boss@company.com+newer_than:7d&limit=10
+GET /gmail/messages/unread            # also: starred, important, sent
 GET /gmail/messages/{message_id}
 
-# Send email
-POST /gmail/messages/send
-{
-  "to": ["user@example.com"],
-  "subject": "Hello",
-  "body": "World"
-}
+# Send, reply (same thread; reply_all optional), forward
+POST /gmail/messages/send                    {"to": ["user@example.com"], "subject": "Hello", "body": "World"}
+POST /gmail/messages/{message_id}/reply      {"body": "Thanks", "reply_all": true}
+POST /gmail/messages/{message_id}/forward    {"to": ["colleague@example.com"], "body": "FYI"}
 
-# List labels
+# Actions on one message
+POST /gmail/messages/{message_id}/read       # also: unread, star, important, archive, inbox, untrash
+DELETE /gmail/messages/{message_id}          # trash
+POST /gmail/messages/{message_id}/labels     {"add_labels": ["Work"], "remove_labels": ["INBOX"]}
+GET /gmail/messages/{message_id}/attachments/{attachment_id}
+
+# Many messages at once (one batchModify per 1000 IDs)
+POST /gmail/messages/batch/read      {"message_ids": ["a", "b"]}
+POST /gmail/messages/batch/labels    {"message_ids": ["a", "b"], "add_labels": ["Work"]}
+
+# Threads
+GET /gmail/threads?query=from:ana&limit=25
+GET /gmail/threads/{thread_id}
+
+# Drafts
+GET /gmail/drafts
+POST /gmail/drafts                   {"to": ["a@example.com"], "subject": "Proposal", "body": "..."}
+GET /gmail/drafts/{draft_id}
+POST /gmail/drafts/{draft_id}/send
+DELETE /gmail/drafts/{draft_id}
+
+# Labels (by name or ID) and filters
 GET /gmail/labels
+POST /gmail/labels                   {"name": "Clients/Acme"}
+PATCH /gmail/labels/{label}          {"name": "Customers"}
+DELETE /gmail/labels/{label}
+GET /gmail/filters
+POST /gmail/filters                  {"criteria": {"from": "alerts@x.com"}, "action": {"addLabelIds": ["Alerts"]}}
+DELETE /gmail/filters/{filter_id}
 
-# Search
-GET /gmail/search?q=from:boss@company.com+newer_than:7d
+GET /gmail/profile
 ```
 
 ### Calendar
 
+All routes take an optional `calendar_id` query parameter (default: primary).
+
 ```bash
-# Get events
-GET /calendar/events
-GET /calendar/events?time_min=2026-02-01&time_max=2026-02-28
+GET /calendar/events?days=7&limit=100        # upcoming
+GET /calendar/events/today                   # in GSUITE_DEFAULT_TIMEZONE
+GET /calendar/events/{event_id}
+GET /calendar/events/{event_id}/instances    # occurrences of a recurring event
 
-# Get today's events
-GET /calendar/events/today
-
-# Get upcoming events
-GET /calendar/events/upcoming?days=7
-
-# Create event
+# Create; meet=true adds a Google Meet link, send_updates emails invitees
 POST /calendar/events
 {
   "summary": "Meeting",
-  "start": "2026-02-15T10:00:00",
-  "end": "2026-02-15T11:00:00",
-  "attendees": ["user@example.com"]
+  "start": "2026-02-15T10:00:00-03:00",
+  "end": "2026-02-15T11:00:00-03:00",
+  "attendees": ["user@example.com"],
+  "recurrence": ["RRULE:FREQ=WEEKLY;BYDAY=MO"],
+  "meet": true,
+  "send_updates": "all"
 }
+POST /calendar/events:quickAdd       {"text": "Lunch with Ana tomorrow at 1pm"}
 
-# Delete event
-DELETE /calendar/events/{event_id}
+# Update (only the fields sent change) and delete
+PATCH /calendar/events/{event_id}    {"summary": "Renamed", "send_updates": "all"}
+DELETE /calendar/events/{event_id}?send_updates=all
 
-# List calendars
+# Free/busy ("me" = your primary calendar)
+POST /calendar/freebusy   {"time_min": "...", "time_max": "...", "calendars": ["me", "ana@example.com"]}
+
 GET /calendar/calendars
 ```
 

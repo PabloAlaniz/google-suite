@@ -187,12 +187,12 @@ class TestGetLabels:
     """Tests for label methods."""
 
     @patch("gsuite_gmail.client.build")
-    def test_get_labels(self, mock_build):
+    def test_get_labels(self, mock_build, batching):
         """Test get_labels returns Label objects."""
         mock_auth = Mock()
         mock_auth.credentials = Mock()
 
-        mock_service = Mock()
+        mock_service = batching(Mock())
         mock_service.users().labels().list().execute.return_value = {
             "labels": [
                 {"id": "INBOX", "name": "INBOX", "type": "system"},

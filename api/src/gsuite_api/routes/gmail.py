@@ -1,7 +1,9 @@
 """Gmail API routes - Full featured."""
 
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Query
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from gsuite_api.dependencies import GmailDep
 from gsuite_api.responses import download_response
@@ -93,7 +95,7 @@ class ModifyLabelsRequest(BaseModel):
 
 
 class BatchModifyRequest(BaseModel):
-    message_ids: list[str]
+    message_ids: list[str] = Field(..., min_length=1)
     add_labels: list[str] | None = None
     remove_labels: list[str] | None = None
 
@@ -102,6 +104,34 @@ class ReplyRequest(BaseModel):
     body: str
     html: bool = False
     signature: bool = False
+    reply_all: bool = False
+
+
+class ForwardRequest(BaseModel):
+    to: list[EmailStr] = Field(..., min_length=1)
+    body: str = ""
+    include_attachments: bool = True
+
+
+class DraftRequest(BaseModel):
+    to: list[EmailStr]
+    subject: str
+    body: str
+    cc: list[EmailStr] | None = None
+    bcc: list[EmailStr] | None = None
+    html: bool = False
+    reply_to: str | None = None
+
+
+class LabelRequest(BaseModel):
+    name: str = Field(..., min_length=1)
+
+
+class FilterRequest(BaseModel):
+    criteria: dict[str, Any] = Field(..., description='e.g. {"from": "alerts@example.com"}')
+    action: dict[str, Any] = Field(
+        ..., description='e.g. {"addLabelIds": ["Alerts"], "removeLabelIds": ["INBOX"]}'
+    )
 
 
 # ========== Helper Functions ==========
@@ -258,41 +288,19 @@ def send_message(request: SendRequest, gmail: GmailDep):
 
 
 @router.post("/messages/batch/read")
-def batch_mark_as_read(request: BatchModifyRequest, gmail: GmailDep):
-    """Mark multiple messages as read."""
-    if not request.message_ids:
-        raise HTTPException(status_code=400, detail="message_ids cannot be empty")
-
-    for msg_id in request.message_ids:
-        msg = gmail.get_message(msg_id)
-        if msg:
-            msg.mark_as_read()
-
-    return {
-        "status": "success",
-        "count": len(request.message_ids),
-    }
+def batch_mark_as_read(request: BatchModifyRequest, gmail: GmailDep) -> dict[str, Any]:
+    """Mark multiple messages as read (one batchModify call per 1000 IDs)."""
+    count = gmail.batch_modify(request.message_ids, remove_labels=["UNREAD"])
+    return {"status": "success", "count": count}
 
 
 @router.post("/messages/batch/labels")
-def batch_modify_labels(request: BatchModifyRequest, gmail: GmailDep):
-    """Modify labels on multiple messages."""
-    if not request.message_ids:
-        raise HTTPException(status_code=400, detail="message_ids cannot be empty")
-
-    for msg_id in request.message_ids:
-        msg = gmail.get_message(msg_id)
-        if msg:
-            if request.add_labels:
-                for label in request.add_labels:
-                    msg.add_label(label)
-            if request.remove_labels:
-                for label in request.remove_labels:
-                    msg.remove_label(label)
-
+def batch_modify_labels(request: BatchModifyRequest, gmail: GmailDep) -> dict[str, Any]:
+    """Add/remove labels (names or IDs) on multiple messages. Unknown labels are a 422."""
+    count = gmail.batch_modify(request.message_ids, request.add_labels, request.remove_labels)
     return {
         "status": "success",
-        "count": len(request.message_ids),
+        "count": count,
         "added": request.add_labels or [],
         "removed": request.remove_labels or [],
     }
@@ -437,13 +445,31 @@ def reply_to_message(message_id: str, request: ReplyRequest, gmail: GmailDep):
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    reply = message.reply(
-        body=request.body,
+    reply = gmail.reply(
+        message,
+        request.body,
         html=request.html,
         signature=request.signature,
+        reply_all=request.reply_all,
     )
 
     return {"id": reply.id, "thread_id": reply.thread_id, "status": "sent"}
+
+
+@router.post("/messages/{message_id}/forward")
+def forward_message(message_id: str, request: ForwardRequest, gmail: GmailDep) -> dict[str, Any]:
+    """Forward a message (with its attachments unless include_attachments=false)."""
+    message = gmail.get_message(message_id)
+    if not message:
+        raise HTTPException(status_code=404, detail="Message not found")
+
+    sent = gmail.forward(
+        message,
+        [str(e) for e in request.to],
+        request.body,
+        include_attachments=request.include_attachments,
+    )
+    return {"id": sent.id, "thread_id": sent.thread_id, "status": "sent"}
 
 
 # ========== Attachments ==========
@@ -539,3 +565,136 @@ def list_labels(gmail: GmailDep):
 def get_profile(gmail: GmailDep):
     """Get authenticated user's profile."""
     return gmail.get_profile()
+
+
+@router.get("/threads")
+def list_threads(
+    gmail: GmailDep,
+    query: str | None = Query(None, description="Gmail search query"),
+    limit: int = Query(25, ge=1, le=100),
+) -> dict[str, Any]:
+    """List conversations."""
+    threads = gmail.get_threads(query=query, max_results=limit)
+    return {
+        "threads": [
+            {
+                "id": t.id,
+                "subject": t.subject,
+                "snippet": t.snippet,
+                "message_count": t.message_count,
+                "has_unread": t.has_unread,
+            }
+            for t in threads
+        ],
+        "count": len(threads),
+    }
+
+
+# ========== Drafts ==========
+
+
+def _draft(draft: Any) -> dict[str, Any]:
+    return {"id": draft.id, "message": _message_to_response(draft.message)}
+
+
+@router.get("/drafts")
+def list_drafts(gmail: GmailDep, limit: int = Query(25, ge=1, le=100)) -> dict[str, Any]:
+    """List drafts."""
+    drafts = gmail.list_drafts(max_results=limit)
+    return {"drafts": [_draft(d) for d in drafts], "count": len(drafts)}
+
+
+@router.post("/drafts")
+def create_draft(request: DraftRequest, gmail: GmailDep) -> dict[str, Any]:
+    """Save a draft."""
+    draft = gmail.create_draft(
+        to=[str(e) for e in request.to],
+        subject=request.subject,
+        body=request.body,
+        cc=[str(e) for e in request.cc] if request.cc else None,
+        bcc=[str(e) for e in request.bcc] if request.bcc else None,
+        html=request.html,
+        reply_to=request.reply_to,
+    )
+    return _draft(draft)
+
+
+@router.get("/drafts/{draft_id}")
+def get_draft(draft_id: str, gmail: GmailDep) -> dict[str, Any]:
+    """Get a draft."""
+    draft = gmail.get_draft(draft_id)
+    if not draft:
+        raise HTTPException(status_code=404, detail="Draft not found")
+    return _draft(draft)
+
+
+@router.post("/drafts/{draft_id}/send")
+def send_draft(draft_id: str, gmail: GmailDep) -> dict[str, Any]:
+    """Send a draft."""
+    sent = gmail.send_draft(draft_id)
+    return {"id": sent.id, "thread_id": sent.thread_id, "status": "sent"}
+
+
+@router.delete("/drafts/{draft_id}")
+def delete_draft(draft_id: str, gmail: GmailDep) -> dict[str, Any]:
+    """Discard a draft."""
+    if not gmail.delete_draft(draft_id):
+        raise HTTPException(status_code=404, detail="Draft not found")
+    return {"id": draft_id, "deleted": True}
+
+
+# ========== Label management ==========
+
+
+@router.post("/labels")
+def create_label(request: LabelRequest, gmail: GmailDep) -> LabelResponse:
+    """Create a label ("Parent/Child" nests it)."""
+    label = gmail.create_label(request.name)
+    return LabelResponse(
+        id=label.id,
+        name=label.name,
+        type=label.type.value,
+        messages_total=label.messages_total,
+        messages_unread=label.messages_unread,
+        threads_total=label.threads_total,
+        threads_unread=label.threads_unread,
+    )
+
+
+@router.patch("/labels/{label}")
+def rename_label(label: str, request: LabelRequest, gmail: GmailDep) -> dict[str, Any]:
+    """Rename a label (by name or ID)."""
+    renamed = gmail.rename_label(label, request.name)
+    return {"id": renamed.id, "name": renamed.name}
+
+
+@router.delete("/labels/{label}")
+def delete_label(label: str, gmail: GmailDep) -> dict[str, Any]:
+    """Delete a label (by name or ID); messages keep existing."""
+    if not gmail.delete_label(label):
+        raise HTTPException(status_code=404, detail="Label not found")
+    return {"label": label, "deleted": True}
+
+
+# ========== Filters ==========
+
+
+@router.get("/filters")
+def list_filters(gmail: GmailDep) -> dict[str, Any]:
+    """List filters."""
+    filters = gmail.list_filters()
+    return {"filters": filters, "count": len(filters)}
+
+
+@router.post("/filters")
+def create_filter(request: FilterRequest, gmail: GmailDep) -> dict[str, Any]:
+    """Create a filter; label names in the action are resolved to IDs."""
+    return gmail.create_filter(request.criteria, request.action)
+
+
+@router.delete("/filters/{filter_id}")
+def delete_filter(filter_id: str, gmail: GmailDep) -> dict[str, Any]:
+    """Delete a filter."""
+    if not gmail.delete_filter(filter_id):
+        raise HTTPException(status_code=404, detail="Filter not found")
+    return {"id": filter_id, "deleted": True}

@@ -123,7 +123,15 @@ def create(
     location: str | None = typer.Option(None, "--location", "-l", help="Location"),
     calendar_id: str | None = typer.Option(None, "--calendar", "-c", help="Calendar ID"),
     all_day: bool = typer.Option(False, "--all-day", help="All-day event"),
-):
+    attendees: list[str] | None = typer.Option(
+        None, "--attendee", "-a", help="Invitee email (repeatable)"
+    ),
+    meet: bool = typer.Option(False, "--meet", help="Add a Google Meet link"),
+    repeat: str | None = typer.Option(
+        None, "--repeat", help='Recurrence rule, e.g. "FREQ=WEEKLY;BYDAY=MO,WE"'
+    ),
+    notify: bool = typer.Option(False, "--notify", help="Email the invitees"),
+) -> None:
     """Create a new calendar event."""
     cal = get_calendar()
 
@@ -159,6 +167,12 @@ def create(
             location=location,
             calendar_id=calendar_id,
             all_day=all_day,
+            attendees=attendees,
+            recurrence=[repeat if repeat.startswith("RRULE:") else f"RRULE:{repeat}"]
+            if repeat
+            else None,
+            meet=meet,
+            send_updates="all" if notify else "none",
         )
 
     console.print("[green]✓ Event created![/green]")
@@ -166,6 +180,8 @@ def create(
     console.print(f"  Title: {event.summary}")
     if event.html_link:
         console.print(f"  Link: {event.html_link}")
+    if event.meet_link:
+        console.print(f"  Meet: {event.meet_link}")
 
 
 @app.command()
@@ -244,3 +260,14 @@ def week():
                 time_str = event.start.strftime("%H:%M") if event.start else ""
 
             console.print(f"  {time_str:>8}  {event.summary}")
+
+
+@app.command()
+def quick(
+    text: str = typer.Argument(..., help='e.g. "Lunch with Ana tomorrow at 1pm"'),
+    calendar_id: str | None = typer.Option(None, "--calendar", "-c", help="Calendar ID"),
+) -> None:
+    """Create an event from natural language."""
+    event = get_calendar().quick_add(text, calendar_id=calendar_id)
+    when = event.start.strftime("%Y-%m-%d %H:%M") if event.start else "?"
+    console.print(f"[green]✓ Created[/green] {event.summary} — {when}")

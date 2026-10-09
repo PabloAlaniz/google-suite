@@ -44,6 +44,7 @@ jobs:
               - uv.lock
               - conftest.py
               - scripts/**
+              - tests/**
               - .github/workflows/ci.yml
               - packages/core/**
             gmail: packages/gmail/**
@@ -73,8 +74,12 @@ jobs:
           enable-cache: true
       # ruff comes from uv.lock, so a new release can't break main on its own
       - run: uv sync --locked --extra dev
-      - run: uv run ruff check packages/ api/ cli/ scripts/ conftest.py
-      - run: uv run ruff format --check packages/ api/ cli/ scripts/ conftest.py
+      - run: uv run ruff check packages/ api/ cli/ scripts/ tests/ conftest.py
+      - run: uv run ruff format --check packages/ api/ cli/ scripts/ tests/ conftest.py
+      # The integration tests only run on demand (integration.yml); collecting
+      # them here keeps their imports and fixtures from rotting in between.
+      - name: Collect integration tests
+        run: uv run --all-extras pytest tests/integration --collect-only -q
 
   typecheck:
     runs-on: ubuntu-latest
@@ -281,7 +286,24 @@ jobs:
         with:
           persist-credentials: false
       - name: Build API image
-        run: docker build -f api/Dockerfile -t gsuite-api:ci .
+        run: |
+          docker build -f api/Dockerfile -t gsuite-api:ci .
+          echo "Image size: $(docker image inspect gsuite-api:ci --format '{{.Size}}' | numfmt --to=iec)" >> "$GITHUB_STEP_SUMMARY"
+      # The image prunes googleapiclient's discovery documents down to
+      # DISCOVERY_KEEP (api/tests/test_dockerfile.py checks that list against
+      # the code); build each kept service offline inside the image.
+      - name: Check discovery documents
+        run: |
+          keep=$(sed -n 's/^ARG DISCOVERY_KEEP="\(.*\)"/\1/p' api/Dockerfile)
+          test -n "$keep"
+          docker run --rm -e KEEP="$keep" --entrypoint python gsuite-api:ci -c '
+          import os
+          from googleapiclient.discovery import build
+          for doc in os.environ["KEEP"].split():
+              name, version = doc.split(".", 1)
+              build(name, version, developerKey="ci", cache_discovery=False)
+              print("ok", doc)
+          '
       - name: Start container and check /health
         run: |
           docker run -d --name api -p 8080:8080 gsuite-api:ci

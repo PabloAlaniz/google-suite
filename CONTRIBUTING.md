@@ -44,6 +44,23 @@ uv run pytest packages/gmail/tests/test_query.py::TestQueryBuilder::test_from_qu
 Test module names must be unique across the repo (`test_gmail_client.py`,
 not `test_client.py`); collection fails otherwise.
 
+#### Integration tests
+
+`tests/integration/` runs real flows (create, read, delete) against a Google
+account. They are not part of `uv run pytest` and skip themselves unless
+enabled. Use a throwaway account:
+
+```bash
+gsuite auth login --force --scopes all     # with the test account
+GSUITE_INTEGRATION=1 uv run pytest tests/integration -rs
+```
+
+Every test deletes what it creates. Tasks and Contacts tests skip when the
+token lacks their scopes. In CI, `integration.yml` runs them weekly and on
+demand with the `GSUITE_INTEGRATION_TOKEN` secret (the output of
+`gsuite auth export`) in the `integration` environment. OAuth apps in
+"Testing" status issue refresh tokens that expire after 7 days.
+
 ### Linting and Type Checking
 
 ```bash
@@ -67,6 +84,21 @@ lowest-supported dependency versions. Package tests run per package on
 Python 3.11 (oldest supported) and 3.14 (latest), but only for the packages
 a PR touches (core or shared config runs all of them). macOS and Windows run
 the full suite. Nightly runs add the latest release of every dependency.
+
+### Documentation
+
+The site at https://pabloalaniz.github.io/google-suite/ is built with MkDocs
+from `docs/`, the READMEs (root and packages) and the docstrings:
+
+```bash
+uv run --group docs mkdocs serve   # http://127.0.0.1:8000, live reload
+uv run --group docs mkdocs build   # strict: broken links and bad docstrings fail
+```
+
+The READMEs are not copied into `docs/`: `scripts/mkdocs_hooks.py` adds them as
+pages and rewrites their relative links. A new package needs its README in
+`PACKAGES` there, a `docs/reference/<pkg>.md` page and entries in the `nav`
+of `mkdocs.yml`. Docstrings use the Google style.
 
 ### The Sheets engine
 
@@ -228,6 +260,7 @@ To add a new Google API (e.g., Contacts):
    - `PACKAGES`/`SERVICES` in `scripts/ci_select_packages.py` and a filter in `.github/workflows/ci.yml`
    - `TARGETS` in `scripts/mypy_ratchet.py`, then `uv run python scripts/mypy_ratchet.py --update`
 7. Update main README with new package
+8. Add the docs pages (see [Documentation](#documentation))
 
 ## Code Style
 

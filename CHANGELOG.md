@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **auth**: `refresh()` no longer fails with `invalid_scope` error
 - Root cause: `Credentials.from_authorized_user_info()` doesn't properly handle scopes; now using `Credentials` constructor directly
 
-## [Unreleased]
+## [0.1.0] - 2026-01-28
 
 ### Added
 - Initial monorepo structure with Clean Architecture
@@ -33,11 +33,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shared authentication across all services
 - Provider-agnostic design with interfaces
 - Type hints throughout (Python 3.11+)
-
-## [0.1.0] - 2026-01-28
-
-### Added
-- Initial release
-- Core packages: gmail, calendar, drive, sheets
-- REST API gateway
-- CLI interface

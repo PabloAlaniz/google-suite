@@ -1,7 +1,7 @@
 """Smoke tests for the gsuite CLI."""
 
 import json
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from typer.main import get_command
@@ -105,3 +105,63 @@ def test_sdk_errors_are_reported_without_traceback(capsys):
 
     assert exc_info.value.code == 1
     assert "Rate limit exceeded" in capsys.readouterr().out
+
+
+class TestSheetsCli:
+    @pytest.fixture
+    def client(self):
+        client = MagicMock()
+        with patch("gsuite_cli.sheets.get_sheets", return_value=client):
+            yield client
+
+    def _ws(self, client, values):
+        ws = MagicMock(title="Sheet1", id=0)
+        ws.get.return_value = values
+        client.open.return_value.sheet1 = ws
+        client.open.return_value.worksheet.return_value = ws
+        return ws
+
+    def test_read_table(self, client):
+        # Used to crash: the `range` parameter shadowed the builtin range()
+        self._ws(client, [["a", "b"], ["1", "2", "3"]])
+
+        result = runner.invoke(app, ["sheets", "read", "Budget", "-r", "A1:C2"])
+
+        assert result.exit_code == 0, result.output
+        assert "C" in result.output and "3" in result.output
+
+    def test_read_csv(self, client):
+        self._ws(client, [["a", "b,c"]])
+        result = runner.invoke(app, ["sheets", "read", "Budget", "-o", "csv"])
+        assert result.output.strip() == 'a,"b,c"'
+
+    def test_write_raw(self, client):
+        ws = self._ws(client, [])
+        runner.invoke(app, ["sheets", "write", "Budget", "-c", "A1", "-v", "=1+1", "--raw"])
+        ws.update.assert_called_once_with("A1", [["=1+1"]], value_input="RAW")
+
+    def test_missing_worksheet(self, client):
+        client.open.return_value.worksheet.return_value = None
+        result = runner.invoke(
+            app, ["sheets", "write", "Budget", "-c", "A1", "-v", "x", "-s", "Nope"]
+        )
+        assert result.exit_code == 1
+        assert "Worksheet not found" in result.output
+
+    def test_replace_all_sheets(self, client):
+        doc = client.open.return_value
+        doc._sheets.find_replace.return_value = 2
+
+        result = runner.invoke(app, ["sheets", "replace", "Budget", "old", "new", "--regex"])
+
+        assert "Replaced 2" in result.output
+        assert doc._sheets.find_replace.call_args.kwargs["sheet_id"] is None
+
+    def test_freeze_requires_something(self, client):
+        assert runner.invoke(app, ["sheets", "freeze", "Budget"]).exit_code == 2
+
+    def test_delete_tab_confirms(self, client):
+        self._ws(client, [])
+        result = runner.invoke(app, ["sheets", "delete-tab", "Budget", "Sheet1"], input="n\n")
+        assert result.exit_code == 1
+        client.open.return_value.del_worksheet.assert_not_called()

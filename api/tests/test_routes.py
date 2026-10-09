@@ -347,7 +347,7 @@ class TestSheetsMore:
 
         assert response.json()["updated_ranges"] == 1
         services["sheets"].batch_update.assert_called_once_with(
-            "sid", [{"range": "A1", "values": [[1]]}]
+            "sid", [{"range": "A1", "values": [[1]]}], "USER_ENTERED"
         )
 
     def test_clear(self, client, services):

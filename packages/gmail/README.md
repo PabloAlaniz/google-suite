@@ -5,7 +5,7 @@ Simple, Pythonic Gmail API client.
 ## Installation
 
 ```bash
-pip install gsuite-gmail
+pip install gsuite-sdk   # gsuite_gmail ships inside the SDK
 ```
 
 ## Quick Start

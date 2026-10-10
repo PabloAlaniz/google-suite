@@ -1,6 +1,6 @@
 {
   "name": "gsuite-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Gmail, Google Calendar, Drive, Sheets, Tasks and Contacts for agents, through the gsuite-sdk Python library and its gsuite CLI.",
   "author": {
     "name": "Pablo Alaniz",
@@ -9,5 +9,13 @@
   "homepage": "https://pabloalaniz.github.io/google-suite/",
   "repository": "https://github.com/PabloAlaniz/google-suite",
   "license": "MIT",
-  "keywords": ["google-workspace", "gmail", "google-calendar", "google-drive", "google-sheets", "google-tasks", "google-contacts"]
+  "keywords": [
+    "google-workspace",
+    "gmail",
+    "google-calendar",
+    "google-drive",
+    "google-sheets",
+    "google-tasks",
+    "google-contacts"
+  ]
 }

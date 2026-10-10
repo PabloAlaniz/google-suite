@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0](https://github.com/PabloAlaniz/google-suite/compare/v0.2.0...v0.3.0) (2026-10-10)
+
+
+### Features
+
+* **skill:** make the agent skill installable on skills.sh, Claude Code and Gemini CLI ([#28](https://github.com/PabloAlaniz/google-suite/issues/28)) ([857a964](https://github.com/PabloAlaniz/google-suite/commit/857a964a0da0a859af08188698aeaf64ac3b9e9f))
+
+
+### Documentation
+
+* point GSpreadManager references at the archive tag ([#25](https://github.com/PabloAlaniz/google-suite/issues/25)) ([2ff6656](https://github.com/PabloAlaniz/google-suite/commit/2ff66560ffec17834ab08b59f3e3d61706e7ff65))
+* **skill:** rewrite the OpenClaw skill for 0.2.0 and keep it in sync ([#26](https://github.com/PabloAlaniz/google-suite/issues/26)) ([a5a422d](https://github.com/PabloAlaniz/google-suite/commit/a5a422da3b55e59cb30bb79886d551a0db2d1dac))
+
 ## [0.2.0](https://github.com/PabloAlaniz/google-suite/compare/v0.1.3...v0.2.0) (2026-10-09)
 
 

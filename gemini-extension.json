@@ -1,6 +1,6 @@
 {
   "name": "gsuite-sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Gmail, Google Calendar, Drive, Sheets, Tasks and Contacts through the gsuite-sdk Python library and its gsuite CLI.",
   "settings": [
     {

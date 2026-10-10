@@ -20,6 +20,8 @@ COPY pyproject.toml uv.lock README.md ./
 # uv.lock references this path dependency (the dev-only "skill" group); uv
 # needs its metadata to check the lock even though the image doesn't install it
 COPY tools/agent-distribution tools/agent-distribution
+# packages/mcp is a uv workspace member (gsuite-mcp); the lock needs its metadata
+COPY packages/mcp/pyproject.toml packages/mcp/README.md packages/mcp/
 RUN uv sync --locked --no-dev --no-install-project --extra api --extra cloudrun
 
 COPY packages packages

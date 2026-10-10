@@ -27,6 +27,7 @@ TARGETS = {
     "sheets": "packages/sheets/src",
     "tasks": "packages/tasks/src",
     "contacts": "packages/contacts/src",
+    "mcp": "packages/mcp/src",
     "api": "api/src",
     "cli": "cli/src",
 }

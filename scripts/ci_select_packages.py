@@ -7,13 +7,24 @@ $GITHUB_OUTPUT.
 - Anything other than a pull request (push to main, nightly, manual run) tests
   every package.
 - A change to core or shared config tests every package.
-- A change to a service package also tests api and cli, which import them.
+- A change to a service package also tests mcp, api and cli, which import them.
 """
 
 import json
 import os
 
-PACKAGES = ["core", "gmail", "calendar", "drive", "sheets", "tasks", "contacts", "api", "cli"]
+PACKAGES = [
+    "core",
+    "gmail",
+    "calendar",
+    "drive",
+    "sheets",
+    "tasks",
+    "contacts",
+    "mcp",
+    "api",
+    "cli",
+]
 SERVICES = {"gmail", "calendar", "drive", "sheets", "tasks", "contacts"}
 
 
@@ -22,7 +33,7 @@ def select(event: str, changes: list[str]) -> list[str]:
         return PACKAGES
     selected = {c for c in changes if c in PACKAGES}
     if selected & SERVICES:
-        selected |= {"api", "cli"}
+        selected |= {"mcp", "api", "cli"}
     return [p for p in PACKAGES if p in selected]
 
 

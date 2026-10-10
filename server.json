@@ -1,0 +1,45 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.PabloAlaniz/gsuite-sdk",
+  "title": "Google Workspace (gsuite-sdk)",
+  "description": "Gmail, Calendar, Drive, Sheets, Tasks and Contacts for agents, with your own Google login",
+  "websiteUrl": "https://pabloalaniz.github.io/google-suite/",
+  "repository": {
+    "url": "https://github.com/PabloAlaniz/google-suite",
+    "source": "github",
+    "subfolder": "packages/mcp"
+  },
+  "version": "0.3.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "gsuite-mcp",
+      "version": "0.3.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "GSUITE_TOKEN_DB_PATH",
+          "description": "Absolute path to the tokens.db written by `gsuite auth login`",
+          "isRequired": true,
+          "format": "filepath"
+        },
+        {
+          "name": "GSUITE_CREDENTIALS_FILE",
+          "description": "Absolute path to the Google OAuth client JSON (needed to refresh the login)",
+          "isRequired": false,
+          "format": "filepath"
+        },
+        {
+          "name": "GSUITE_DEFAULT_TIMEZONE",
+          "description": "Time zone for dates without an offset, e.g. America/Argentina/Buenos_Aires",
+          "isRequired": false,
+          "default": "UTC"
+        }
+      ]
+    }
+  ]
+}

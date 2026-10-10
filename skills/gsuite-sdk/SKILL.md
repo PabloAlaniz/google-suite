@@ -138,7 +138,8 @@ Per service, with everything else the SDK can do:
 [Gmail](references/gmail.md) · [Calendar](references/calendar.md) ·
 [Drive](references/drive.md) · [Sheets](references/sheets.md) ·
 [Tasks and Contacts](references/tasks-contacts.md) ·
-[REST API and deployment](references/rest-api.md)
+[REST API and deployment](references/rest-api.md) ·
+[MCP server](references/mcp.md)
 
 ## Errors and return values
 

@@ -103,7 +103,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["gsuite_core", "gsuite_gmail", "gsuite_calendar", "gsuite_drive", "gsuite_sheets", "gsuite_tasks", "gsuite_contacts", "gsuite_api", "gsuite_cli"]
+known-first-party = ["gsuite_core", "gsuite_gmail", "gsuite_calendar", "gsuite_drive", "gsuite_sheets", "gsuite_tasks", "gsuite_contacts", "gsuite_mcp", "gsuite_api", "gsuite_cli"]
 
 [tool.mypy]
 python_version = "3.11"
@@ -112,7 +112,7 @@ warn_unused_ignores = true
 disallow_untyped_defs = true
 # Editable installs use an import hook mypy can't follow; point it at the
 # sources so cross-package imports type-check instead of erroring.
-mypy_path = "packages/core/src:packages/gmail/src:packages/calendar/src:packages/drive/src:packages/sheets/src:packages/tasks/src:packages/contacts/src:api/src:cli/src"
+mypy_path = "packages/core/src:packages/gmail/src:packages/calendar/src:packages/drive/src:packages/sheets/src:packages/tasks/src:packages/contacts/src:packages/mcp/src:api/src:cli/src"
 
 [[tool.mypy.overrides]]
 # Google's client libraries ship without type information
@@ -132,7 +132,7 @@ include = ["gsuite_*"]
 "*" = ["py.typed"]
 
 [tool.coverage.run]
-source = ["gsuite_core", "gsuite_gmail", "gsuite_calendar", "gsuite_drive", "gsuite_sheets", "gsuite_tasks", "gsuite_contacts", "gsuite_api", "gsuite_cli"]
+source = ["gsuite_core", "gsuite_gmail", "gsuite_calendar", "gsuite_drive", "gsuite_sheets", "gsuite_tasks", "gsuite_contacts", "gsuite_mcp", "gsuite_api", "gsuite_cli"]
 branch = true
 relative_files = true
 
@@ -143,6 +143,8 @@ skip_covered = true
 [dependency-groups]
 # cli/tests/test_skill_md.py; a group, not an extra: PyPI rejects git dependencies in metadata
 skill = ["agent-skill-check"]
+# The MCP server is its own distribution (packages/mcp, published as gsuite-mcp)
+mcp = ["gsuite-mcp"]
 docs = [
     # MkDocs 2.0 drops the plugin system (mkdocstrings, the hooks); stay on 1.x
     "mkdocs>=1.6,<2",
@@ -150,5 +152,9 @@ docs = [
     "mkdocstrings[python]>=0.26",
 ]
 
+[tool.uv.workspace]
+members = ["packages/mcp"]
+
 [tool.uv.sources]
 agent-skill-check = { path = "tools/agent-distribution", editable = true }
+gsuite-mcp = { workspace = true }

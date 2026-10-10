@@ -113,6 +113,17 @@ release-please bumps the version in `.claude-plugin/plugin.json` and
 npx clawhub@0.23.3 skill publish skills/gsuite-sdk --slug gsuite-sdk --version X.Y.Z --dry-run
 ```
 
+### The MCP server
+
+`packages/mcp` is a uv workspace member published as its own distribution,
+**gsuite-mcp** (it depends on gsuite-sdk), so MCP clients can run
+`uvx gsuite-mcp`. The release builds both (`uv build --all-packages`), uploads
+both to PyPI, and then publishes `server.json` to the official MCP Registry
+(`mcp-registry` job, GitHub OIDC). The registry checks the `mcp-name` comment
+in `packages/mcp/README.md`, which is gsuite-mcp's PyPI description.
+release-please keeps the versions of gsuite-mcp and `server.json` in step with
+gsuite-sdk.
+
 ### Documentation
 
 The site at https://pabloalaniz.github.io/google-suite/ is built with MkDocs
@@ -361,6 +372,14 @@ gh secret set RELEASE_PLEASE_TOKEN -R $REPO
 
 # ClawHub API token (clawhub.ai > settings > API tokens) so releases publish the skill
 gh secret set CLAWHUB_TOKEN -R $REPO --env clawhub
+```
+
+On PyPI, both projects publish through trusted publishing from this repo
+(workflow `publish.yml`, environment `pypi`): `gsuite-sdk`, and `gsuite-mcp`
+(added as a pending publisher before its first release at
+https://pypi.org/manage/account/publishing/).
+
+```bash
 
 # Protect main. Apply after ci-ok has run once on main, so the check exists.
 gh api -X POST repos/$REPO/rulesets --input .github/rulesets/main.json

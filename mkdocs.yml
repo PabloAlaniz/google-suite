@@ -84,6 +84,7 @@ nav:
       - Sheets: services/sheets.md
       - Tasks: services/tasks.md
       - Contacts: services/contacts.md
+      - MCP server: services/mcp.md
   - Guides:
       - Async: ASYNC.md
       - Migrating from GSpreadManager: MIGRATING_FROM_GSPREADMANAGER.md

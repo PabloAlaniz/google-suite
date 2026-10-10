@@ -52,7 +52,7 @@ jobs:
           ref: ${{ needs.release-please.outputs.tag_name || github.ref }}
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-      - run: uv build
+      - run: uv build --all-packages   # gsuite-sdk and gsuite-mcp
       - run: uvx twine check --strict dist/*
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -106,3 +106,15 @@ jobs:
       ref: v${{ needs.version.outputs.version }}
     # CLAWHUB_TOKEN is an environment secret of "clawhub", read inside the called job
     secrets: inherit
+
+  # The MCP server (gsuite-mcp on PyPI) in the official MCP Registry, with
+  # GitHub OIDC (no secret). Runs after PyPI: the registry checks that the
+  # package exists and declares the server name (mcp-name in its README).
+  mcp-registry:
+    needs: version
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/reusable-mcp-registry-publish.yml
+    with:
+      ref: v${{ needs.version.outputs.version }}

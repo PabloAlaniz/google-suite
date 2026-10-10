@@ -22,6 +22,26 @@
           "type": "json",
           "path": "gemini-extension.json",
           "jsonpath": "$.version"
+        },
+        {
+          "type": "toml",
+          "path": "packages/mcp/pyproject.toml",
+          "jsonpath": "$.project.version"
+        },
+        {
+          "type": "toml",
+          "path": "uv.lock",
+          "jsonpath": "$.package[?(@.name.value=='gsuite-mcp')].version"
+        },
+        {
+          "type": "json",
+          "path": "server.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "server.json",
+          "jsonpath": "$.packages[0].version"
         }
       ]
     }

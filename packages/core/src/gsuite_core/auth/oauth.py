@@ -49,7 +49,8 @@ class GoogleAuth:
         Args:
             token_store: Storage backend for tokens (default: SQLite)
             credentials_file: Path to OAuth credentials JSON
-            scopes: OAuth scopes to request (default: Gmail + Calendar)
+            scopes: OAuth scopes to request (default: Scopes.default(), i.e.
+                Gmail, Calendar, Drive and Sheets)
             user_id: User identifier for multi-user setups
         """
         settings = get_settings()
@@ -182,7 +183,8 @@ class GoogleAuth:
             Valid Google credentials
 
         Raises:
-            FileNotFoundError: If credentials file doesn't exist
+            CredentialsNotFoundError: If the browser flow is needed and the
+                credentials file doesn't exist
         """
         if not force:
             if self.is_authenticated() and self._credentials is not None:

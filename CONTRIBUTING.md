@@ -85,6 +85,22 @@ Python 3.11 (oldest supported) and 3.14 (latest), but only for the packages
 a PR touches (core or shared config runs all of them). macOS and Windows run
 the full suite. Nightly runs add the latest release of every dependency.
 
+### The agent skill
+
+`gsuite-sdk/` is an [OpenClaw](https://clawhub.ai/pabloalaniz/gsuite-sdk)
+skill: `SKILL.md` (setup, CLI, a short SDK tour, errors) plus one file per
+service in `references/`. Agents run its snippets as written, so
+`cli/tests/test_skill_md.py` checks every Python call, CLI command, option and
+`GSUITE_*` variable in it against the code; a renamed method or flag fails CI.
+Update the skill in the same PR that changes the API.
+
+It is published to ClawHub with the SDK's version by the Release workflow
+(`skill` job). To preview what would be published:
+
+```bash
+npx clawhub@0.23.3 skill publish gsuite-sdk --slug gsuite-sdk --version X.Y.Z --dry-run
+```
+
 ### Documentation
 
 The site at https://pabloalaniz.github.io/google-suite/ is built with MkDocs
@@ -261,6 +277,7 @@ To add a new Google API (e.g., Contacts):
    - `TARGETS` in `scripts/mypy_ratchet.py`, then `uv run python scripts/mypy_ratchet.py --update`
 7. Update main README with new package
 8. Add the docs pages (see [Documentation](#documentation))
+9. Cover it in the agent skill: `gsuite-sdk/SKILL.md` and a `references/` page
 
 ## Code Style
 
@@ -328,6 +345,9 @@ gh api -X PUT repos/$REPO/actions/permissions/workflow \
 
 # Fine-grained PAT (this repo; contents + pull requests: write) so release PRs trigger CI
 gh secret set RELEASE_PLEASE_TOKEN -R $REPO
+
+# ClawHub API token (clawhub.ai > settings > API tokens) so releases publish the skill
+gh secret set CLAWHUB_TOKEN -R $REPO --env clawhub
 
 # Protect main. Apply after ci-ok has run once on main, so the check exists.
 gh api -X POST repos/$REPO/rulesets --input .github/rulesets/main.json

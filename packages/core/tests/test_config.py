@@ -72,3 +72,31 @@ class TestSettings:
 
         settings = Settings(token_storage="secretmanager")
         assert settings.token_storage == "secretmanager"
+
+
+class TestCredentialsFileEnv:
+    """GOOGLE_CREDENTIALS_FILE (asked for by the OpenClaw skill up to 0.1.3) is a fallback."""
+
+    @pytest.fixture(autouse=True)
+    def clean_env(self, monkeypatch):
+        monkeypatch.delenv("GSUITE_CREDENTIALS_FILE", raising=False)
+        monkeypatch.delenv("GOOGLE_CREDENTIALS_FILE", raising=False)
+
+    def test_default(self):
+        assert Settings(_env_file=None).credentials_file == "credentials.json"
+
+    def test_gsuite_variable(self, monkeypatch):
+        monkeypatch.setenv("GSUITE_CREDENTIALS_FILE", "/secrets/gsuite.json")
+        assert Settings(_env_file=None).credentials_file == "/secrets/gsuite.json"
+
+    def test_google_variable_is_a_fallback(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_CREDENTIALS_FILE", "/secrets/google.json")
+        assert Settings(_env_file=None).credentials_file == "/secrets/google.json"
+
+    def test_gsuite_variable_wins(self, monkeypatch):
+        monkeypatch.setenv("GOOGLE_CREDENTIALS_FILE", "/secrets/google.json")
+        monkeypatch.setenv("GSUITE_CREDENTIALS_FILE", "/secrets/gsuite.json")
+        assert Settings(_env_file=None).credentials_file == "/secrets/gsuite.json"
+
+    def test_keyword_argument(self):
+        assert Settings(credentials_file="x.json", _env_file=None).credentials_file == "x.json"

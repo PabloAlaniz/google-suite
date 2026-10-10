@@ -5,8 +5,9 @@ name: Release
 # On every push to main, release-please opens or updates a release PR that
 # bumps pyproject.toml, uv.lock and CHANGELOG.md from conventional commits.
 # Merging that PR creates the tag and GitHub release, and the jobs below
-# build and publish to PyPI. workflow_dispatch republishes the current
-# version (skip-existing makes it idempotent).
+# build and publish to PyPI, then publish the OpenClaw skill (gsuite-sdk/)
+# to ClawHub with the same version. workflow_dispatch republishes the current
+# version (both steps are idempotent).
 
 on:
   push:
@@ -74,3 +75,50 @@ jobs:
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
         with:
           skip-existing: true
+
+  # The OpenClaw skill in gsuite-sdk/ is published to ClawHub
+  # (clawhub.ai/pabloalaniz/gsuite-sdk) with the same version as the SDK.
+  # Needs the CLAWHUB_TOKEN secret in the "clawhub" environment; without it
+  # the job leaves a notice and the release still succeeds.
+  skill:
+    needs: [release-please, publish]
+    if: always() && needs.publish.result == 'success'
+    runs-on: ubuntu-latest
+    environment: clawhub
+    env:
+      CLAWHUB_VERSION: "0.23.3"
+      CLAWHUB_DISABLE_TELEMETRY: "1"
+      npm_config_update_notifier: "false"
+    steps:
+      - name: Check credentials
+        id: token
+        env:
+          TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::notice::CLAWHUB_TOKEN is not set; the skill was not published to ClawHub"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.token.outputs.present == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name || github.ref }}
+          persist-credentials: false
+      - name: Publish the skill
+        if: steps.token.outputs.present == 'true'
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+        run: |
+          export CLAWHUB_CONFIG_PATH="$RUNNER_TEMP/clawhub.json"   # token stays in the runner's temp dir
+          version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          npx -y "clawhub@$CLAWHUB_VERSION" --no-input login --token "$CLAWHUB_TOKEN"
+          npx -y "clawhub@$CLAWHUB_VERSION" --no-input skill publish gsuite-sdk \
+            --slug gsuite-sdk \
+            --version "$version" \
+            --changelog "gsuite-sdk $version: https://github.com/$GITHUB_REPOSITORY/releases/tag/v$version" \
+            --source-repo "$GITHUB_REPOSITORY" \
+            --source-commit "$(git rev-parse HEAD)" \
+            --source-ref "v$version" \
+            --source-path gsuite-sdk

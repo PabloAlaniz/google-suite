@@ -1,335 +1,167 @@
 ---
 name: gsuite-sdk
-description: Interact with Google Workspace APIs (Gmail, Calendar, Drive, Sheets, Tasks, Contacts) using gsuite-sdk.
+description: Work with Gmail, Google Calendar, Drive, Sheets, Tasks and Contacts through the gsuite-sdk Python library and its `gsuite` CLI (JSON output for agents). Use it to read and send email, manage events, upload and share files, read and write spreadsheets, and manage tasks and contacts.
 metadata:
   openclaw:
     requires:
       env:
-        - GOOGLE_CREDENTIALS_FILE
-    primaryEnv: GOOGLE_CREDENTIALS_FILE
+        - GSUITE_CREDENTIALS_FILE
+    primaryEnv: GSUITE_CREDENTIALS_FILE
     install:
       - kind: pip
-        package: gsuite-sdk
+        package: "gsuite-sdk[cli]"
         bins: [gsuite]
-    homepage: https://github.com/PabloAlaniz/google-suite
+    homepage: https://pabloalaniz.github.io/google-suite/
 ---
 
-# Google Suite Skill
+# gsuite-sdk
 
-Skill para interactuar con Google Workspace APIs (Gmail, Calendar, Drive, Sheets, Tasks, Contacts) usando `gsuite-sdk`.
+One OAuth login for Gmail, Calendar, Drive, Sheets, Tasks and Contacts, usable
+three ways: the `gsuite` CLI (prefer it: most commands print JSON with
+`-o json`), the Python SDK, or a REST API (`gsuite serve`).
 
-## Instalación
+Docs: https://pabloalaniz.github.io/google-suite/ · Source: https://github.com/PabloAlaniz/google-suite
 
-```bash
-pip install gsuite-sdk
-```
-
-Con extras opcionales:
-```bash
-pip install gsuite-sdk[cloudrun]  # Para Secret Manager
-pip install gsuite-sdk[all]       # Todas las dependencias
-```
-
-## Autenticación
-
-### Primera vez (requiere navegador)
-
-El usuario debe obtener `credentials.json` de Google Cloud Console y luego autenticarse:
+## Setup
 
 ```bash
-# Via CLI
-gsuite auth login
-
-# O via Python (abre navegador)
-from gsuite_core import GoogleAuth
-auth = GoogleAuth()
-auth.authenticate()
+pip install "gsuite-sdk[cli]"      # the gsuite command; [all] adds the REST API, async and Secret Manager
 ```
 
-Ver [GETTING_CREDENTIALS.md](../docs/GETTING_CREDENTIALS.md) para guía completa.
+Configuration comes from environment variables (or a `.env` file):
 
-### Sesiones siguientes
+| Variable | Default | Meaning |
+|---|---|---|
+| `GSUITE_CREDENTIALS_FILE` | `credentials.json` | OAuth client file from Google Cloud ([how to get it](https://pabloalaniz.github.io/google-suite/GETTING_CREDENTIALS/)) |
+| `GSUITE_TOKEN_DB_PATH` | `tokens.db` | Where the login token is stored (SQLite) |
+| `GSUITE_DEFAULT_TIMEZONE` | `UTC` | Time zone for "today" and for naive datetimes |
 
-Una vez autenticado, los tokens se guardan localmente y se refrescan automáticamente:
+Both paths are **relative to the current directory**: run every command from
+the same place, or set absolute paths. Set `GSUITE_DEFAULT_TIMEZONE` (e.g.
+`America/Argentina/Buenos_Aires`), or "today" and new events use UTC.
+
+### Login (once, opens a browser)
+
+```bash
+gsuite auth login                                  # Gmail, Calendar, Drive, Sheets
+gsuite auth login --force --scopes default,tasks,contacts   # add Tasks and Contacts
+gsuite auth status
+```
+
+`--scopes` takes a comma-separated list of `default, gmail, calendar, drive,
+sheets, tasks, contacts, all`. Tasks and Contacts are not in the default login.
+The token refreshes itself; log in again (`--force`) only after a
+`TokenRefreshError` or when a call fails with `PermissionDeniedError` because a
+scope is missing.
+
+Without a browser (servers, CI) use a service account:
 
 ```python
-from gsuite_core import GoogleAuth
+from gsuite_core import GoogleAuth, Scopes
 
-auth = GoogleAuth()
-if auth.is_authenticated():
-    # Listo para usar
-    pass
-else:
-    # Necesita autenticarse (abre navegador)
-    auth.authenticate()
+auth = GoogleAuth.from_service_account(
+    "service-account.json",
+    scopes=Scopes.default(),
+    subject="user@your-domain.com",  # Workspace domain-wide delegation; omit otherwise
+)
 ```
 
-## Gmail
+## CLI (preferred)
 
-### Leer mensajes
+Add `-o json` where supported and parse stdout. Errors exit with code 1 and a
+one-line message.
+
+```bash
+gsuite gmail list --unread --limit 10 -o json
+gsuite gmail list --query "from:boss@example.com newer_than:7d" -o json
+gsuite gmail read MESSAGE_ID -o json
+gsuite gmail send --to ana@example.com --subject "Report" --body "Attached." --attach report.pdf
+gsuite gmail reply MESSAGE_ID --body "Thanks!"
+
+gsuite calendar list --days 1 -o json        # events in the next 24 hours
+gsuite calendar create "Sync" --start "2026-03-02 10:00" --end "2026-03-02 10:30" --attendee ana@example.com --meet --notify
+
+gsuite drive list --name "invoice" -o json
+gsuite drive upload ./report.pdf --to FOLDER_ID
+gsuite drive download FILE_ID --out ./file.pdf
+gsuite drive share FILE_ID ana@example.com --role writer
+
+gsuite sheets read SPREADSHEET --range "A1:D20" -o json   # SPREADSHEET: title, ID or URL
+gsuite sheets append SPREADSHEET --value "Ana" --value 42
+gsuite sheets export SPREADSHEET --format xlsx --out ./budget.xlsx
+
+gsuite tasks list -o json
+gsuite tasks add "Pay rent" --due 2026-03-01
+gsuite tasks done TASK_ID
+
+gsuite contacts search ana -o json
+```
+
+No JSON output on `calendar today`, `calendar week` or `gmail search`: use
+`calendar list --days N -o json` and `gmail list --query ... -o json` instead.
+
+## Python SDK
 
 ```python
 from gsuite_core import GoogleAuth
 from gsuite_gmail import Gmail, query
-
-auth = GoogleAuth()
-gmail = Gmail(auth)
-
-# Mensajes no leídos
-for msg in gmail.get_unread(max_results=10):
-    print(f"De: {msg.sender}")
-    print(f"Asunto: {msg.subject}")
-    print(f"Fecha: {msg.date}")
-    print(f"Preview: {msg.body[:200]}...")
-    print("---")
-
-# Buscar con query builder
-mensajes = gmail.search(
-    query.from_("notifications@github.com") & 
-    query.newer_than(days=7)
-)
-
-# Marcar como leído
-msg.mark_as_read()
-```
-
-### Enviar email
-
-```python
-gmail.send(
-    to=["destinatario@example.com"],
-    subject="Asunto del email",
-    body="Contenido del mensaje",
-)
-
-# Con adjuntos
-gmail.send(
-    to=["user@example.com"],
-    subject="Reporte",
-    body="Adjunto el reporte.",
-    attachments=["reporte.pdf"],
-)
-```
-
-## Calendar
-
-### Leer eventos
-
-```python
-from gsuite_core import GoogleAuth
 from gsuite_calendar import Calendar
-
-auth = GoogleAuth()
-calendar = Calendar(auth)
-
-# Eventos de hoy
-for event in calendar.get_today():
-    print(f"{event.start.strftime('%H:%M')} - {event.summary}")
-
-# Próximos 7 días
-for event in calendar.get_upcoming(days=7):
-    print(f"{event.start}: {event.summary}")
-    if event.location:
-        print(f"  📍 {event.location}")
-
-# Rango específico
-from datetime import datetime
-events = calendar.get_events(
-    time_min=datetime(2026, 2, 1),
-    time_max=datetime(2026, 2, 28),
-)
-```
-
-### Crear eventos
-
-```python
-from datetime import datetime
-
-calendar.create_event(
-    summary="Reunión de equipo",
-    start=datetime(2026, 2, 15, 10, 0),
-    end=datetime(2026, 2, 15, 11, 0),
-    location="Sala de conferencias",
-)
-
-# Con asistentes
-calendar.create_event(
-    summary="Sync semanal",
-    start=datetime(2026, 2, 15, 14, 0),
-    end=datetime(2026, 2, 15, 15, 0),
-    attendees=["alice@company.com", "bob@company.com"],
-    send_notifications=True,
-)
-```
-
-## Drive
-
-### Listar y descargar archivos
-
-```python
-from gsuite_core import GoogleAuth
 from gsuite_drive import Drive
-
-auth = GoogleAuth()
-drive = Drive(auth)
-
-# Listar archivos recientes
-for file in drive.list_files(max_results=20):
-    print(f"{file.name} ({file.mime_type})")
-
-# Buscar
-files = drive.list_files(query="name contains 'reporte'")
-
-# Descargar
-file = drive.get("file_id_aqui")
-file.download("/tmp/archivo.pdf")
-```
-
-### Subir archivos
-
-```python
-# Subir archivo
-uploaded = drive.upload("documento.pdf")
-print(f"Link: {uploaded.web_view_link}")
-
-# Subir a carpeta específica
-uploaded = drive.upload("data.xlsx", parent_id="folder_id")
-
-# Crear carpeta
-folder = drive.create_folder("Reportes 2026")
-drive.upload("q1.pdf", parent_id=folder.id)
-```
-
-## Sheets
-
-### Leer datos
-
-```python
-from gsuite_core import GoogleAuth
 from gsuite_sheets import Sheets
 
-auth = GoogleAuth()
+auth = GoogleAuth()   # reads the token saved by `gsuite auth login`
+
+gmail = Gmail(auth)
+for msg in gmail.search(query.from_("boss@example.com") & query.newer_than(days=7)):
+    print(msg.subject, msg.sender, msg.date)
+
+calendar = Calendar(auth)
+for event in calendar.get_today():
+    print(event.start, event.summary, event.meet_link)
+
+drive = Drive(auth)
+uploaded = drive.upload("report.pdf", parent_id="FOLDER_ID")
+drive.share(uploaded.id, "ana@example.com", role="reader")
+
 sheets = Sheets(auth)
-
-# Abrir spreadsheet
-spreadsheet = sheets.open("SPREADSHEET_ID")
-
-# Leer worksheet
-ws = spreadsheet.worksheet("Sheet1")
-data = ws.get("A1:D10")  # Lista de listas
-
-# Como diccionarios (primera fila = headers)
-records = ws.get_all_records()
-# [{"Nombre": "Alice", "Edad": 30}, ...]
+spreadsheet = sheets.open_by_key("1AbC...")     # by ID; sheets.open(title) searches by title
+ws = spreadsheet.sheet1                         # first tab, whatever its name
+rows = ws.get_all_records()                     # list of dicts; values are strings
+ws.append_rows([["Ana", 42], ["Bob", 7]])
+ws.update("A1", [["Name", "Score"]])            # values are always a 2D list
 ```
 
-### Escribir datos
+Per service, with everything else the SDK can do:
+[Gmail](references/gmail.md) · [Calendar](references/calendar.md) ·
+[Drive](references/drive.md) · [Sheets](references/sheets.md) ·
+[Tasks and Contacts](references/tasks-contacts.md) ·
+[REST API and deployment](references/rest-api.md)
 
-```python
-# Actualizar celda
-ws.update("A1", "Nuevo valor")
+## Errors and return values
 
-# Actualizar rango
-ws.update("A1:C2", [
-    ["Nombre", "Edad", "Ciudad"],
-    ["Alice", 30, "NYC"],
-])
+- Lookups return `None` when the item doesn't exist (`gmail.get_message`,
+  `calendar.get_event`, `drive.get`, `tasks.get_task`, `contacts.get`), and
+  deletes return `False`. Check for them instead of catching exceptions.
+- Every error is a `gsuite_core.GSuiteError`:
+  - `NotFoundError`: HTTP 404 from Google.
+  - `PermissionDeniedError`: HTTP 403, usually a scope missing from the login
+    (log in again with `--force --scopes ...`) or no access to that item.
+  - `RateLimitError` / `QuotaExceededError`: already retried with backoff
+    before being raised.
+  - `ValidationError`: bad input (`.field` names it).
+  - `CredentialsNotFoundError`: `GSUITE_CREDENTIALS_FILE` doesn't exist and a
+    browser login is needed.
+  - `NotAuthenticatedError` / `TokenRefreshError`: run `gsuite auth login`.
+- Sheets: `sheets.open(title)` raises `ValueError` when no spreadsheet has
+  that title (use `open_by_key` when you have the ID); engine operations raise
+  `SpreadsheetNotFoundError`, `WorksheetNotFoundError` and `InvalidRangeError`
+  (all `GSuiteError`).
 
-# Agregar filas al final
-ws.append([
-    ["Bob", 25, "LA"],
-    ["Charlie", 35, "Chicago"],
-])
-```
+## Notes for agents
 
-## Tasks
-
-Requiere el scope de Tasks: `gsuite auth login --force --scopes default,tasks`.
-
-```python
-from datetime import date
-
-from gsuite_tasks import Tasks
-
-tasks = Tasks(auth)  # lista por defecto: "@default"
-
-# Listas
-for tl in tasks.list_tasklists():
-    print(tl.id, tl.title)
-
-# Pendientes que vencen antes de fin de mes
-for t in tasks.list_tasks(show_completed=False, due_max=date(2026, 2, 28)):
-    print(t.title, t.due, t.is_overdue)
-
-# Crear, subtarea, completar
-task = tasks.create_task("Pagar alquiler", due=date(2026, 2, 1), notes="Antes del 5")
-tasks.create_task("Transferir", parent=task.id)
-tasks.complete_task(task.id)
-tasks.reopen_task(task.id)
-tasks.update_task(task.id, due=None)  # None borra la fecha
-```
-
-`due` es una fecha (`date`): la API de Tasks descarta la hora.
-
-## Contacts
-
-Requiere el scope de Contacts: `gsuite auth login --force --scopes default,contacts`.
-
-```python
-from gsuite_contacts import Contacts
-
-contacts = Contacts(auth)
-
-# Buscar (prefijo de nombre, email, teléfono u organización; máx. 30)
-for c in contacts.search("ana"):
-    print(c.id, c.display_name, c.email, c.phone)
-
-# Crear y actualizar
-ana = contacts.create(given_name="Ana", family_name="Pérez", emails=["ana@example.com"])
-contacts.update(ana.id, phones=["+54 11 5555-5555"])  # emails/phones reemplazan la lista
-contacts.update(ana.id, given_name="Anita")           # conserva el apellido
-contacts.delete(ana.id)
-```
-
-## CLI
-
-Si instalaste `gsuite-cli`:
-
-```bash
-# Autenticación
-gsuite auth login
-gsuite auth status
-
-# Gmail
-gsuite gmail list --unread
-gsuite gmail send --to user@example.com --subject "Hola" --body "Mundo"
-
-# Calendar
-gsuite calendar today
-gsuite calendar list --days 7
-
-# Drive
-gsuite drive list
-gsuite drive upload archivo.pdf
-
-# Sheets
-gsuite sheets read SPREADSHEET_ID --range "A1:C10"
-
-# Tasks
-gsuite tasks ls
-gsuite tasks add "Pagar alquiler" --due 2026-02-01
-gsuite tasks done TASK_ID
-
-# Contacts
-gsuite contacts search ana -o json
-```
-
-## Notas para agentes
-
-1. **Primera autenticación requiere navegador** - El usuario debe completar OAuth manualmente la primera vez
-2. **Tokens persisten** - Después de autenticar, los tokens se guardan en `tokens.db` y se refrescan automáticamente
-3. **Scopes** - Por defecto pide acceso a Gmail, Calendar, Drive y Sheets. Tasks y Contacts son opt-in: `--scopes default,tasks,contacts` (o `all`). Un `PermissionDeniedError` con un token viejo suele ser un scope que falta: re-autenticar con `--force`
-4. **Errores comunes:**
-   - `CredentialsNotFoundError`: Falta `credentials.json`
-   - `TokenRefreshError`: Token expiró y no se pudo refrescar (re-autenticar)
-   - `NotFoundError`: Recurso no existe o sin permisos
+- Confirm with the user before sending email, inviting attendees
+  (`--notify` / `send_updates="all"`), sharing files or deleting anything.
+- Gmail search uses Gmail's query syntax (`from:`, `newer_than:7d`,
+  `has:attachment`, `is:unread`), or the `query` builder in Python.
+- Dates for `--due`, `--start` and the SDK are ISO (`2026-03-01`,
+  `2026-03-01 10:00`); naive times are in `GSUITE_DEFAULT_TIMEZONE`.

@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
 from gsuite_core._version import __version__
@@ -42,7 +42,14 @@ class Settings(BaseSettings):
 
     # Google OAuth
     credentials_file: str = Field(
-        default="credentials.json", description="Path to Google OAuth credentials file"
+        default="credentials.json",
+        description="Path to Google OAuth credentials file",
+        # GOOGLE_CREDENTIALS_FILE is what the OpenClaw skill asked for up to
+        # 0.1.3; it never reached the SDK. Accepted as a fallback so those
+        # installs work, with GSUITE_CREDENTIALS_FILE taking precedence.
+        validation_alias=AliasChoices(
+            "GSUITE_CREDENTIALS_FILE", "GOOGLE_CREDENTIALS_FILE", "credentials_file"
+        ),
     )
 
     # Token storage backend
@@ -86,6 +93,7 @@ class Settings(BaseSettings):
         "env_file": ".env",
         "env_file_encoding": "utf-8",
         "extra": "ignore",
+        "populate_by_name": True,
     }
 
     @property

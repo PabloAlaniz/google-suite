@@ -87,18 +87,30 @@ the full suite. Nightly runs add the latest release of every dependency.
 
 ### The agent skill
 
-`gsuite-sdk/` is an [OpenClaw](https://clawhub.ai/pabloalaniz/gsuite-sdk)
-skill: `SKILL.md` (setup, CLI, a short SDK tour, errors) plus one file per
-service in `references/`. Agents run its snippets as written, so
-`cli/tests/test_skill_md.py` checks every Python call, CLI command, option and
-`GSUITE_*` variable in it against the code; a renamed method or flag fails CI.
-Update the skill in the same PR that changes the API.
+`skills/gsuite-sdk/` is an [Agent Skill](https://agentskills.io): `SKILL.md`
+(setup, CLI, a short SDK tour, errors) plus one file per service in
+`references/`. Agents run its snippets as written, so
+`cli/tests/test_skill_md.py` checks it with
+[agent-skill-check](tools/agent-distribution/README.md): the
+Agent Skills spec, every Python call, CLI command and option, and every
+`GSUITE_*` variable against the code. A renamed method or flag fails CI, so
+update the skill in the same PR that changes the API.
 
-It is published to ClawHub with the SDK's version by the Release workflow
-(`skill` job). To preview what would be published:
+The same folder reaches several indexes (see
+[the playbook](tools/agent-distribution/PLAYBOOK.md), which the author's other projects follow too):
+
+- **ClawHub**: published with the SDK's version by the Release workflow (`skill` job).
+- **skills.sh**: `npx skills add PabloAlaniz/google-suite`.
+- **Claude Code**: `.claude-plugin/` makes the repo a marketplace
+  (`claude plugin marketplace add PabloAlaniz/google-suite`); claude-plugins.dev
+  indexes it.
+- **Gemini CLI**: `gemini-extension.json` + the `gemini-cli-extension` topic.
+
+release-please bumps the version in `.claude-plugin/plugin.json` and
+`gemini-extension.json`. To preview a ClawHub publish:
 
 ```bash
-npx clawhub@0.23.3 skill publish gsuite-sdk --slug gsuite-sdk --version X.Y.Z --dry-run
+npx clawhub@0.23.3 skill publish skills/gsuite-sdk --slug gsuite-sdk --version X.Y.Z --dry-run
 ```
 
 ### Documentation
@@ -278,7 +290,7 @@ To add a new Google API (e.g., Contacts):
    - `TARGETS` in `scripts/mypy_ratchet.py`, then `uv run python scripts/mypy_ratchet.py --update`
 7. Update main README with new package
 8. Add the docs pages (see [Documentation](#documentation))
-9. Cover it in the agent skill: `gsuite-sdk/SKILL.md` and a `references/` page
+9. Cover it in the agent skill: `skills/gsuite-sdk/SKILL.md` and a `references/` page
 
 ## Code Style
 

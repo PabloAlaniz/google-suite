@@ -1,6 +1,8 @@
 ---
 name: gsuite-sdk
 description: Work with Gmail, Google Calendar, Drive, Sheets, Tasks and Contacts through the gsuite-sdk Python library and its `gsuite` CLI (JSON output for agents). Use it to read and send email, manage events, upload and share files, read and write spreadsheets, and manage tasks and contacts.
+license: MIT
+compatibility: Python 3.11+ (pip install "gsuite-sdk[cli]"); a Google Cloud OAuth client file; network access to Google APIs.
 metadata:
   openclaw:
     requires:
@@ -10,7 +12,8 @@ metadata:
     install:
       - kind: pip
         package: "gsuite-sdk[cli]"
-        bins: [gsuite]
+        bins:
+          - gsuite
     homepage: https://pabloalaniz.github.io/google-suite/
 ---
 

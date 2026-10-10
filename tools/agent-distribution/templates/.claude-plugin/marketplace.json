@@ -1,0 +1,15 @@
+{
+  "name": "my-lib",
+  "description": "my-lib skills for Claude Code",
+  "owner": {
+    "name": "Pablo Alaniz",
+    "url": "https://github.com/PabloAlaniz"
+  },
+  "plugins": [
+    {
+      "name": "my-lib",
+      "source": "./",
+      "description": "One line: what the plugin lets an agent do."
+    }
+  ]
+}

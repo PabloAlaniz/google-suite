@@ -56,7 +56,8 @@ jobs:
             api: api/**
             cli:
               - cli/**
-              - gsuite-sdk/**   # the skill is checked by cli/tests/test_skill_md.py
+              - skills/**   # the skill is checked by cli/tests/test_skill_md.py
+              - tools/agent-distribution/**
 
       - id: select
         env:
@@ -76,8 +77,8 @@ jobs:
           enable-cache: true
       # ruff comes from uv.lock, so a new release can't break main on its own
       - run: uv sync --locked --extra dev
-      - run: uv run ruff check packages/ api/ cli/ scripts/ tests/ conftest.py
-      - run: uv run ruff format --check packages/ api/ cli/ scripts/ tests/ conftest.py
+      - run: uv run ruff check packages/ api/ cli/ scripts/ tests/ tools/ conftest.py
+      - run: uv run ruff format --check packages/ api/ cli/ scripts/ tests/ tools/ conftest.py
       # The integration tests only run on demand (integration.yml); collecting
       # them here keeps their imports and fixtures from rotting in between.
       - name: Collect integration tests
@@ -116,7 +117,7 @@ jobs:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python }}
           enable-cache: true
-      - run: uv sync --locked --all-extras
+      - run: uv sync --locked --all-extras --group skill
 
       - name: Run tests
         env:
@@ -197,7 +198,7 @@ jobs:
           version: ${{ env.UV_VERSION }}
           python-version: "3.14"
           enable-cache: true
-      - run: uv sync --locked --all-extras
+      - run: uv sync --locked --all-extras --group skill
       - run: uv run pytest
 
   test-python-next:
@@ -213,7 +214,7 @@ jobs:
           version: ${{ env.UV_VERSION }}
           python-version: "3.15"
           enable-cache: true
-      - run: uv sync --locked --all-extras
+      - run: uv sync --locked --all-extras --group skill
       - run: uv run pytest
 
   lowest-deps:
@@ -247,7 +248,7 @@ jobs:
       # Catches upstream breakage (new FastAPI, google-api-python-client, ...)
       # before it lands in uv.lock
       - run: uv lock --upgrade
-      - run: uv sync --all-extras
+      - run: uv sync --all-extras --group skill
       - run: uv run pytest
 
   build:
@@ -316,11 +317,34 @@ jobs:
           docker logs api
           exit 1
 
+  # agent-skill-check and the stats script (tools/agent-distribution), shared
+  # with the author's other projects
+  agent-tools:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tools/agent-distribution
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+      - run: uv sync --locked
+      - run: uv run pytest
+
+  # The agent skill and the plugin/extension manifests (Agent Skills spec,
+  # claude plugin validate); the content is checked by cli/tests/test_skill_md.py
+  skills:
+    uses: ./.github/workflows/reusable-skill-validate.yml
+
   # Single stable check name for branch protection; matrix jobs that were
   # skipped by path filtering count as passing.
   ci-ok:
     if: always()
-    needs: [changes, lint, typecheck, test, coverage, test-os, lowest-deps, latest-deps, build, docker]
+    needs: [changes, lint, typecheck, test, coverage, test-os, lowest-deps, latest-deps, build, docker, skills, agent-tools]
     runs-on: ubuntu-latest
     steps:
       - name: Check results

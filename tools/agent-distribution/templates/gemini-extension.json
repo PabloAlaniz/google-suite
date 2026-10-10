@@ -1,0 +1,13 @@
+{
+  "name": "my-lib",
+  "version": "1.2.0",
+  "description": "One line: what the extension lets Gemini CLI do.",
+  "settings": [
+    {
+      "name": "Credentials file",
+      "description": "Path to the credentials file",
+      "envVar": "MYLIB_CREDENTIALS_FILE",
+      "sensitive": false
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.PabloAlaniz/my-lib",
+  "description": "What the server lets an agent do (max 100 characters)",
+  "repository": {
+    "url": "https://github.com/PabloAlaniz/my-lib",
+    "source": "github"
+  },
+  "version": "1.2.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "my-lib",
+      "version": "1.2.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "MYLIB_CREDENTIALS_FILE",
+          "description": "Path to the credentials file",
+          "isRequired": false,
+          "format": "string",
+          "isSecret": false
+        }
+      ],
+      "runtimeHint": "uvx"
+    }
+  ]
+}

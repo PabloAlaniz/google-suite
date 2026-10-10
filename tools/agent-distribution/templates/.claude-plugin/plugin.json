@@ -1,0 +1,13 @@
+{
+  "name": "my-lib",
+  "version": "1.2.0",
+  "description": "One line: what the plugin lets an agent do.",
+  "author": {
+    "name": "Pablo Alaniz",
+    "url": "https://github.com/PabloAlaniz"
+  },
+  "homepage": "https://github.com/PabloAlaniz/my-lib",
+  "repository": "https://github.com/PabloAlaniz/my-lib",
+  "license": "MIT",
+  "keywords": ["my-lib", "cli"]
+}

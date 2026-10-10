@@ -277,7 +277,7 @@ google-suite/
 │   └── contacts/       # Contacts client (People API)
 ├── api/                # Unified FastAPI REST gateway
 ├── cli/                # Unified CLI (Typer + Rich)
-├── gsuite-sdk/         # AI agent skill (OpenClaw compatible)
+├── skills/gsuite-sdk/  # Agent skill (SKILL.md + references), also a Claude Code plugin
 ├── docs/               # Documentation site (MkDocs)
 └── tests/integration/  # Opt-in tests against a real Google account
 ```
@@ -292,16 +292,24 @@ google-suite/
 
 For detailed architecture decisions and design patterns, see [Architecture Documentation](docs/ARCHITECTURE.md).
 
-## AI Agent Skill
+## Use with AI agents
 
-This repo includes an [OpenClaw](https://openclaw.ai)-compatible skill for AI agents:
+[`skills/gsuite-sdk`](skills/gsuite-sdk/SKILL.md) is an
+[Agent Skill](https://agentskills.io) that teaches an agent to use the `gsuite`
+CLI (JSON output) and the SDK. Install it in your agent:
 
+```bash
+npx skills add PabloAlaniz/google-suite                          # Claude Code, Codex, Cursor, Gemini CLI, Copilot, ...
+claude plugin marketplace add PabloAlaniz/google-suite           # Claude Code plugin
+claude plugin install gsuite-sdk@gsuite-sdk
+gemini extensions install https://github.com/PabloAlaniz/google-suite   # Gemini CLI extension
 ```
-gsuite-sdk/
-└── SKILL.md      # Usage documentation and metadata for agents
-```
 
-Agents can use this skill to interact with Google Workspace on behalf of users.
+In a Claude Code session: `/plugin install gsuite-sdk --marketplace PabloAlaniz/google-suite`.
+On OpenClaw it is [`pabloalaniz/gsuite-sdk`](https://clawhub.ai/pabloalaniz/gsuite-sdk) on ClawHub.
+
+The agent still needs the SDK and a login: `pip install "gsuite-sdk[cli]"` and
+`gsuite auth login` (see [Quick Start](#quick-start)).
 
 ## Standalone Repos
 

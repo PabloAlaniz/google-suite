@@ -274,7 +274,8 @@ google-suite/
 │   ├── drive/          # Drive client (upload, download, share)
 │   ├── sheets/         # Sheets client + engine (from GSpreadManager)
 │   ├── tasks/          # Tasks client
-│   └── contacts/       # Contacts client (People API)
+│   ├── contacts/       # Contacts client (People API)
+│   └── mcp/            # MCP server (published as gsuite-mcp)
 ├── api/                # Unified FastAPI REST gateway
 ├── cli/                # Unified CLI (Typer + Rich)
 ├── skills/gsuite-sdk/  # Agent skill (SKILL.md + references), also a Claude Code plugin
@@ -306,6 +307,18 @@ gemini extensions install https://github.com/PabloAlaniz/google-suite   # Gemini
 ```
 
 In a Claude Code session: `/plugin install gsuite-sdk --marketplace PabloAlaniz/google-suite`.
+
+### MCP server
+
+[`gsuite-mcp`](packages/mcp/README.md) exposes Gmail, Calendar, Drive, Sheets,
+Tasks and Contacts as MCP tools for any MCP client:
+
+```bash
+claude mcp add gsuite -e GSUITE_TOKEN_DB_PATH="$PWD/tokens.db" -- uvx gsuite-mcp
+```
+
+It is in the [official MCP Registry](https://registry.modelcontextprotocol.io)
+as `io.github.PabloAlaniz/gsuite-sdk`.
 On OpenClaw it is [`pabloalaniz/gsuite-sdk`](https://clawhub.ai/pabloalaniz/gsuite-sdk) on ClawHub.
 
 The agent still needs the SDK and a login: `pip install "gsuite-sdk[cli]"` and

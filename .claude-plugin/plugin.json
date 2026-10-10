@@ -17,5 +17,13 @@
     "google-sheets",
     "google-tasks",
     "google-contacts"
-  ]
+  ],
+  "mcpServers": {
+    "gsuite": {
+      "command": "uvx",
+      "args": [
+        "gsuite-mcp"
+      ]
+    }
+  }
 }

@@ -8,6 +8,20 @@
       "description": "Path to the OAuth client JSON from Google Cloud (see https://pabloalaniz.github.io/google-suite/GETTING_CREDENTIALS/)",
       "envVar": "GSUITE_CREDENTIALS_FILE",
       "sensitive": false
+    },
+    {
+      "name": "Token database",
+      "description": "Absolute path to the tokens.db written by `gsuite auth login` (used by the MCP server)",
+      "envVar": "GSUITE_TOKEN_DB_PATH",
+      "sensitive": false
     }
-  ]
+  ],
+  "mcpServers": {
+    "gsuite": {
+      "command": "uvx",
+      "args": [
+        "gsuite-mcp"
+      ]
+    }
+  }
 }

@@ -4,7 +4,12 @@
     "github": "PabloAlaniz/google-suite",
     "pypi": "gsuite-sdk",
     "clawhub": "gsuite-sdk",
-    "claude_plugins_skill": "PabloAlaniz/google-suite/gsuite-sdk",
+    "claude_plugins_skill": "PabloAlaniz/google-suite/gsuite-sdk"
+  },
+  {
+    "name": "gsuite-mcp",
+    "github": "PabloAlaniz/google-suite",
+    "pypi": "gsuite-mcp",
     "mcp_registry": "io.github.PabloAlaniz/gsuite-sdk"
   },
   {

@@ -54,7 +54,9 @@ jobs:
             tasks: packages/tasks/**
             contacts: packages/contacts/**
             api: api/**
-            cli: cli/**
+            cli:
+              - cli/**
+              - gsuite-sdk/**   # the skill is checked by cli/tests/test_skill_md.py
 
       - id: select
         env:

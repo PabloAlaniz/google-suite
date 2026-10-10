@@ -40,8 +40,8 @@ from gsuite_core import GoogleAuth
 auth = GoogleAuth.from_service_account("service-account.json")
 
 # Use with any client
-from gsuite_gmail import GmailClient
-gmail = GmailClient(auth)
+from gsuite_gmail import Gmail
+gmail = Gmail(auth)
 ```
 
 ## Domain-Wide Delegation

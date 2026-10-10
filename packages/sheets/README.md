@@ -306,7 +306,7 @@ sheets = fake_sheets(backend.client)          # a real Sheets client, no network
 sheets.open("Budget").worksheet("Data").append_row(["Ana", 10])
 ```
 
-These features come from [GSpreadManager](https://github.com/PabloAlaniz/GSpreadManager),
+These features come from [GSpreadManager](https://github.com/PabloAlaniz/google-suite/tree/archive/gspreadmanager),
 now part of gsuite-sdk; see [the migration guide](../../docs/MIGRATING_FROM_GSPREADMANAGER.md).
 
 ## Anything Else

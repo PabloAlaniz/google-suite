@@ -119,8 +119,9 @@ of `mkdocs.yml`. Docstrings use the Google style.
 ### The Sheets engine
 
 `packages/sheets/src/gsuite_sheets/engine/` is the engine incorporated from
-[GSpreadManager](https://github.com/PabloAlaniz/GSpreadManager) (merged with its
-git history). It is hexagonal:
+GSpreadManager. Its full history is kept in the
+[`archive/gspreadmanager`](https://github.com/PabloAlaniz/google-suite/tree/archive/gspreadmanager) tag (the original repository was deleted).
+It is hexagonal:
 
 - `domain/`: pure value objects (CellFormat, Color, ranges, validation, charts, schemas)
 - `ports/sheets.py`: `ClientPort` / `SpreadsheetPort` / `WorksheetPort`

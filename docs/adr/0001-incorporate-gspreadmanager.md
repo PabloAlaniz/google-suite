@@ -39,6 +39,20 @@ Incorporate the GSpreadManager engine into `gsuite_sheets`:
 - Archive the GSpreadManager repository with a pointer to gsuite-sdk; PyPI
   stays at 0.1.5 so the two existing scripts keep working.
 
+## Update 2026-10-09: repository deleted instead of archived
+
+After gsuite-sdk 0.2.0 shipped, usage was measured again: still no users
+besides the author's two scripts (other code-search hits were unrelated
+classes named `GspreadManager` and a Gentoo overlay that mirrors all of PyPI).
+The repository was deleted rather than archived:
+
+- Its full history and authorship live in the
+  [`archive/gspreadmanager`](https://github.com/PabloAlaniz/google-suite/tree/archive/gspreadmanager) tag of this
+  repository (GSpreadManager `main` at `6578e95`). The squash merges of the
+  incorporation PRs (#19, #21) kept that history out of `main`.
+- The PyPI project stays (0.1.5): the two scripts install from PyPI, and a
+  deleted PyPI name could be registered again by someone else.
+
 ## Consequences
 
 - One Sheets implementation and one A1 parser for the suite.

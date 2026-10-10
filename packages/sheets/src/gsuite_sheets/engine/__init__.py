@@ -1,4 +1,4 @@
-"""Sheets engine incorporated from GSpreadManager 3.0 (PabloAlaniz/GSpreadManager).
+"""Sheets engine incorporated from GSpreadManager 3.0 (history: tag archive/gspreadmanager).
 
 Internal to gsuite_sheets: domain value objects, ports, application services,
 the in-memory backend and the SheetManager/WorksheetContext orchestration.

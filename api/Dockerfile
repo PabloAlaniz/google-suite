@@ -17,6 +17,9 @@ WORKDIR /src
 
 # Dependencies first (pinned by uv.lock) so code changes don't bust this layer
 COPY pyproject.toml uv.lock README.md ./
+# uv.lock references this path dependency (the dev-only "skill" group); uv
+# needs its metadata to check the lock even though the image doesn't install it
+COPY tools/agent-distribution tools/agent-distribution
 RUN uv sync --locked --no-dev --no-install-project --extra api --extra cloudrun
 
 COPY packages packages

@@ -56,7 +56,7 @@ jobs:
             api: api/**
             cli:
               - cli/**
-              - gsuite-sdk/**   # the skill is checked by cli/tests/test_skill_md.py
+              - skills/**   # the skill is checked by cli/tests/test_skill_md.py
 
       - id: select
         env:
@@ -116,7 +116,7 @@ jobs:
           version: ${{ env.UV_VERSION }}
           python-version: ${{ matrix.python }}
           enable-cache: true
-      - run: uv sync --locked --all-extras
+      - run: uv sync --locked --all-extras --group skill
 
       - name: Run tests
         env:
@@ -197,7 +197,7 @@ jobs:
           version: ${{ env.UV_VERSION }}
           python-version: "3.14"
           enable-cache: true
-      - run: uv sync --locked --all-extras
+      - run: uv sync --locked --all-extras --group skill
       - run: uv run pytest
 
   test-python-next:
@@ -213,7 +213,7 @@ jobs:
           version: ${{ env.UV_VERSION }}
           python-version: "3.15"
           enable-cache: true
-      - run: uv sync --locked --all-extras
+      - run: uv sync --locked --all-extras --group skill
       - run: uv run pytest
 
   lowest-deps:
@@ -247,7 +247,7 @@ jobs:
       # Catches upstream breakage (new FastAPI, google-api-python-client, ...)
       # before it lands in uv.lock
       - run: uv lock --upgrade
-      - run: uv sync --all-extras
+      - run: uv sync --all-extras --group skill
       - run: uv run pytest
 
   build:
@@ -316,11 +316,16 @@ jobs:
           docker logs api
           exit 1
 
+  # The agent skill and the plugin/extension manifests (Agent Skills spec,
+  # claude plugin validate); the content is checked by cli/tests/test_skill_md.py
+  skills:
+    uses: PabloAlaniz/agent-distribution/.github/workflows/skill-validate.yml@v1
+
   # Single stable check name for branch protection; matrix jobs that were
   # skipped by path filtering count as passing.
   ci-ok:
     if: always()
-    needs: [changes, lint, typecheck, test, coverage, test-os, lowest-deps, latest-deps, build, docker]
+    needs: [changes, lint, typecheck, test, coverage, test-os, lowest-deps, latest-deps, build, docker, skills]
     runs-on: ubuntu-latest
     steps:
       - name: Check results

@@ -1,0 +1,13 @@
+{
+  "name": "gsuite-sdk",
+  "version": "0.2.0",
+  "description": "Gmail, Google Calendar, Drive, Sheets, Tasks and Contacts through the gsuite-sdk Python library and its gsuite CLI.",
+  "settings": [
+    {
+      "name": "Google OAuth client file",
+      "description": "Path to the OAuth client JSON from Google Cloud (see https://pabloalaniz.github.io/google-suite/GETTING_CREDENTIALS/)",
+      "envVar": "GSUITE_CREDENTIALS_FILE",
+      "sensitive": false
+    }
+  ]
+}

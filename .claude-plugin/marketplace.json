@@ -1,0 +1,15 @@
+{
+  "name": "gsuite-sdk",
+  "description": "gsuite-sdk: Google Workspace (Gmail, Calendar, Drive, Sheets, Tasks, Contacts) for Claude Code",
+  "owner": {
+    "name": "Pablo Alaniz",
+    "url": "https://github.com/PabloAlaniz"
+  },
+  "plugins": [
+    {
+      "name": "gsuite-sdk",
+      "source": "./",
+      "description": "Gmail, Google Calendar, Drive, Sheets, Tasks and Contacts for agents, through the gsuite-sdk Python library and its gsuite CLI."
+    }
+  ]
+}

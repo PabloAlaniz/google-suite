@@ -1,0 +1,77 @@
+name: Validate agent skills
+
+# Reusable: validates every skill (Agent Skills spec, via the reference
+# validator) and the plugin/extension/server manifests found in the repo.
+#
+#   jobs:
+#     skills:
+#       uses: PabloAlaniz/google-suite/.github/workflows/reusable-skill-validate.yml@<commit-sha>
+
+on:
+  workflow_call:
+    inputs:
+      skills:
+        description: Glob of skill directories
+        type: string
+        default: "skills/*"
+      claude-plugin:
+        description: Run `claude plugin validate --strict` when .claude-plugin/ exists
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+env:
+  SKILLS_REF_VERSION: "0.1.1"
+  CLAUDE_CODE_VERSION: "2.1.296"
+  MCP_PUBLISHER_VERSION: "1.8.1"
+  # sha256 of mcp-publisher_linux_amd64.tar.gz, from registry_1.8.1_checksums.txt
+  MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+  npm_config_update_notifier: "false"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+
+      - name: Skills follow the Agent Skills specification
+        env:
+          SKILLS_GLOB: ${{ inputs.skills }}
+        run: |
+          shopt -s nullglob
+          found=0
+          for dir in $SKILLS_GLOB; do
+            [ -f "$dir/SKILL.md" ] || continue
+            found=1
+            uvx --from "skills-ref==$SKILLS_REF_VERSION" agentskills validate "$dir"
+          done
+          if [ "$found" = 0 ]; then
+            echo "::error::no SKILL.md under $SKILLS_GLOB"
+            exit 1
+          fi
+
+      - name: Manifests are valid JSON
+        run: |
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json \
+                   gemini-extension.json server.json glama.json; do
+            [ -f "$f" ] || continue
+            python3 -m json.tool "$f" > /dev/null && echo "ok $f"
+          done
+
+      - name: server.json passes the MCP Registry validation
+        if: hashFiles('server.json') != ''
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/mcp-publisher.tar.gz" \
+            "https://github.com/modelcontextprotocol/registry/releases/download/v${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "$MCP_PUBLISHER_SHA256  $RUNNER_TEMP/mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf "$RUNNER_TEMP/mcp-publisher.tar.gz" -C "$RUNNER_TEMP" mcp-publisher
+          "$RUNNER_TEMP/mcp-publisher" validate
+
+      - name: Claude Code plugin
+        if: inputs.claude-plugin && hashFiles('.claude-plugin/plugin.json', '.claude-plugin/marketplace.json') != ''
+        run: npx -y "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION" plugin validate . --strict

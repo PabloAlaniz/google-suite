@@ -1,0 +1,99 @@
+name: Publish skill to ClawHub
+
+# Reusable: publishes one skill folder to ClawHub (clawhub.ai) with an explicit
+# version and source provenance. Without the token it leaves a notice and
+# succeeds, so a release doesn't fail on it.
+#
+#   jobs:
+#     clawhub:
+#       uses: PabloAlaniz/google-suite/.github/workflows/reusable-clawhub-publish.yml@<commit-sha>
+#       with:
+#         skill-path: skills/my-lib
+#         slug: my-lib
+#         version: 1.2.0
+#         ref: v1.2.0
+#       secrets: inherit
+#
+# The token is read as CLAWHUB_TOKEN inside the job, which runs in the
+# `environment` input (default "clawhub"): store it as an environment secret
+# there. Callers pass it with `secrets: inherit` (a caller job can't read an
+# environment secret itself, so passing it explicitly would send an empty value).
+
+on:
+  workflow_call:
+    inputs:
+      skill-path:
+        type: string
+        required: true
+      slug:
+        type: string
+        required: true
+      version:
+        description: Semver to publish (usually the package version)
+        type: string
+        required: true
+      ref:
+        description: "Git ref to publish from (default: the triggering ref)"
+        type: string
+        default: ""
+      changelog:
+        description: "Changelog text (default: a link to the GitHub release)"
+        type: string
+        default: ""
+      environment:
+        type: string
+        default: clawhub
+    secrets:
+      CLAWHUB_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      CLAWHUB_VERSION: "0.23.3"
+      CLAWHUB_DISABLE_TELEMETRY: "1"
+      npm_config_update_notifier: "false"
+    steps:
+      - name: Check credentials
+        id: token
+        env:
+          TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+          SLUG: ${{ inputs.slug }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "::notice::No ClawHub token; $SLUG was not published"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.token.outputs.present == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+      - name: Publish
+        if: steps.token.outputs.present == 'true'
+        env:
+          CLAWHUB_TOKEN: ${{ secrets.CLAWHUB_TOKEN }}
+          SKILL_PATH: ${{ inputs.skill-path }}
+          SLUG: ${{ inputs.slug }}
+          VERSION: ${{ inputs.version }}
+          REF: ${{ inputs.ref || github.ref_name }}
+          CHANGELOG: ${{ inputs.changelog }}
+        run: |
+          export CLAWHUB_CONFIG_PATH="$RUNNER_TEMP/clawhub.json"   # token stays in the runner's temp dir
+          changelog=${CHANGELOG:-"$SLUG $VERSION: https://github.com/$GITHUB_REPOSITORY/releases/tag/v$VERSION"}
+          npx -y "clawhub@$CLAWHUB_VERSION" --no-input login --token "$CLAWHUB_TOKEN"
+          npx -y "clawhub@$CLAWHUB_VERSION" --no-input skill publish "$SKILL_PATH" \
+            --slug "$SLUG" \
+            --version "$VERSION" \
+            --changelog "$changelog" \
+            --source-repo "$GITHUB_REPOSITORY" \
+            --source-commit "$(git rev-parse HEAD)" \
+            --source-ref "$REF" \
+            --source-path "$SKILL_PATH"

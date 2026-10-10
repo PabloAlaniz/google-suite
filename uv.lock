@@ -19,7 +19,7 @@ resolution-markers = [
 [[package]]
 name = "agent-skill-check"
 version = "0.1.0"
-source = { editable = "../agent-distribution" }
+source = { editable = "tools/agent-distribution" }
 dependencies = [
     { name = "skills-ref" },
     { name = "strictyaml" },
@@ -1045,7 +1045,7 @@ docs = [
     { name = "mkdocs-material", specifier = ">=9.5" },
     { name = "mkdocstrings", extras = ["python"], specifier = ">=0.26" },
 ]
-skill = [{ name = "agent-skill-check", editable = "../agent-distribution" }]
+skill = [{ name = "agent-skill-check", editable = "tools/agent-distribution" }]
 
 [[package]]
 name = "h11"

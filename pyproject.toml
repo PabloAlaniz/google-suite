@@ -151,4 +151,4 @@ docs = [
 ]
 
 [tool.uv.sources]
-agent-skill-check = { path = "../agent-distribution", editable = true }
+agent-skill-check = { path = "tools/agent-distribution", editable = true }

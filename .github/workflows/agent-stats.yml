@@ -1,0 +1,21 @@
+name: Stats
+
+# Weekly table of installs/downloads per channel, in the run summary.
+on:
+  schedule:
+    - cron: "0 12 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  stats:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python3 tools/agent-distribution/stats/stats.py >> "$GITHUB_STEP_SUMMARY"

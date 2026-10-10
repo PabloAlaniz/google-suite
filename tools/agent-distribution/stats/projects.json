@@ -1,0 +1,15 @@
+[
+  {
+    "name": "gsuite-sdk",
+    "github": "PabloAlaniz/google-suite",
+    "pypi": "gsuite-sdk",
+    "clawhub": "gsuite-sdk",
+    "claude_plugins_skill": "PabloAlaniz/google-suite/gsuite-sdk",
+    "mcp_registry": "io.github.PabloAlaniz/gsuite-sdk"
+  },
+  {
+    "name": "tor-session-manager",
+    "github": "PabloAlaniz/tor-session-manager",
+    "pypi": "tor-session-manager"
+  }
+]

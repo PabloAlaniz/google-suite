@@ -91,13 +91,13 @@ the full suite. Nightly runs add the latest release of every dependency.
 (setup, CLI, a short SDK tour, errors) plus one file per service in
 `references/`. Agents run its snippets as written, so
 `cli/tests/test_skill_md.py` checks it with
-[agent-skill-check](https://github.com/PabloAlaniz/agent-distribution): the
+[agent-skill-check](tools/agent-distribution/README.md): the
 Agent Skills spec, every Python call, CLI command and option, and every
 `GSUITE_*` variable against the code. A renamed method or flag fails CI, so
 update the skill in the same PR that changes the API.
 
 The same folder reaches several indexes (see
-[the playbook](https://github.com/PabloAlaniz/agent-distribution/blob/main/PLAYBOOK.md)):
+[the playbook](tools/agent-distribution/PLAYBOOK.md), which the author's other projects follow too):
 
 - **ClawHub**: published with the SDK's version by the Release workflow (`skill` job).
 - **skills.sh**: `npx skills add PabloAlaniz/google-suite`.

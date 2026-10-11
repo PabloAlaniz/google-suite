@@ -278,7 +278,8 @@ google-suite/
 │   └── mcp/            # MCP server (published as gsuite-mcp)
 ├── api/                # Unified FastAPI REST gateway
 ├── cli/                # Unified CLI (Typer + Rich)
-├── skills/gsuite-sdk/  # Agent skill (SKILL.md + references), also a Claude Code plugin
+├── skills/gsuite-sdk/  # Agent skill (SKILL.md + references)
+├── plugins/gsuite-sdk/ # Claude Code plugin: a synced copy of the skill + the MCP server
 ├── docs/               # Documentation site (MkDocs)
 └── tests/integration/  # Opt-in tests against a real Google account
 ```

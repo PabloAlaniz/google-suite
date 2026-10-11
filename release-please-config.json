@@ -15,7 +15,7 @@
         },
         {
           "type": "json",
-          "path": ".claude-plugin/plugin.json",
+          "path": "plugins/gsuite-sdk/.claude-plugin/plugin.json",
           "jsonpath": "$.version"
         },
         {

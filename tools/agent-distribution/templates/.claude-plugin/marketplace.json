@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "my-lib",
-      "source": "./",
+      "source": "./plugins/my-lib",
       "description": "One line: what the plugin lets an agent do."
     }
   ]

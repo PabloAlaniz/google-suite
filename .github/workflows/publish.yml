@@ -42,6 +42,26 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
+      # release-please bumps whole JSON values, but the Claude plugin pins
+      # "gsuite-mcp==X.Y.Z" inside a string; sync it on the release PR branch
+      # (rerun after every update, since release-please rewrites the branch).
+      - name: Pin gsuite-mcp in the Claude plugin on the release PR
+        if: steps.release.outputs.pr
+        env:
+          BRANCH: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
+        run: |
+          git clone --quiet --depth 1 --branch "$BRANCH" \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$RUNNER_TEMP/release-pr"
+          cd "$RUNNER_TEMP/release-pr"
+          python3 scripts/sync_claude_plugin.py
+          if [ -n "$(git status --porcelain)" ]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit --quiet -am "chore: pin gsuite-mcp in the Claude plugin"
+            git push --quiet origin "HEAD:$BRANCH"
+          fi
+
   build:
     needs: release-please
     if: always() && (needs.release-please.outputs.release_created == 'true' || github.event_name == 'workflow_dispatch')

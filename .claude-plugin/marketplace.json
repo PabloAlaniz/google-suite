@@ -8,7 +8,7 @@
   "plugins": [
     {
       "name": "gsuite-sdk",
-      "source": "./",
+      "source": "./plugins/gsuite-sdk",
       "description": "Gmail, Google Calendar, Drive, Sheets, Tasks and Contacts for agents, through the gsuite-sdk Python library and its gsuite CLI."
     }
   ]

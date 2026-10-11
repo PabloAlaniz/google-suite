@@ -107,7 +107,10 @@ The same folder reaches several indexes (see
   scans only what it ships: a copy of the skill, an icon and the MCP server
   pinned to `gsuite-mcp==X.Y.Z`. Edit `skills/gsuite-sdk/` and run
   `python scripts/sync_claude_plugin.py`; `cli/tests/test_claude_plugin.py`
-  fails when the copy or the pin drifts.
+  fails when the copy or the pin drifts. The directory scans every file above
+  the plugin folder too (the root `pyproject.toml` fails it), so it follows the
+  `claude-plugin` branch, which holds only the plugin and which the Release
+  workflow updates after PyPI (`scripts/claude_plugin_branch.sh`).
 - **Gemini CLI**: `gemini-extension.json` + the `gemini-cli-extension` topic.
 
 release-please bumps the version in `plugins/gsuite-sdk/.claude-plugin/plugin.json`

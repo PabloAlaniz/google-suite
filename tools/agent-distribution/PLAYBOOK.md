@@ -63,7 +63,10 @@ the Claude Directory (claude.ai/directory/manage) scans the whole plugin
 folder and blocks `[tool.uv.sources]` in a pyproject, unpinned `uvx`/`npx`
 launchers (use `name==X.Y.Z`) and flags CI files that read tokens. Copy
 google-suite's `scripts/sync_claude_plugin.py` and its test to keep the copy and
-the pin in sync. Validate with `claude plugin validate . --strict` and
+the pin in sync. If the repo root has a pyproject with `[tool.uv.sources]`
+(a uv workspace), the directory still fails it from a subfolder: publish the
+plugin folder to its own branch (google-suite's `claude-plugin` job and
+`scripts/claude_plugin_branch.sh`) and submit that branch. Validate with `claude plugin validate . --strict` and
 `claude plugin validate plugins/<name> --strict`.
 
 - Users: `claude plugin marketplace add PabloAlaniz/<repo>` then

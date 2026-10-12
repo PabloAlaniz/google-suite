@@ -124,6 +124,8 @@ jobs:
   # leaves a notice and the release still succeeds.
   skill:
     needs: version
+    # release-please is skipped on workflow_dispatch; don't inherit that skip
+    if: always() && needs.version.result == 'success'
     uses: ./.github/workflows/reusable-clawhub-publish.yml
     with:
       skill-path: skills/gsuite-sdk
@@ -138,6 +140,8 @@ jobs:
   # package exists and declares the server name (mcp-name in its README).
   mcp-registry:
     needs: version
+    # release-please is skipped on workflow_dispatch; don't inherit that skip
+    if: always() && needs.version.result == 'success'
     permissions:
       contents: read
       id-token: write
@@ -150,6 +154,8 @@ jobs:
   # so the plugin's gsuite-mcp==X.Y.Z pin already resolves.
   claude-plugin:
     needs: version
+    # release-please is skipped on workflow_dispatch; don't inherit that skip
+    if: always() && needs.version.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write

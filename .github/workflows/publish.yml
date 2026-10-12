@@ -45,12 +45,18 @@ jobs:
       # release-please bumps whole JSON values, but the Claude plugin pins
       # "gsuite-mcp==X.Y.Z" inside a string; sync it on the release PR branch
       # (rerun after every update, since release-please rewrites the branch).
+      # On the run that cuts the release, `pr` is set but isn't PR JSON.
       - name: Pin gsuite-mcp in the Claude plugin on the release PR
-        if: steps.release.outputs.pr
+        if: steps.release.outputs.release_created != 'true'
         env:
-          BRANCH: ${{ fromJSON(steps.release.outputs.pr).headBranchName }}
+          PR: ${{ steps.release.outputs.pr }}
           GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN || github.token }}
         run: |
+          BRANCH=$(jq -r '.headBranchName // empty' <<<"$PR" 2>/dev/null || true)
+          if [ -z "$BRANCH" ]; then
+            echo "no release PR open"
+            exit 0
+          fi
           git clone --quiet --depth 1 --branch "$BRANCH" \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$RUNNER_TEMP/release-pr"
           cd "$RUNNER_TEMP/release-pr"

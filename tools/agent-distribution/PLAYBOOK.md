@@ -54,9 +54,20 @@ command in the README.
 
 ## 3. Claude Code marketplace + claude-plugins.dev
 
-Copy [`templates/.claude-plugin/`](templates/.claude-plugin/) to the repo root
-(the repo is both the marketplace and the plugin: `source: "./"`; skills in
-`skills/` are discovered). Validate with `claude plugin validate . --strict`.
+Copy [`templates/.claude-plugin/marketplace.json`](templates/.claude-plugin/marketplace.json)
+to the repo root and [`templates/plugins/my-lib/`](templates/plugins/my-lib/) to
+`plugins/<name>/`, with a copy of `skills/<name>/` inside it (a plugin can only
+ship files in its own folder) and a square `.claude-plugin/icon.png`
+(512–2048 px). Keep the plugin in its own folder rather than `source: "./"`:
+the Claude Directory (claude.ai/directory/manage) scans the whole plugin
+folder and blocks `[tool.uv.sources]` in a pyproject, unpinned `uvx`/`npx`
+launchers (use `name==X.Y.Z`) and flags CI files that read tokens. Copy
+google-suite's `scripts/sync_claude_plugin.py` and its test to keep the copy and
+the pin in sync. If the repo root has a pyproject with `[tool.uv.sources]`
+(a uv workspace), the directory still fails it from a subfolder: publish the
+plugin folder to its own branch (google-suite's `claude-plugin` job and
+`scripts/claude_plugin_branch.sh`) and submit that branch. Validate with `claude plugin validate . --strict` and
+`claude plugin validate plugins/<name> --strict`.
 
 - Users: `claude plugin marketplace add PabloAlaniz/<repo>` then
   `claude plugin install <name>@<name>`.

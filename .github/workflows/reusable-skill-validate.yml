@@ -15,7 +15,7 @@ on:
         type: string
         default: "skills/*"
       claude-plugin:
-        description: Run `claude plugin validate --strict` when .claude-plugin/ exists
+        description: Run `claude plugin validate --strict` on .claude-plugin/ and plugins/*/
         type: boolean
         default: true
 
@@ -57,7 +57,8 @@ jobs:
 
       - name: Manifests are valid JSON
         run: |
-          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json \
+          shopt -s nullglob
+          for f in .claude-plugin/plugin.json .claude-plugin/marketplace.json plugins/*/.claude-plugin/plugin.json \
                    gemini-extension.json server.json glama.json; do
             [ -f "$f" ] || continue
             python3 -m json.tool "$f" > /dev/null && echo "ok $f"
@@ -73,5 +74,10 @@ jobs:
           "$RUNNER_TEMP/mcp-publisher" validate
 
       - name: Claude Code plugin
-        if: inputs.claude-plugin && hashFiles('.claude-plugin/plugin.json', '.claude-plugin/marketplace.json') != ''
-        run: npx -y "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION" plugin validate . --strict
+        if: inputs.claude-plugin && hashFiles('.claude-plugin/plugin.json', '.claude-plugin/marketplace.json', 'plugins/*/.claude-plugin/plugin.json') != ''
+        run: |
+          shopt -s nullglob
+          for dir in . plugins/*/; do
+            [ -d "$dir/.claude-plugin" ] || continue
+            npx -y "@anthropic-ai/claude-code@$CLAUDE_CODE_VERSION" plugin validate "$dir" --strict
+          done

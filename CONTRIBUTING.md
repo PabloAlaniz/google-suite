@@ -101,13 +101,21 @@ The same folder reaches several indexes (see
 
 - **ClawHub**: published with the SDK's version by the Release workflow (`skill` job).
 - **skills.sh**: `npx skills add PabloAlaniz/google-suite`.
-- **Claude Code**: `.claude-plugin/` makes the repo a marketplace
+- **Claude Code**: `.claude-plugin/marketplace.json` makes the repo a marketplace
   (`claude plugin marketplace add PabloAlaniz/google-suite`); claude-plugins.dev
-  indexes it.
+  indexes it. The plugin lives in `plugins/gsuite-sdk/` so the Claude Directory
+  scans only what it ships: a copy of the skill, an icon and the MCP server
+  pinned to `gsuite-mcp==X.Y.Z`. Edit `skills/gsuite-sdk/` and run
+  `python scripts/sync_claude_plugin.py`; `cli/tests/test_claude_plugin.py`
+  fails when the copy or the pin drifts. The directory scans every file above
+  the plugin folder too (the root `pyproject.toml` fails it), so it follows the
+  `claude-plugin` branch, which holds only the plugin and which the Release
+  workflow updates after PyPI (`scripts/claude_plugin_branch.sh`).
 - **Gemini CLI**: `gemini-extension.json` + the `gemini-cli-extension` topic.
 
-release-please bumps the version in `.claude-plugin/plugin.json` and
-`gemini-extension.json`. To preview a ClawHub publish:
+release-please bumps the version in `plugins/gsuite-sdk/.claude-plugin/plugin.json`
+and `gemini-extension.json`; the Release workflow then runs the sync script on
+the release PR to update the `gsuite-mcp==` pin. To preview a ClawHub publish:
 
 ```bash
 npx clawhub@0.23.3 skill publish skills/gsuite-sdk --slug gsuite-sdk --version X.Y.Z --dry-run

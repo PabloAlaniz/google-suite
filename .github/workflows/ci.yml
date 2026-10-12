@@ -58,6 +58,8 @@ jobs:
             cli:
               - cli/**
               - skills/**   # the skill is checked by cli/tests/test_skill_md.py
+              - plugins/**  # and its plugin copy by cli/tests/test_claude_plugin.py
+              - .claude-plugin/**
               - tools/agent-distribution/**
 
       - id: select

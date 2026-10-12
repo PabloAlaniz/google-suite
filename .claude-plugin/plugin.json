@@ -9,6 +9,7 @@
   "homepage": "https://pabloalaniz.github.io/google-suite/",
   "repository": "https://github.com/PabloAlaniz/google-suite",
   "license": "MIT",
+  "privacyPolicyUrl": "https://github.com/PabloAlaniz/google-suite/blob/claude-plugin/PRIVACY.md",
   "keywords": [
     "google-workspace",
     "gmail",

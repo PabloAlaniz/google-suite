@@ -14,6 +14,14 @@ It ships:
   tasks, contacts). Tools that send, share, overwrite or delete are marked
   as destructive in their MCP annotations.
 
+## Install
+
+In Claude Code:
+
+```
+/plugin install gsuite-sdk --marketplace PabloAlaniz/google-suite
+```
+
 ## Setup
 
 Log in once with your own Google OAuth client
@@ -28,6 +36,8 @@ Set `GSUITE_TOKEN_DB_PATH` to the absolute path of the `tokens.db` that login
 wrote, so the MCP server finds it.
 
 ## Data
+
+See [PRIVACY.md](PRIVACY.md): the plugin collects no data.
 
 - The server and the CLI talk only to Google: its APIs (`*.googleapis.com`)
   and its OAuth sign-in, with your own OAuth client and token. The token stays

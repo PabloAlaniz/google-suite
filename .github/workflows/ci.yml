@@ -18,7 +18,7 @@ permissions:
   contents: read
 
 env:
-  UV_VERSION: "0.10.x"
+  UV_VERSION: "0.13.x"
 
 jobs:
   changes:
@@ -214,8 +214,7 @@ jobs:
           persist-credentials: false
       - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
         with:
-          # uv 0.10.x only knows CPython 3.15.0a7; 0.13 ships 3.15.0 final
-          version: "0.13.x"
+          version: ${{ env.UV_VERSION }}
           python-version: "3.15"
           enable-cache: true
       - run: uv sync --locked --all-extras --group skill --group mcp

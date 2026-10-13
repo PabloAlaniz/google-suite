@@ -1,7 +1,5 @@
 """Tests for Sheets parser."""
 
-import pytest
-
 from gsuite_sheets.parser import SheetsParser
 
 

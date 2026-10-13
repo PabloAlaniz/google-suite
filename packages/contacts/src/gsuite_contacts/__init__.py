@@ -6,6 +6,6 @@ from gsuite_contacts.client import Contacts
 from gsuite_contacts.contact import Contact
 
 __all__ = [
-    "Contacts",
     "Contact",
+    "Contacts",
 ]

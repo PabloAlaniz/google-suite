@@ -60,7 +60,7 @@ def _parse_bool(value: str, field_name: str) -> bool:
     raise SchemaError(f"Valor booleano inválido para '{field_name}': {value!r}.")
 
 
-def _coerce(value: str, annotation: Any, field_name: str) -> Any:  # noqa: PLR0911
+def _coerce(value: str, annotation: Any, field_name: str) -> Any:
     """Convierte el texto de una celda al tipo anotado del campo (un return por tipo)."""
     inner, optional = _unwrap_optional(annotation)
     if optional and value == "":

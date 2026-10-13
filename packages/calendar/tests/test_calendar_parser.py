@@ -1,7 +1,5 @@
 """Tests for Calendar parser."""
 
-import pytest
-
 from gsuite_calendar.parser import CalendarParser
 
 

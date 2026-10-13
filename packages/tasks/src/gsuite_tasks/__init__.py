@@ -6,7 +6,7 @@ from gsuite_tasks.client import Tasks
 from gsuite_tasks.task import Task, TaskList
 
 __all__ = [
-    "Tasks",
     "Task",
     "TaskList",
+    "Tasks",
 ]

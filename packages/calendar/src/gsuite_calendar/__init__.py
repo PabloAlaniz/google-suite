@@ -8,6 +8,6 @@ from gsuite_calendar.event import Event
 
 __all__ = [
     "Calendar",
-    "Event",
     "CalendarEntity",
+    "Event",
 ]

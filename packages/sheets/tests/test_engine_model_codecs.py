@@ -8,7 +8,7 @@ esquema con reporte de drift.
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
-from typing import Literal, Optional
+from typing import Literal
 
 import pytest
 from pydantic import BaseModel, Field

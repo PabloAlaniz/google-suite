@@ -13,7 +13,7 @@ con ``domain.batching`` (un rango/fila nunca se parte).
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Union
+from typing import Any
 
 from gsuite_sheets.engine.domain.batching import split_range_data, split_rows
 from gsuite_sheets.engine.domain.errors import GSpreadManagerError

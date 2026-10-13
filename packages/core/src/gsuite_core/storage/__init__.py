@@ -3,7 +3,7 @@
 from gsuite_core.storage.base import TokenStore
 from gsuite_core.storage.sqlite import SQLiteTokenStore
 
-__all__ = ["TokenStore", "SQLiteTokenStore"]
+__all__ = ["SQLiteTokenStore", "TokenStore"]
 
 try:
     from gsuite_core.storage.secretmanager import SecretManagerTokenStore

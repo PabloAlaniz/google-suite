@@ -1,7 +1,5 @@
 """Tests for Drive parser."""
 
-import pytest
-
 from gsuite_drive.parser import DriveParser
 
 

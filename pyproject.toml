@@ -89,18 +89,18 @@ line-length = 100
 extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "B", "C4", "UP"]
-ignore = [
-    "E501",   # Line too long
-    "B008",   # Function call in default argument
-    "B904",   # raise ... from err (too noisy for now)
-    "E741",   # Ambiguous variable name (l, I, O)
-    "F401",   # Imported but unused (conditional imports)
-    "F841",   # Local variable assigned but never used
-    "W293",   # Blank line contains whitespace
-    "E402",   # Module level import not at top
-    "B905",   # zip without strict
-]
+select = ["E", "W", "F", "I", "B", "C4", "UP", "S", "RUF", "SIM", "PT", "RET", "PIE"]
+# Pylint code used in existing noqa comments; keeps RUF100 from stripping them
+external = ["PLC0415"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use bare asserts and dummy credentials/paths
+"**/tests/**" = ["S101", "S105", "S106", "S108"]
+"conftest.py" = ["S101", "S105", "S106", "S108"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI/Typer declare parameters through calls in defaults
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.File", "typer.Option", "typer.Argument"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["gsuite_core", "gsuite_gmail", "gsuite_calendar", "gsuite_drive", "gsuite_sheets", "gsuite_tasks", "gsuite_contacts", "gsuite_mcp", "gsuite_api", "gsuite_cli"]

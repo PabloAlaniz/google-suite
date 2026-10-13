@@ -323,7 +323,7 @@ def mark(
     unstar: bool = typer.Option(False, "--unstar", help="Remove star"),
 ) -> None:
     """Mark a message read/unread or (un)starred."""
-    if read and unread or star and unstar or not (read or unread or star or unstar):
+    if (read and unread) or (star and unstar) or not (read or unread or star or unstar):
         console.print("[red]Give one of --read/--unread and/or one of --star/--unstar[/red]")
         raise typer.Exit(2)
 

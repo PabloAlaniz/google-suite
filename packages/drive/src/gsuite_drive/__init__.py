@@ -7,8 +7,8 @@ from gsuite_drive.file import File, Folder
 from gsuite_drive.permission import Permission
 
 __all__ = [
-    "Drive",
     "EXPORT_FORMATS",
+    "Drive",
     "File",
     "Folder",
     "Permission",

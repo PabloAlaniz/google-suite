@@ -22,3 +22,10 @@ updates:
         patterns: ["*"]
     commit-message:
       prefix: ci
+
+  - package-ecosystem: docker
+    directory: /api
+    schedule:
+      interval: weekly
+    commit-message:
+      prefix: build

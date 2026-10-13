@@ -142,6 +142,7 @@ class TestGmail:
     async def test_read(self, services, server):
         services.gmail.get_message.return_value = _message()
         status, body = await call(server, "gmail_read", message_id="m1")
+        assert status == "ok"
         assert body["body"] == "Body text"
 
     async def test_read_missing(self, services, server):
@@ -166,6 +167,7 @@ class TestGmail:
     async def test_draft(self, services, server):
         services.gmail.create_draft.return_value = MagicMock(id="d1")
         status, body = await call(server, "gmail_create_draft", to=["a@b.c"], subject="S", body="B")
+        assert status == "ok"
         assert body == {"draft_id": "d1"}
 
 
@@ -175,6 +177,7 @@ class TestCalendar:
             Event(id="e1", summary="Sync", start=datetime(2026, 3, 2, 10, tzinfo=UTC))
         ]
         status, body = await call(server, "calendar_list_events", days=2)
+        assert status == "ok"
         (event,) = body["results"]
         assert event["summary"] == "Sync"
         assert event["start"] == "2026-03-02T10:00:00+00:00"
@@ -228,6 +231,7 @@ class TestDrive:
             File(id="f1", name="a.pdf", mime_type="application/pdf")
         ]
         status, body = await call(server, "drive_search", name="a")
+        assert status == "ok"
         assert body["results"][0]["id"] == "f1"
         services.drive.list_files.return_value = []
         await call(server, "drive_search", query="trashed = false", max_results=5)
@@ -241,6 +245,7 @@ class TestDrive:
         services.drive.get.return_value = File(id="f1", name="Doc", mime_type=mime)
         services.drive.export.return_value = b"hello"
         status, body = await call(server, "drive_read_file", file_id="f1")
+        assert status == "ok"
         assert body["text"] == "hello"
         services.drive.export.assert_called_once_with("f1", export)
 
@@ -248,6 +253,7 @@ class TestDrive:
         services.drive.get.return_value = File(id="f1", name="a.txt", mime_type="text/plain")
         services.drive.get_content.return_value = b"0123456789"
         status, body = await call(server, "drive_read_file", file_id="f1", max_chars=4)
+        assert status == "ok"
         assert (body["text"], body["truncated"]) == ("0123", True)
 
     async def test_binary_refused(self, services, server):
@@ -262,6 +268,7 @@ class TestDrive:
             id="p1", type="anyone", role="reader"
         )
         status, body = await call(server, "drive_share", file_id="f1", anyone=True)
+        assert status == "ok"
         assert body["type"] == "anyone"
         assert services.drive.add_permission.call_args.kwargs["type"] == "anyone"
 
@@ -281,12 +288,13 @@ class TestSheets:
         ws.get.return_value = [["a", "b"]]
 
         status, body = await call(server, "sheets_read", spreadsheet=spreadsheet, range="A1:B1")
+        assert status == "ok"
 
         assert body == {"sheet": "Data", "range": "A1:B1", "values": [["a", "b"]]}
 
     async def test_missing_tab(self, services, server):
         services.sheets.open.return_value.worksheet.return_value = None
-        status, text = await call(server, "sheets_read", spreadsheet="Budget", sheet="Nope")
+        status, _ = await call(server, "sheets_read", spreadsheet="Budget", sheet="Nope")
         assert status == "error"
 
     async def test_title_not_found(self, services, server):
@@ -308,6 +316,7 @@ class TestSheets:
         status, body = await call(
             server, "sheets_upsert", spreadsheet="B", rows=[{"name": "Ana"}], key="name"
         )
+        assert status == "ok"
         assert body == {"updated": 1, "appended": 0}
 
 
@@ -317,6 +326,7 @@ class TestTasksAndContacts:
             Task(id="t1", title="Pay", tasklist_id="@default", due=date(2026, 3, 1))
         ]
         status, body = await call(server, "tasks_list", due_before="2026-03-31")
+        assert status == "ok"
         assert body["results"][0]["due"] == "2026-03-01"
         assert services.tasks.list_tasks.call_args.kwargs["due_max"] == date(2026, 3, 31)
 
@@ -334,6 +344,7 @@ class TestTasksAndContacts:
             Contact(resource_name="people/c1", display_name="Ana", emails=["a@x.com"])
         ]
         status, body = await call(server, "contacts_search", query="ana")
+        assert status == "ok"
         assert body["results"][0]["emails"] == ["a@x.com"]
         services.contacts.get.return_value = None
         assert (await call(server, "contacts_get", contact_id="c9"))[0] == "error"
@@ -342,5 +353,7 @@ class TestTasksAndContacts:
 def test_to_json_skips_raw_and_private_fields():
     message = _message()
     data = to_json(message)
-    assert "raw" not in data and "_gmail" not in data and "plain" not in data
+    assert "raw" not in data
+    assert "_gmail" not in data
+    assert "plain" not in data
     assert data["date"] == "2026-03-01T10:00:00+00:00"

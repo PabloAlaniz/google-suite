@@ -35,7 +35,10 @@ class TokenBucketRateLimiter:
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
-        """Configura la tasa (permisos/seg) y la capacidad (ráfaga, por defecto ``max(1, rate)``)."""
+        """Configura la tasa (permisos/seg) y la capacidad.
+
+        La capacidad es la ráfaga; por defecto ``max(1, rate)``.
+        """
         if rate <= 0:
             raise GSpreadManagerError("El rate_limit debe ser mayor que 0.")
         self.rate = rate

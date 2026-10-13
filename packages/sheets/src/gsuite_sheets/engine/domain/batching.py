@@ -57,7 +57,7 @@ def split_range_data(
     chunks: list[list[dict[str, Any]]] = []
     current: list[dict[str, Any]] = []
     count = 0
-    for item, item_size in zip(range_data, sizes):
+    for item, item_size in zip(range_data, sizes, strict=True):
         size = max(1, item_size)
         if current and count + size > max_cells:
             chunks.append(current)

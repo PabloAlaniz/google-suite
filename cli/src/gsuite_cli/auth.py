@@ -79,15 +79,15 @@ def login(
         console.print(
             "\n[dim]Download from: Google Cloud Console → APIs & Services → Credentials[/dim]"
         )
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except GSuiteError as e:
         console.print(f"[red]✗ {e.message}[/red]")
         if e.cause:
             console.print(f"[dim]Cause: {e.cause}[/dim]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
     except Exception as e:
         console.print(f"[red]✗ Authentication failed: {e}[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command()
@@ -143,7 +143,7 @@ def refresh():
         if e.cause:
             console.print(f"[dim]Cause: {e.cause}[/dim]")
         console.print("\n[yellow]Run: gsuite auth login[/yellow]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
 
 @app.command("export")

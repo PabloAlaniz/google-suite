@@ -128,7 +128,8 @@ class TestSheetsCli:
         result = runner.invoke(app, ["sheets", "read", "Budget", "-r", "A1:C2"])
 
         assert result.exit_code == 0, result.output
-        assert "C" in result.output and "3" in result.output
+        assert "C" in result.output
+        assert "3" in result.output
 
     def test_read_csv(self, client):
         self._ws(client, [["a", "b,c"]])

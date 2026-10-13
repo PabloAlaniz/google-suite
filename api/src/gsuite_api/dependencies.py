@@ -61,9 +61,11 @@ def get_auth() -> GoogleAuth:
     settings = get_settings()
 
     token_store: TokenStore
-    if settings.token_storage == "secretmanager":
+    # "secretmanager" is a storage backend name, not a credential
+    if settings.token_storage == "secretmanager":  # noqa: S105
         settings.validate_for_secretmanager()
-        assert settings.gcp_project_id  # guaranteed by validate_for_secretmanager
+        if not settings.gcp_project_id:  # validate_for_secretmanager already raised
+            raise ValueError("GSUITE_GCP_PROJECT_ID is required when using secretmanager storage")
         from gsuite_core import SecretManagerTokenStore
 
         token_store = SecretManagerTokenStore(

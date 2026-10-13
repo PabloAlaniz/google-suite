@@ -246,7 +246,7 @@ def labels():
     table.add_column("Unread", justify="right")
     table.add_column("Total", justify="right")
 
-    for label in sorted(all_labels, key=lambda l: (l.type.value, l.name)):
+    for label in sorted(all_labels, key=lambda lbl: (lbl.type.value, lbl.name)):
         unread = str(label.messages_unread) if label.messages_unread else ""
         table.add_row(label.name, label.type.value, unread, str(label.messages_total))
 

@@ -80,7 +80,8 @@ class TestGmail:
         assert response.status_code == 200
         assert response.content == b"%PDF"
         disposition = response.headers["content-disposition"]
-        assert "\r" not in disposition and "\n" not in disposition
+        assert "\r" not in disposition
+        assert "\n" not in disposition
         assert "x-injected" not in response.headers
         assert (
             "filename*=UTF-8''informe%20%22final%22%0D%0AX-Injected%3A%201%20%C3%B1.pdf"
@@ -147,7 +148,7 @@ class TestHealthAuth:
 
 
 class TestGmailActions:
-    ACTIONS = [
+    ACTIONS = (
         ("POST", "read", "mark_as_read"),
         ("POST", "unread", "mark_as_unread"),
         ("POST", "star", "star"),
@@ -157,7 +158,7 @@ class TestGmailActions:
         ("POST", "untrash", "untrash"),
         ("POST", "archive", "archive"),
         ("POST", "inbox", "move_to_inbox"),
-    ]
+    )
 
     @pytest.mark.parametrize(("method", "action", "message_method"), ACTIONS)
     def test_action_calls_message_method(self, client, services, method, action, message_method):

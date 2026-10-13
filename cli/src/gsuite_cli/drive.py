@@ -232,6 +232,5 @@ def share(
         email=email,
         notify=notify,
     )
-    console.print(
-        f"[green]✓ Shared[/green] as {perm.role} with {perm.email_address or 'anyone with the link'}"
-    )
+    grantee = perm.email_address or "anyone with the link"
+    console.print(f"[green]✓ Shared[/green] as {perm.role} with {grantee}")

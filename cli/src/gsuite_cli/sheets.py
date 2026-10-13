@@ -83,7 +83,7 @@ def open_spreadsheet(
         table.add_row(
             str(ws.index),
             ws.title,
-            f"{ws.row_count} × {ws.column_count}",
+            f"{ws.row_count} × {ws.column_count}",  # noqa: RUF001 - intentional dimension sign
         )
 
     console.print(table)
@@ -194,7 +194,8 @@ def replace(
     """Find and replace text."""
     doc = _open(spreadsheet)
     sheet_id = _worksheet(doc, sheet).id if sheet else None
-    assert doc._sheets is not None
+    if doc._sheets is None:
+        raise RuntimeError("Spreadsheet not linked to Sheets client")
     changed = doc._sheets.find_replace(
         doc.id,
         find,

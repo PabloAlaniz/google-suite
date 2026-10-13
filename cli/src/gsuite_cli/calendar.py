@@ -144,7 +144,7 @@ def create(
             all_day = True
     except ValueError:
         console.print("[red]Invalid start format. Use: YYYY-MM-DD HH:MM or YYYY-MM-DD[/red]")
-        raise typer.Exit(1)
+        raise typer.Exit(1) from None
 
     # Parse end time
     end_dt = None
@@ -156,7 +156,7 @@ def create(
                 end_dt = datetime.strptime(end, "%Y-%m-%d")
         except ValueError:
             console.print("[red]Invalid end format[/red]")
-            raise typer.Exit(1)
+            raise typer.Exit(1) from None
 
     with console.status("[bold green]Creating event..."):
         event = cal.create_event(

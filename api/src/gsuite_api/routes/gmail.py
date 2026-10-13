@@ -544,15 +544,15 @@ def list_labels(gmail: GmailDep):
     return {
         "labels": [
             LabelResponse(
-                id=l.id,
-                name=l.name,
-                type=l.type.value,
-                messages_total=l.messages_total,
-                messages_unread=l.messages_unread,
-                threads_total=l.threads_total,
-                threads_unread=l.threads_unread,
+                id=label.id,
+                name=label.name,
+                type=label.type.value,
+                messages_total=label.messages_total,
+                messages_unread=label.messages_unread,
+                threads_total=label.threads_total,
+                threads_unread=label.threads_unread,
             )
-            for l in labels
+            for label in labels
         ],
         "count": len(labels),
     }

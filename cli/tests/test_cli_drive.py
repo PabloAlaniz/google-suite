@@ -67,7 +67,8 @@ def test_info(drive):
 
     result = runner.invoke(app, ["drive", "info", "f1"])
 
-    assert "writer" in result.output and "b@x.com" in result.output
+    assert "writer" in result.output
+    assert "b@x.com" in result.output
 
 
 def test_missing_file(drive):

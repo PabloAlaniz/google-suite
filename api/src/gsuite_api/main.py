@@ -38,7 +38,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(
         title="Google Suite API",
         description=(
-            "Unified REST API for Google Workspace - Gmail, Calendar, Drive, Sheets, Tasks, Contacts"
+            "Unified REST API for Google Workspace - "
+            "Gmail, Calendar, Drive, Sheets, Tasks, Contacts"
         ),
         version=__version__,
         docs_url="/docs",

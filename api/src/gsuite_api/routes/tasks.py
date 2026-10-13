@@ -211,7 +211,8 @@ def update_task(
         task = tasks.complete_task(task_id, tasklist_id=list_id)
     elif request.completed is False:
         task = tasks.reopen_task(task_id, tasklist_id=list_id)
-    assert task is not None
+    if task is None:  # unreachable: an empty update was rejected above
+        raise HTTPException(status_code=422, detail="Nothing to update")
     return _task(task)
 
 

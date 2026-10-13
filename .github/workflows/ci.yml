@@ -217,8 +217,12 @@ jobs:
           version: ${{ env.UV_VERSION }}
           python-version: "3.15"
           enable-cache: true
-      - run: uv sync --locked --all-extras --group skill --group mcp
-      - run: uv run pytest
+      # No api/pandas extras: uvicorn[standard] (pyyaml, httptools) and pandas have no cp315 wheels yet
+      - run: uv sync --locked --extra dev --extra cli --extra cloudrun --extra async --group skill --group mcp
+      - run: >-
+          uv run pytest --ignore=api/tests
+          --ignore=packages/sheets/tests/test_engine_cache.py
+          --ignore=packages/sheets/tests/test_engine_dataframe_service.py
 
   lowest-deps:
     name: test (lowest declared deps)

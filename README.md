@@ -3,6 +3,7 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Docs](https://img.shields.io/badge/docs-gsuite--sdk-indigo.svg)](https://pabloalaniz.github.io/google-suite/)
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/15461/badge)](https://www.bestpractices.dev/projects/15461)
 
 Unified Python SDK for Google Workspace APIs with Clean Architecture.
 

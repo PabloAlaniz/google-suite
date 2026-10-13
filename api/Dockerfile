@@ -4,9 +4,9 @@
 # Two stages: uv builds a virtualenv in the first one, and the runtime image
 # gets only that venv (no uv, no build tooling, no source tree).
 
-FROM python:3.14-slim AS builder
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170 AS builder
 
-COPY --from=ghcr.io/astral-sh/uv:0.13 /uv /bin/uv
+COPY --from=ghcr.io/astral-sh/uv:0.13@sha256:cdc6093146eb3ff6a40107b38f008b789e050e77ad87865e381d9917da55a168 /uv /bin/uv
 
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
@@ -40,7 +40,7 @@ RUN cd /opt/venv/lib/python3.*/site-packages/googleapiclient/discovery_cache/doc
     && mv /tmp/keep/*.json .
 
 
-FROM python:3.14-slim
+FROM python:3.14-slim@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170
 
 ENV PATH=/opt/venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \

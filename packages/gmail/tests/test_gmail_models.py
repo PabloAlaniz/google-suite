@@ -99,7 +99,8 @@ def test_unlinked_message():
 def test_attachment_save(tmp_path):
     att = Attachment(id="a", filename="f.txt", mime_type="text/plain", size=2, _data=b"hi")
     path = att.save(str(tmp_path / "out.txt"))
-    assert open(path, "rb").read() == b"hi"
+    with open(path, "rb") as fh:
+        assert fh.read() == b"hi"
 
 
 def test_thread_properties():

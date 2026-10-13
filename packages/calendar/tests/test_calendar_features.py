@@ -90,7 +90,8 @@ class TestUpdate:
     def test_to_all_day(self, cal, service):
         cal.update_event("e1", start=date(2026, 3, 1), end=date(2026, 3, 2))
         body = service.events().patch.call_args.kwargs["body"]
-        assert body["start"] == {"date": "2026-03-01"} and body["end"] == {"date": "2026-03-03"}
+        assert body["start"] == {"date": "2026-03-01"}
+        assert body["end"] == {"date": "2026-03-03"}
 
     def test_replaces_attendees(self, cal, service):
         cal.update_event("e1", attendees=[])

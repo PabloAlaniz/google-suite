@@ -23,7 +23,7 @@ class SecretManagerTokenStore(TokenStore):
     def __init__(
         self,
         project_id: str,
-        secret_name: str = "gsuite-token",
+        secret_name: str = "gsuite-token",  # noqa: S107 - secret resource name, not a password
         auto_create: bool = False,
     ):
         """

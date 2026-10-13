@@ -166,8 +166,7 @@ class TestBackoff:
 class TestPaginate:
     def _list_method(self, pages):
         responses = iter(pages)
-        method = MagicMock(side_effect=lambda **params: request("GET", next(responses)))
-        return method
+        return MagicMock(side_effect=lambda **params: request("GET", next(responses)))
 
     def test_follows_page_tokens(self):
         method = self._list_method(
@@ -290,13 +289,14 @@ class TestRateLimit:
         from gsuite_core.rate_limit import TokenBucket
 
         bucket = TokenBucket(rate=2, burst=2)
-        assert bucket._take() == 0 and bucket._take() == 0
+        assert bucket._take() == 0
+        assert bucket._take() == 0
         assert 0 < bucket._take() <= 0.5
 
     def test_invalid_rate(self):
         from gsuite_core.rate_limit import TokenBucket
 
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="rate must be positive"):
             TokenBucket(0)
 
     def test_execute_acquires_a_token_per_attempt(self, settings, sleep):

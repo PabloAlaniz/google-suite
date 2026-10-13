@@ -276,7 +276,7 @@ class TestCreateEvent:
         cal = Calendar(mock_auth)
         from datetime import date
 
-        event = cal.create_event(
+        cal.create_event(
             summary="Holiday",
             start=date(2026, 1, 30),
             all_day=True,

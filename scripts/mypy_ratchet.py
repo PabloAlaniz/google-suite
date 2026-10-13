@@ -36,7 +36,8 @@ SUMMARY = re.compile(r"Found (\d+) errors? in")
 
 
 def count_errors(path: str) -> int:
-    result = subprocess.run(
+    # fixed argv: this interpreter running mypy on a path from the PACKAGES table
+    result = subprocess.run(  # noqa: S603
         [sys.executable, "-m", "mypy", path],
         cwd=ROOT,
         capture_output=True,

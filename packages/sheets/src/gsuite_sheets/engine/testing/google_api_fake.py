@@ -47,10 +47,9 @@ class _Values:
     def _target(self, spreadsheet_id: str, a1_range: str) -> tuple[InMemoryWorksheet, str | None]:
         ss = self._s.spreadsheet(spreadsheet_id)
         title, cells = _split(a1_range)
-        if title is None:
-            ws = ss.worksheets[0]
-        else:
-            ws = ss.worksheet(title)  # type: ignore[assignment]
+        ws: InMemoryWorksheet = (
+            ss.worksheets[0] if title is None else ss.worksheet(title)  # type: ignore[assignment]
+        )
         return ws, cells
 
     def get(

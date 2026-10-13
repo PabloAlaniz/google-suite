@@ -71,8 +71,9 @@ def test_latin1_body_is_decoded_with_its_charset():
 
 
 def test_windows_1252_html():
-    part = MIMEText("<p>“quoted” – dash</p>", "html", "windows-1252")
-    assert parse(part).html == "<p>“quoted” – dash</p>"
+    # The en dash is intentional: it is a windows-1252-specific code point (0x96).
+    part = MIMEText("<p>“quoted” – dash</p>", "html", "windows-1252")  # noqa: RUF001
+    assert parse(part).html == "<p>“quoted” – dash</p>"  # noqa: RUF001
 
 
 def test_unknown_charset_falls_back_to_utf8():

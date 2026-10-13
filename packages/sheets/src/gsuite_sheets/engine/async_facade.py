@@ -283,7 +283,7 @@ class AsyncWorksheetContext:
         if not rows:
             return []
         header = rows[0]
-        return [dict(zip(header, row)) for row in rows[1:]]
+        return [dict(zip(header, row, strict=False)) for row in rows[1:]]
 
     async def append(self, data: list[list[Any]]) -> Any:
         """Añade filas al final (con chunking automático por ``batch_cell_limit``)."""
@@ -408,7 +408,7 @@ class AsyncWorksheetContext:
             return
         async for row in self.iter_rows(page_size, skiprows=1):
             padded = row + [""] * (len(header) - len(row))
-            yield dict(zip(header, padded))
+            yield dict(zip(header, padded, strict=False))
 
     async def iter_as(self, model: type, page_size: int = 1000) -> AsyncIterator[Any]:
         """Itera las filas como instancias de ``model`` (dataclass o Pydantic)."""
@@ -459,7 +459,7 @@ class AsyncWorksheetContext:
     async def upsert_models(self, models: list[Any], key: str) -> dict[str, int]:
         """Upsert de modelos tipados (dataclasses o Pydantic) por la columna clave."""
         header, rows = self._m._rows.to_rows(models)
-        records = [dict(zip(header, row)) for row in rows]
+        records = [dict(zip(header, row, strict=True)) for row in rows]
         sheet_header, values = require_header(await self._ws.get_all_values())
         updates, appends, updated_rows = plan_upsert(sheet_header, values, records, key)
         for chunk in split_range_data(updates, self._m.batch_cell_limit):

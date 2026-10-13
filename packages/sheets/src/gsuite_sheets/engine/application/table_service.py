@@ -13,7 +13,7 @@ con ``domain.batching`` (un rango/fila nunca se parte).
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Any, Union
+from typing import Any
 
 from gsuite_sheets.engine.domain.batching import split_range_data, split_rows
 from gsuite_sheets.engine.domain.errors import GSpreadManagerError
@@ -53,13 +53,13 @@ def as_record(item: dict[str, Any] | list[Any], header: list[str]) -> dict[str, 
         raise GSpreadManagerError(
             f"La fila tiene {len(item)} valores y el encabezado {len(header)} columnas."
         )
-    return dict(zip(header, item))
+    return dict(zip(header, item, strict=False))
 
 
 def row_record(header: list[str], row: list[str]) -> dict[str, str]:
     """Registro ``{columna: valor}`` de una fila de la hoja (con padding al encabezado)."""
     padded = row + [""] * (len(header) - len(row))
-    return dict(zip(header, padded))
+    return dict(zip(header, padded, strict=False))
 
 
 def row_updates(record: dict[str, Any], header: list[str], row_number: int) -> list[dict[str, Any]]:

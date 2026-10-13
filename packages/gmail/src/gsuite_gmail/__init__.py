@@ -10,10 +10,10 @@ from gsuite_gmail.message import Message
 from gsuite_gmail.thread import Thread
 
 __all__ = [
-    "Gmail",
     "Draft",
+    "Gmail",
+    "Label",
     "Message",
     "Thread",
-    "Label",
     "query",
 ]

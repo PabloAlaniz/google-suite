@@ -291,7 +291,7 @@ def batch_get(
     values = sheets.batch_get_values(spreadsheet_id, ranges)
     return {
         "spreadsheet_id": spreadsheet_id,
-        "value_ranges": [{"range": r, "values": v} for r, v in zip(ranges, values)],
+        "value_ranges": [{"range": r, "values": v} for r, v in zip(ranges, values, strict=True)],
     }
 
 

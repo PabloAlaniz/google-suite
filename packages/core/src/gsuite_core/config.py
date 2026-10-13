@@ -82,7 +82,9 @@ class Settings(BaseSettings):
     rate_limit: float | None = Field(
         default=None,
         gt=0,
-        description="Max Google API requests per second for this process (token bucket); off by default",
+        description=(
+            "Max Google API requests per second for this process (token bucket); off by default"
+        ),
     )
     rate_limit_burst: float | None = Field(
         default=None, gt=0, description="Bucket size (default: max(1, rate_limit))"
@@ -103,7 +105,8 @@ class Settings(BaseSettings):
 
     def validate_for_secretmanager(self) -> None:
         """Validate settings when using Secret Manager."""
-        if self.token_storage == "secretmanager" and not self.gcp_project_id:
+        # "secretmanager" is a storage backend name, not a password.
+        if self.token_storage == "secretmanager" and not self.gcp_project_id:  # noqa: S105
             raise ValueError("GSUITE_GCP_PROJECT_ID is required when using secretmanager storage")
 
 

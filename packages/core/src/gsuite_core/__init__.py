@@ -31,7 +31,8 @@ from gsuite_core.exceptions import (
 )
 from gsuite_core.storage import SQLiteTokenStore, TokenStore
 
-__all__ = [
+__all__ = [  # noqa: RUF022 - grouped by area, not alphabetical
+    "__version__",
     # Auth
     "GoogleAuth",
     "Scopes",
@@ -68,7 +69,8 @@ __all__ = [
 
 # Conditionally export SecretManagerTokenStore
 try:
-    from gsuite_core.storage import SecretManagerTokenStore
+    # Redundant alias marks an explicit re-export of the optional backend.
+    from gsuite_core.storage import SecretManagerTokenStore as SecretManagerTokenStore
 
     __all__.append("SecretManagerTokenStore")
 except ImportError:

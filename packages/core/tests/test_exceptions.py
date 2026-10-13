@@ -1,5 +1,7 @@
 """Tests for Google Suite exceptions."""
 
+import pytest
+
 from gsuite_core.exceptions import (
     APIError,
     AuthenticationError,
@@ -135,7 +137,6 @@ class TestExceptionHierarchy:
 
     def test_can_catch_by_base_class(self):
         """Can catch specific errors with base class."""
-        try:
+        with pytest.raises(GSuiteError) as exc_info:
             raise CredentialsNotFoundError("/path")
-        except GSuiteError as e:
-            assert isinstance(e, CredentialsNotFoundError)
+        assert isinstance(exc_info.value, CredentialsNotFoundError)

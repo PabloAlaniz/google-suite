@@ -479,7 +479,7 @@ class WorksheetContext:
             return
         for row in self.iter_rows(page_size, skiprows=1):
             padded = row + [""] * (len(header) - len(row))
-            yield dict(zip(header, padded))
+            yield dict(zip(header, padded, strict=False))
 
     def iter_as(self, model: type, page_size: int = 1000) -> Iterator[Any]:
         """Itera las filas como instancias de ``model`` (dataclass o Pydantic), de a páginas."""
@@ -555,7 +555,7 @@ class WorksheetContext:
     def upsert_models(self, models: list[Any], key: str) -> dict[str, int]:
         """Upsert de modelos tipados (dataclasses o Pydantic) por la columna clave ``key``."""
         header, rows = self._m._rows.to_rows(models)
-        records = [dict(zip(header, row)) for row in rows]
+        records = [dict(zip(header, row, strict=True)) for row in rows]
         return self._m._table.upsert(
             self._ws, records, key, DEFAULT_VALUE_INPUT_OPTION, self._m.batch_cell_limit
         )
@@ -1059,7 +1059,10 @@ class WorksheetContext:
     def write_models(
         self, models: list[Any], include_header: bool = True, clear: bool = True
     ) -> Any:
-        """Escribe instancias de dataclass desde A1 (encabezado opcional), limpiando si ``clear``."""
+        """Escribe instancias de dataclass desde A1 (encabezado opcional).
+
+        Limpia la hoja antes si ``clear``.
+        """
         return self._m._rows.write(
             self._ws, models, include_header, clear, DEFAULT_VALUE_INPUT_OPTION
         )

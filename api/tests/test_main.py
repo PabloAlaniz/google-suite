@@ -26,8 +26,6 @@ class TestAppCreation:
 
     def test_cors_enabled(self):
         """Test CORS middleware is configured."""
-        # Check middleware is present
-        middleware_types = [type(m).__name__ for m in app.user_middleware]
         # CORSMiddleware is wrapped, so we check the app has middleware
         assert len(app.user_middleware) > 0
 

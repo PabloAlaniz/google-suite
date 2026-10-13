@@ -225,7 +225,7 @@ class TestGetLabels:
         labels = gmail.get_labels()
 
         assert len(labels) == 2
-        assert all(isinstance(l, Label) for l in labels)
+        assert all(isinstance(label, Label) for label in labels)
 
         inbox = labels[0]
         assert inbox.id == "INBOX"

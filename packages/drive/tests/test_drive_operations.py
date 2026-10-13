@@ -127,7 +127,8 @@ class TestExport:
 
         path = drive.download("doc1", str(tmp_path / "out.docx"), export_format="docx")
 
-        assert open(path, "rb").read() == b"data"
+        with open(path, "rb") as fh:
+            assert fh.read() == b"data"
         assert service.files().export.call_args.kwargs["mimeType"] == EXPORT_FORMATS["docx"]
 
     def test_google_doc_downloads_as_export_by_default(self, drive, service, tmp_path, monkeypatch):

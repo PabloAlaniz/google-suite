@@ -13,8 +13,6 @@ class GSuiteError(Exception):
 class AuthenticationError(GSuiteError):
     """Authentication-related errors."""
 
-    pass
-
 
 class CredentialsNotFoundError(AuthenticationError):
     """OAuth credentials file not found."""
@@ -121,5 +119,3 @@ class ValidationError(GSuiteError):
 
 class ConfigurationError(GSuiteError):
     """Configuration error."""
-
-    pass

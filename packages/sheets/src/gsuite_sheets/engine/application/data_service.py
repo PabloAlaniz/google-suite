@@ -64,7 +64,7 @@ class DataService:
         if not rows:
             return []
         headers = rows[0]
-        return [dict(zip(headers, row)) for row in rows[1:]]
+        return [dict(zip(headers, row, strict=False)) for row in rows[1:]]
 
     def last_row(self, worksheet: WorksheetPort) -> int:
         """Devuelve el índice (1-based) de la última fila con datos; 0 si está vacía."""

@@ -160,7 +160,8 @@ def _backoff(attempt: int, base: float, retry_after: int | None = None) -> float
     """
     if retry_after is not None:
         return float(min(retry_after, MAX_RETRY_AFTER))
-    return random.uniform(0, min(MAX_BACKOFF, base * 2**attempt))
+    # Backoff jitter, not security-sensitive.
+    return random.uniform(0, min(MAX_BACKOFF, base * 2**attempt))  # noqa: S311
 
 
 def _should_retry(error: Exception, method: str, retry_on_rate_limit: bool) -> bool:
@@ -405,7 +406,7 @@ def api_call(
                     # as idempotent as this decorator always has.
                     retryable = _should_retry(e, "GET", _retry_on_rate_limit)
                     if attempt == _max_retries or not retryable:
-                        raise map_http_error(e, service, resource_type)
+                        raise map_http_error(e, service, resource_type) from e
                     wait = _backoff(attempt, _retry_delay, _retry_after(e))
                     logger.warning(
                         f"{service}: HTTP {e.resp.status}, retrying in {wait:.1f}s "
@@ -450,7 +451,7 @@ def api_call_optional(
                 if e.resp.status == 404:
                     logger.debug(f"{service}: {resource_type} not found")
                     return None
-                raise map_http_error(e, service, resource_type)
+                raise map_http_error(e, service, resource_type) from e
 
         return wrapper
 

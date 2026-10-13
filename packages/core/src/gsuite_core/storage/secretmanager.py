@@ -23,7 +23,7 @@ class SecretManagerTokenStore(TokenStore):
     def __init__(
         self,
         project_id: str,
-        secret_name: str = "gsuite-token",
+        secret_name: str = "gsuite-token",  # noqa: S107 - secret resource name, not a password
         auto_create: bool = False,
     ):
         """
@@ -73,7 +73,7 @@ class SecretManagerTokenStore(TokenStore):
             if user_id in data:
                 token: dict[str, Any] = data[user_id]
                 return token
-            elif user_id == "default" and "token" in data:
+            if user_id == "default" and "token" in data:
                 return data
 
             return None
@@ -128,7 +128,7 @@ class SecretManagerTokenStore(TokenStore):
                     }
                 )
                 return True
-            elif user_id == "default":
+            if user_id == "default":
                 self.client.delete_secret(request={"name": self._secret_path})
                 return True
 

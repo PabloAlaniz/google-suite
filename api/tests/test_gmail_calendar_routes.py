@@ -132,11 +132,9 @@ class TestCalendar:
 
         assert response.json()["meet_link"] == "https://meet.google.com/x"
         kwargs = calendar.create_event.call_args.kwargs
-        assert (
-            kwargs["meet"] is True
-            and kwargs["attendees"] == ["a@x.com"]
-            and kwargs["send_updates"] == "all"
-        )
+        assert kwargs["meet"] is True
+        assert kwargs["attendees"] == ["a@x.com"]
+        assert kwargs["send_updates"] == "all"
 
     def test_invalid_send_updates(self, client):
         body = {"summary": "x", "start": "2026-03-01T10:00:00Z", "send_updates": "everyone"}
@@ -161,7 +159,8 @@ class TestCalendar:
     def test_instances(self, client, calendar):
         calendar.get_instances.return_value = [self._event(recurring_event_id="e1")] * 3
         body = client.get("/calendar/events/e1/instances").json()
-        assert body["count"] == 3 and body["events"][0]["recurring_event_id"] == "e1"
+        assert body["count"] == 3
+        assert body["events"][0]["recurring_event_id"] == "e1"
 
     def test_delete_missing_is_404(self, client, calendar):
         # Used to answer 200 {"status": "failed"}

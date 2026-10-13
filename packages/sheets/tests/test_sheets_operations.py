@@ -184,7 +184,8 @@ class TestWorksheets:
 
         copy = ws._spreadsheet.duplicate_worksheet(ws, "Copy")
 
-        assert copy.id == 11 and copy._spreadsheet is ws._spreadsheet
+        assert copy.id == 11
+        assert copy._spreadsheet is ws._spreadsheet
         assert requests(service)[0]["duplicateSheet"] == {
             "sourceSheetId": 5,
             "newSheetName": "Copy",

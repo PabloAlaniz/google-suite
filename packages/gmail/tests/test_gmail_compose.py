@@ -82,7 +82,8 @@ class TestSend:
 
         msg = sent_email(service)
         assert msg["Subject"] == "Reunión mañana"
-        assert msg["Cc"] == "c@x.com" and msg["Bcc"] == "b@x.com"
+        assert msg["Cc"] == "c@x.com"
+        assert msg["Bcc"] == "b@x.com"
 
     def test_reply_to_sets_threading_headers(self, gmail, service):
         # reply_to used to be ignored entirely
@@ -176,7 +177,8 @@ class TestDrafts:
 
         draft = gmail.create_draft(["a@x.com"], "Draft", "body")
 
-        assert draft.id == "d1" and draft.message.id == "orig"
+        assert draft.id == "d1"
+        assert draft.message.id == "orig"
         assert "raw" in service.users().drafts().create.call_args.kwargs["body"]["message"]
 
     def test_get_missing(self, gmail, service, http_error):

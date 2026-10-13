@@ -187,5 +187,8 @@ class Spreadsheet:
         return list(self._manager().list_permissions())
 
     def remove_permission(self, value: str, role: str = "any") -> list[str]:
-        """Revoke access of an email or domain (optionally only for ``role``); returns removed IDs."""
+        """Revoke access of an email or domain (optionally only for ``role``).
+
+        Returns the removed permission IDs.
+        """
         return list(self._manager().remove_permission(value, role))

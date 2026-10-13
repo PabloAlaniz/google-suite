@@ -214,7 +214,8 @@ class TestSharing:
         )
 
         kwargs = _kwargs(service.permissions().create)
-        assert kwargs["sendNotificationEmail"] is True and kwargs["emailMessage"] == "hi"
+        assert kwargs["sendNotificationEmail"] is True
+        assert kwargs["emailMessage"] == "hi"
 
     def test_remove_permissions_by_value_and_role(self, sheets, service):
         service.permissions().list().execute.return_value = {

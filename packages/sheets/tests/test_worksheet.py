@@ -52,6 +52,5 @@ class TestWorksheetDataParsing:
 
     def test_get_all_records_empty(self):
         """Test get_all_records with no data."""
-        ws = Worksheet(id=0, title="Test", index=0)
+        Worksheet(id=0, title="Test", index=0)
         # Would need mocking to test properly
-        pass

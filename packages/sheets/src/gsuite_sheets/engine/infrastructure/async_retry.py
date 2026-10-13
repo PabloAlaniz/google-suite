@@ -33,7 +33,7 @@ class AsyncExponentialBackoffRetry:
         while True:
             try:
                 return await operation()
-            except ApiError as exc:  # noqa: PERF203  (try/except por intento es inherente)
+            except ApiError as exc:
                 if exc.status_code not in RETRYABLE_STATUS or attempt >= self.max_retries:
                     raise
                 delay = self.backoff * (2**attempt)

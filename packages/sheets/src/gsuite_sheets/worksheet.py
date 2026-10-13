@@ -109,7 +109,7 @@ class Worksheet:
         for row in values[head:]:
             # Pad row to match headers length
             padded = row + [""] * (len(headers) - len(row))
-            record = dict(zip(headers, padded))
+            record = dict(zip(headers, padded, strict=False))
             records.append(record)
 
         return records
@@ -156,7 +156,10 @@ class Worksheet:
     def batch_update(
         self, data: list[dict[str, Any]], value_input: "ValueInput" = "USER_ENTERED"
     ) -> dict:
-        """Write several ranges of this sheet in one request: [{"range": "A1:B2", "values": [...]}]."""
+        """Write several ranges of this sheet in one request.
+
+        ``data``: [{"range": "A1:B2", "values": [...]}].
+        """
         sheets, spreadsheet_id = self._client()
         qualified = [{"range": self._range(d["range"]), "values": d["values"]} for d in data]
         return sheets.batch_update(spreadsheet_id, qualified, value_input)
@@ -346,11 +349,17 @@ class Worksheet:
         return int(self._ctx.delete_where(where))
 
     def rows_where_column_equals(self, column: int, value: Any) -> list[tuple[int, list[str]]]:
-        """(row number, row) for rows whose ``column`` (0-based, as in GSpreadManager) equals ``value``."""
+        """(row number, row) for rows whose ``column`` equals ``value``.
+
+        ``column`` is 0-based, as in GSpreadManager.
+        """
         return list(self._ctx.rows_where_column_equals(column, value))
 
     def row_with_empty_in_column(self, column_letter: str) -> tuple[list[Any] | None, int | None]:
-        """First row with an empty cell in ``column_letter``: (row values, number) or (None, None)."""
+        """First row with an empty cell in ``column_letter``.
+
+        Returns (row values, number) or (None, None).
+        """
         result: tuple[list[Any] | None, int | None] = self._ctx.row_with_empty_in_column(
             column_letter
         )
@@ -363,7 +372,10 @@ class Worksheet:
         return dict(self._ctx.ensure_schema(model, create=create, strict=strict))
 
     def read_as(self, model: type, skiprows: int = 0) -> list[Any]:
-        """Rows as ``model`` instances (dataclass or Pydantic), with values converted to field types."""
+        """Rows as ``model`` instances (dataclass or Pydantic).
+
+        Values are converted to the field types.
+        """
         return list(self._ctx.read_as(model, skiprows=skiprows))
 
     def iter_as(self, model: type, page_size: int = 1000) -> "Iterator[Any]":
@@ -587,7 +599,10 @@ class Worksheet:
         values: list[tuple[int, str]],
         columns: list[int] | None = None,
     ) -> None:
-        """Pivot table at ``anchor_cell`` over ``source``; values are (column, "SUM"|"COUNTA"|...)."""
+        """Pivot table at ``anchor_cell`` over ``source``.
+
+        ``values`` are (column, "SUM"|"COUNTA"|...).
+        """
         self._ctx.add_pivot_table(source, anchor_cell, rows=rows, values=values, columns=columns)
 
     def set_banding(

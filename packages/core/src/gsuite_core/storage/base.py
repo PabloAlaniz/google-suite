@@ -25,7 +25,6 @@ class TokenStore(ABC):
         Returns:
             Token data dict or None if not found
         """
-        pass
 
     @abstractmethod
     def save_token(self, token_data: dict[str, Any], user_id: str = "default") -> None:
@@ -36,7 +35,6 @@ class TokenStore(ABC):
             token_data: Token data to store
             user_id: User identifier
         """
-        pass
 
     @abstractmethod
     def delete_token(self, user_id: str = "default") -> bool:
@@ -49,7 +47,6 @@ class TokenStore(ABC):
         Returns:
             True if token was deleted
         """
-        pass
 
     @abstractmethod
     def exists(self, user_id: str = "default") -> bool:
@@ -62,4 +59,3 @@ class TokenStore(ABC):
         Returns:
             True if token exists
         """
-        pass

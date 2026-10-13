@@ -6,7 +6,7 @@ from gsuite_mcp.server import build_server, main
 from gsuite_mcp.services import Services
 
 __all__ = [
+    "Services",
     "build_server",
     "main",
-    "Services",
 ]

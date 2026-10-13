@@ -73,7 +73,10 @@ class VisualizationService:
     def set_banding(
         self, worksheet: WorksheetPort, spec: BandingSpec, range_name: str
     ) -> int | None:
-        """Aplica bandas alternadas al rango; devuelve el ``bandedRangeId`` (si el backend lo da)."""
+        """Aplica bandas alternadas al rango.
+
+        Devuelve el ``bandedRangeId`` (si el backend lo da).
+        """
         reply = self._apply(worksheet, spec.to_request(GridRange.from_a1(range_name, worksheet.id)))
         banded_id = reply.get("addBanding", {}).get("bandedRange", {}).get("bandedRangeId")
         return int(banded_id) if banded_id is not None else None

@@ -170,7 +170,8 @@ class TestLoginScopes:
     def test_combined_sets_without_duplicates(self):
         scopes = _resolve_scopes("default, tasks,contacts")
         assert scopes[: len(Scopes.default())] == Scopes.default()
-        assert Scopes.TASKS_FULL in scopes and Scopes.CONTACTS_FULL in scopes
+        assert Scopes.TASKS_FULL in scopes
+        assert Scopes.CONTACTS_FULL in scopes
         assert len(scopes) == len(set(scopes))
 
     def test_sheets_is_a_valid_set(self):

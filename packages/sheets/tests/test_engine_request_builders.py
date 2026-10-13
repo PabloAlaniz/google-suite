@@ -1,4 +1,7 @@
-"""Tests de ``infrastructure.request_builders``: conversión A1 -> GridRange (contra gsuite_sheets.a1)."""
+"""Tests de ``infrastructure.request_builders``.
+
+Conversión A1 -> GridRange (contra gsuite_sheets.a1).
+"""
 
 from gsuite_sheets.a1 import grid_range as a1_range_to_grid_range
 from gsuite_sheets.engine.infrastructure.request_builders import grid_range

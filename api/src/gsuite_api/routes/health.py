@@ -63,8 +63,8 @@ def get_logs(
     """
     try:
         from google.cloud import logging as cloud_logging
-    except ImportError:
-        raise HTTPException(status_code=503, detail="google-cloud-logging not installed")
+    except ImportError as err:
+        raise HTTPException(status_code=503, detail="google-cloud-logging not installed") from err
 
     project_id = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
     service_name = os.environ.get("K_SERVICE", "google-suite")

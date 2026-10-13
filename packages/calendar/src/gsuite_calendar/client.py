@@ -420,7 +420,7 @@ class Calendar:
         )
 
         result: dict[str, list[dict[str, datetime | None]]] = {}
-        for requested, query_id in zip(ids, query_ids):
+        for requested, query_id in zip(ids, query_ids, strict=True):
             info = response.get("calendars", {}).get(query_id, {})
             if info.get("errors"):
                 logger.warning(f"Free/busy unavailable for {requested}: {info['errors']}")

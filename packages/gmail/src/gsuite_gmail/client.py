@@ -335,7 +335,7 @@ class Gmail:
             return label_name
         if self._labels_cache is None:
             response = execute(self.service.users().labels().list(userId=self.user_id), "gmail")
-            self._labels_cache = {l["name"]: l["id"] for l in response.get("labels", [])}
+            self._labels_cache = {lbl["name"]: lbl["id"] for lbl in response.get("labels", [])}
 
         # Check if it's already an ID
         if label_name in self._labels_cache.values():

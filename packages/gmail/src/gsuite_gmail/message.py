@@ -103,7 +103,7 @@ class Message:
         """Mark message as read."""
         if self._gmail and self.is_unread:
             self._gmail._modify_labels(self.id, remove=["UNREAD"])
-            self.labels = [l for l in self.labels if l != "UNREAD"]
+            self.labels = [label for label in self.labels if label != "UNREAD"]
         return self
 
     def mark_as_unread(self) -> "Message":
@@ -124,7 +124,7 @@ class Message:
         """Remove star from message."""
         if self._gmail and self.is_starred:
             self._gmail._modify_labels(self.id, remove=["STARRED"])
-            self.labels = [l for l in self.labels if l != "STARRED"]
+            self.labels = [label for label in self.labels if label != "STARRED"]
         return self
 
     def mark_important(self) -> "Message":
@@ -138,7 +138,7 @@ class Message:
         """Mark message as not important."""
         if self._gmail and self.is_important:
             self._gmail._modify_labels(self.id, remove=["IMPORTANT"])
-            self.labels = [l for l in self.labels if l != "IMPORTANT"]
+            self.labels = [label for label in self.labels if label != "IMPORTANT"]
         return self
 
     def trash(self) -> "Message":
@@ -153,14 +153,14 @@ class Message:
         """Remove message from trash."""
         if self._gmail:
             self._gmail._untrash_message(self.id)
-            self.labels = [l for l in self.labels if l != "TRASH"]
+            self.labels = [label for label in self.labels if label != "TRASH"]
         return self
 
     def archive(self) -> "Message":
         """Archive message (remove from inbox)."""
         if self._gmail:
             self._gmail._modify_labels(self.id, remove=["INBOX"])
-            self.labels = [l for l in self.labels if l != "INBOX"]
+            self.labels = [label for label in self.labels if label != "INBOX"]
         return self
 
     def move_to_inbox(self) -> "Message":
@@ -185,7 +185,7 @@ class Message:
             label_id = self._gmail._get_label_id(label_name)
             if label_id and label_id in self.labels:
                 self._gmail._modify_labels(self.id, remove=[label_id])
-                self.labels = [l for l in self.labels if l != label_id]
+                self.labels = [label for label in self.labels if label != label_id]
         return self
 
     def reply(

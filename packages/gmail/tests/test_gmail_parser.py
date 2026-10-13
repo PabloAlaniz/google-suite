@@ -1,7 +1,5 @@
 """Tests for Gmail parser."""
 
-import pytest
-
 from gsuite_gmail.label import LabelType
 from gsuite_gmail.parser import GmailParser
 

@@ -232,7 +232,10 @@ class AsyncWorksheet:
         if len(values) < head:
             return []
         headers = values[head - 1]
-        return [dict(zip(headers, row + [""] * (len(headers) - len(row)))) for row in values[head:]]
+        return [
+            dict(zip(headers, row + [""] * (len(headers) - len(row)), strict=False))
+            for row in values[head:]
+        ]
 
     async def update(
         self, range: str, values: list[list[Any]], value_input: str = "USER_ENTERED"

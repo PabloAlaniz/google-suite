@@ -57,7 +57,8 @@ def problem(
 
 
 def _gsuite_error(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, GSuiteError)
+    if not isinstance(exc, GSuiteError):  # registered only for GSuiteError
+        raise exc
 
     # Order matters: the specific APIError subclasses come before APIError.
     if isinstance(exc, RateLimitError):
@@ -98,7 +99,8 @@ def _gsuite_error(request: Request, exc: Exception) -> JSONResponse:
 def _google_http_error(request: Request, exc: Exception) -> JSONResponse:
     # Client methods not wrapped in @api_call leak raw HttpErrors; map them
     # the same way the decorator would. The service is the route prefix.
-    assert isinstance(exc, HttpError)
+    if not isinstance(exc, HttpError):  # registered only for HttpError
+        raise exc
     service = request.url.path.strip("/").split("/", 1)[0] or "google"
     return _gsuite_error(request, map_http_error(exc, service))
 
@@ -125,14 +127,16 @@ def _engine_status(exc: GSuiteError) -> int | None:
 
 
 def _http_exception(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, StarletteHTTPException)
+    if not isinstance(exc, StarletteHTTPException):  # registered only for StarletteHTTPException
+        raise exc
     headers = dict(exc.headers) if exc.headers else None
     detail = exc.detail if isinstance(exc.detail, str) else None
     return problem(request, exc.status_code, detail, headers=headers)
 
 
 def _validation_error(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, RequestValidationError)
+    if not isinstance(exc, RequestValidationError):  # registered only for RequestValidationError
+        raise exc
     errors = [
         {"loc": list(e.get("loc", ())), "msg": e.get("msg"), "type": e.get("type")}
         for e in exc.errors()

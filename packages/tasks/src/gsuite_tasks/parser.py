@@ -1,19 +1,23 @@
 """Convert Tasks API resources to entities and back."""
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from typing import Any
 
 from gsuite_tasks.task import Task, TaskList
 
 
 def parse_timestamp(value: str | None) -> datetime | None:
-    """RFC 3339 timestamp ("2026-01-01T10:00:00.000Z") to an aware datetime."""
+    """RFC 3339 timestamp ("2026-01-01T10:00:00.000Z") to an aware datetime.
+
+    A timestamp without an offset is taken as UTC, which is what the API uses.
+    """
     if not value:
         return None
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     except ValueError:
         return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)
 
 
 def parse_due(value: str | None) -> date | None:

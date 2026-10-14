@@ -61,6 +61,26 @@ demand with the `GSUITE_INTEGRATION_TOKEN` secret (the output of
 `gsuite auth export`) in the `integration` environment. OAuth apps in
 "Testing" status issue refresh tokens that expire after 7 days.
 
+#### Property-based tests
+
+Code that parses external input (A1 ranges, `Retry-After`, error bodies,
+dates, colors, cell values) has property-based tests
+written with [Hypothesis](https://hypothesis.readthedocs.io/), in
+`test_<package>_properties.py`. The invariants themselves live in
+`<package>/_testing/properties.py` as `check_*` functions that raise
+`gsuite_core._testing.PropertyViolation`, so the tests and any fuzz harness
+check exactly the same properties.
+
+```bash
+uv run pytest -k properties                               # "ci" profile: 100 examples, derandomized
+HYPOTHESIS_PROFILE=dev uv run pytest -k properties        # more examples, random
+HYPOTHESIS_PROFILE=nightly uv run pytest -k properties    # what the nightly CI run uses
+```
+
+A known bug is kept as a test marked `xfail(strict=True)` with an
+`@example(...)` of the failing input. The fix must remove the marker: with
+`strict=True` the test fails as soon as it starts passing.
+
 ### Linting and Type Checking
 
 ```bash
@@ -83,7 +103,9 @@ Every PR runs lint, the mypy ratchet, a build/install smoke test and the
 lowest-supported dependency versions. Package tests run per package on
 Python 3.11 (oldest supported) and 3.14 (latest), but only for the packages
 a PR touches (core or shared config runs all of them). macOS and Windows run
-the full suite. Nightly runs add the latest release of every dependency.
+the full suite. Nightly runs add the latest release of every dependency and
+run the property-based tests with the `nightly` Hypothesis profile (2000
+random examples per property).
 
 ### The agent skill
 

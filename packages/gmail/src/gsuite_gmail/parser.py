@@ -1,12 +1,56 @@
 """Gmail response parsers - converts API responses to domain entities."""
 
 import base64
+import logging
+import re
 from datetime import UTC, datetime
 from email.message import Message as EmailHeaders
 from email.utils import formataddr, getaddresses, parsedate_to_datetime
 
 from gsuite_gmail.label import Label, LabelType
 from gsuite_gmail.message import Attachment, Message
+
+logger = logging.getLogger(__name__)
+
+# RFC 5322 specials that force a display name into a quoted string
+_SPECIALS = re.compile(r'[][\\()<>@,:;".]')
+
+
+def _format_address(name: str, addr: str) -> str:
+    """``formataddr`` that never raises.
+
+    ``formataddr`` rejects non-ASCII addresses (internationalized email,
+    RFC 6532, e.g. ``josé@example.com``); those are formatted as readable
+    Unicode instead.
+    """
+    try:
+        return formataddr((name, addr))
+    except UnicodeError:
+        pass
+    if not name:
+        return addr
+    if _SPECIALS.search(name):
+        escaped = name.replace("\\", "\\\\").replace('"', '\\"')
+        name = f'"{escaped}"'
+    return f"{name} <{addr}>"
+
+
+def _b64decode(data: str, message_id: str) -> bytes | None:
+    """Decode a Gmail body (base64url, padding optional); None if it is not base64.
+
+    Only the message id is logged: the body itself is untrusted content.
+    """
+    try:
+        return base64.urlsafe_b64decode(data)
+    except (ValueError, TypeError):  # binascii.Error is a ValueError
+        pass
+    try:
+        # Gmail sometimes sends unpadded base64url; re-pad and retry
+        stripped = "".join(data.split()).rstrip("=")
+        return base64.urlsafe_b64decode(stripped + "=" * (-len(stripped) % 4))
+    except (ValueError, TypeError):
+        logger.warning("Message %s: part body is not valid base64; skipped", message_id)
+        return None
 
 
 class GmailParser:
@@ -94,36 +138,50 @@ class GmailParser:
         """Split an address header; '"Doe, John" <j@x.com>' stays one entry."""
         if not value:
             return []
-        return [formataddr((name, addr)) for name, addr in getaddresses([value]) if addr]
+        return [_format_address(name, addr) for name, addr in getaddresses([value]) if addr]
 
     @staticmethod
     def _parse_date(date_header: str, internal_date: str | None) -> datetime | None:
-        """Parse date from header or internal timestamp."""
+        """Parse date from header or internal timestamp; always timezone-aware.
+
+        A Date header without a usable zone (``-0000``, or none at all) is taken
+        as UTC: RFC 5322 defines ``-0000`` as "UTC, local zone unknown".
+        """
         if date_header:
             try:
-                return parsedate_to_datetime(date_header)
+                date = parsedate_to_datetime(date_header)
             except (ValueError, TypeError):
                 pass
+            else:
+                return date if date.tzinfo is not None else date.replace(tzinfo=UTC)
 
         if internal_date:
             try:
                 # Milliseconds since the epoch, UTC (was a naive local time)
                 return datetime.fromtimestamp(int(internal_date) / 1000, tz=UTC)
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError, OverflowError, OSError):
+                pass  # not a number, or outside the range datetime supports
 
         return None
 
     @staticmethod
-    def _decode_text(data: str, headers: dict[str, str]) -> str:
-        """Decode a text part in the charset its Content-Type declares."""
-        raw = base64.urlsafe_b64decode(data)
+    def _decode_text(data: str, headers: dict[str, str], message_id: str = "") -> str:
+        """Decode a text part in the charset its Content-Type declares.
+
+        Never raises: a body that is not base64 decodes to "", and a charset
+        Python cannot decode with ``errors="replace"`` (unknown, or a codec
+        such as ``idna`` or ``undefined``) falls back to UTF-8.
+        """
+        raw = _b64decode(data, message_id)
+        if raw is None:
+            return ""
         content_type = EmailHeaders()
         content_type["Content-Type"] = headers.get("content-type", "text/plain")
         charset = content_type.get_content_charset() or "utf-8"
         try:
             return raw.decode(charset, errors="replace")
-        except LookupError:  # unknown charset name
+        except (LookupError, ValueError):  # unknown/unusable codec; UnicodeError too
+            logger.warning("Message %s: unusable charset in a text part; using UTF-8", message_id)
             return raw.decode("utf-8", errors="replace")
 
     @staticmethod
@@ -145,9 +203,11 @@ class GmailParser:
         html = None
         attachments = []
 
-        def extract_parts(part: dict) -> None:
-            nonlocal plain, html
-
+        # Depth-first, in document order, without recursion: nesting depth is
+        # attacker-controlled and would otherwise raise RecursionError.
+        stack = [payload]
+        while stack:
+            part = stack.pop()
             mime_type = part.get("mimeType", "")
             body = part.get("body", {})
             data = body.get("data")
@@ -164,18 +224,16 @@ class GmailParser:
                         mime_type=mime_type,
                         size=body.get("size", 0),
                         _message_id=message_id,
-                        _data=base64.urlsafe_b64decode(data)
+                        _data=_b64decode(data, message_id)
                         if data and not body.get("attachmentId")
                         else None,
                     )
                 )
             elif data and mime_type == "text/plain" and plain is None:
-                plain = GmailParser._decode_text(data, headers)
+                plain = GmailParser._decode_text(data, headers, message_id)
             elif data and mime_type == "text/html" and html is None:
-                html = GmailParser._decode_text(data, headers)
+                html = GmailParser._decode_text(data, headers, message_id)
 
-            for sub_part in part.get("parts", []):
-                extract_parts(sub_part)
+            stack.extend(reversed(part.get("parts", [])))
 
-        extract_parts(payload)
         return plain, html, attachments

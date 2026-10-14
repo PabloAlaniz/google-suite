@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1](https://github.com/PabloAlaniz/google-suite/compare/v0.5.0...v0.5.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* **core,tasks,drive,calendar:** harden retry handling and return aware datetimes ([#45](https://github.com/PabloAlaniz/google-suite/issues/45)) ([1fa4f3c](https://github.com/PabloAlaniz/google-suite/commit/1fa4f3c4ae2e773de3ef7585aade8b94d87dac35))
+* **gmail:** harden HTML conversion, query builder and message parsing ([#46](https://github.com/PabloAlaniz/google-suite/issues/46)) ([de6932e](https://github.com/PabloAlaniz/google-suite/commit/de6932e730e2c6a48ae82232aa06e2d7ec33b4de))
+* **sheets:** validate A1 references, colors and numbers strictly ([#44](https://github.com/PabloAlaniz/google-suite/issues/44)) ([752f6f3](https://github.com/PabloAlaniz/google-suite/commit/752f6f3f303cdff9d712c1da6566ef4c2c97f763))
+
+
+### Documentation
+
+* add OpenSSF Best Practices badge ([#38](https://github.com/PabloAlaniz/google-suite/issues/38)) ([d02ac04](https://github.com/PabloAlaniz/google-suite/commit/d02ac04297d5ff23ff052c7ed3679d7d383ff0c3))
+
 ## [0.5.0](https://github.com/PabloAlaniz/google-suite/compare/v0.4.0...v0.5.0) (2026-10-12)
 
 

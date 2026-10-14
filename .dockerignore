@@ -31,6 +31,8 @@ env
 htmlcov
 .tox
 .nox
+.hypothesis
+build-out
 
 # Docs
 docs/_build

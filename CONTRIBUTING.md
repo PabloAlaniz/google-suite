@@ -81,6 +81,27 @@ A known bug is kept as a test marked `xfail(strict=True)` with an
 `@example(...)` of the failing input. The fix must remove the marker: with
 `strict=True` the test fails as soon as it starts passing.
 
+#### Fuzzing
+
+`fuzz/fuzz_*.py` are coverage-guided [atheris](https://github.com/google/atheris)
+harnesses over the same `check_*` functions, run by
+[ClusterFuzzLite](https://google.github.io/clusterfuzzlite/)
+(`.clusterfuzzlite/`). PRs that touch `packages/` fuzz the affected harnesses
+for 5 minutes; a nightly batch fuzzes all of them for an hour, then prunes the
+corpus and builds a coverage report (both kept as workflow artifacts). Crashes
+show up as code scanning alerts. To add a target, write its invariant as a
+`check_*` function first, then a harness that feeds it from
+`atheris.FuzzedDataProvider`. To reproduce a crash locally, build the image
+with Docker:
+
+```bash
+docker build --platform linux/amd64 -t gsuite-cfl -f .clusterfuzzlite/Dockerfile .
+docker run --rm --platform linux/amd64 -e FUZZING_LANGUAGE=python -e SANITIZER=address \
+  -v "$PWD/build-out:/out" gsuite-cfl compile
+docker run --rm --platform linux/amd64 -v "$PWD/build-out:/out" gsuite-cfl \
+  /out/fuzz_gmail_html -max_total_time=60      # or: /out/fuzz_gmail_html /out/crash-<id>
+```
+
 ### Linting and Type Checking
 
 ```bash
@@ -105,7 +126,8 @@ Python 3.11 (oldest supported) and 3.14 (latest), but only for the packages
 a PR touches (core or shared config runs all of them). macOS and Windows run
 the full suite. Nightly runs add the latest release of every dependency and
 run the property-based tests with the `nightly` Hypothesis profile (2000
-random examples per property).
+random examples per property). ClusterFuzzLite fuzzing (see *Fuzzing*) is
+informational and not a required check.
 
 ### The agent skill
 

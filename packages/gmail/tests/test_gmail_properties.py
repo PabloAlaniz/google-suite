@@ -1,8 +1,8 @@
 """Property-based tests for gsuite_gmail (invariants in gsuite_gmail._testing.properties).
 
-Known bugs are pinned as strict xfails so the fix flips exactly one test:
-B1 (_html_to_text quadratic), B2 (query injection), B3a-d (parser not total),
-B9-gmail-1 (charset codec escapes the decoder).
+Tests suffixed with a bug id are regressions for fixed bugs: B1 (_html_to_text
+quadratic), B2 (query injection), B3a-d (parser not total), B9-gmail-1 (charset
+codec escapes the decoder), B9-gmail-2 (non-ASCII Cc/Bcc address).
 """
 
 import base64
@@ -11,7 +11,6 @@ from datetime import datetime, timedelta, timezone
 from email.utils import format_datetime
 from typing import Any
 
-import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
 
@@ -86,7 +85,9 @@ aware_dates = st.builds(
 )
 # Unparseable dates: no Nd digits, so parsedate can't read a day or year
 junk_dates = st.text(alphabet=st.characters(exclude_categories=("Nd", "Cs")), max_size=30)
-charsets = st.sampled_from(["utf-8", "latin-1", "utf-16", "us-ascii", "bogus", "base64"])
+charsets = st.sampled_from(
+    ["utf-8", "latin-1", "utf-16", "us-ascii", "bogus", "base64", "idna", "undefined"]
+)
 content_types = st.one_of(
     st.builds(lambda cs: f'text/plain; charset="{cs}"', charsets),
     st.text(max_size=30),
@@ -102,11 +103,10 @@ headers = st.lists(
             | st.text(max_size=10),
             header_values,
         ),
-        # Non-ASCII Cc/Bcc addresses are B9-gmail-2
         st.builds(
             lambda n, v: {"name": n, "value": v},
             st.sampled_from(["Cc", "Bcc"]),
-            st.text(alphabet=st.characters(max_codepoint=127), max_size=40),
+            st.text(max_size=40),
         ),
     ),
     max_size=6,
@@ -114,7 +114,7 @@ headers = st.lists(
 bodies = st.fixed_dictionaries(
     {},
     optional={
-        "data": st.binary(max_size=60).map(b64),
+        "data": st.binary(max_size=60).map(b64) | st.text(max_size=20),
         "attachmentId": st.text(max_size=8),
         "size": st.integers(0, 10**9),
     },
@@ -147,7 +147,7 @@ messages = st.fixed_dictionaries(
     {"id": st.text(min_size=1, max_size=8)},
     optional={
         "threadId": st.text(max_size=8),
-        "internalDate": st.integers(0, 253_402_300_799_000).map(str),
+        "internalDate": st.integers(0, 10**30).map(str),
         "labelIds": st.lists(st.text(max_size=8), max_size=3),
         "snippet": st.text(max_size=20),
         "payload": payloads,
@@ -164,16 +164,12 @@ def _text_message(data: str) -> dict[str, Any]:
     return {"id": "m", "payload": {"mimeType": "text/plain", "body": {"data": data}}}
 
 
-@pytest.mark.xfail(strict=True, reason="B3a: invalid base64 in a text body raises binascii.Error")
 @given(st.just("a"))
 @example("a")
 def test_parse_message_invalid_base64_body_b3a(data):
     check_parse_message(_text_message(data))
 
 
-@pytest.mark.xfail(
-    strict=True, reason="B3a: invalid base64 in an inline attachment raises binascii.Error"
-)
 @given(st.just("a"))
 @example("a")
 def test_parse_message_invalid_base64_attachment_b3a(data):
@@ -181,7 +177,6 @@ def test_parse_message_invalid_base64_attachment_b3a(data):
     check_parse_message({"id": "m", "payload": payload})
 
 
-@pytest.mark.xfail(strict=True, reason="B3b: huge internalDate raises OverflowError/OSError")
 @given(st.integers(10**19, 10**30).map(str))
 @example("9" * 400)  # OverflowError on every platform
 @example("9" * 20)  # OSError on macOS
@@ -189,7 +184,6 @@ def test_parse_message_huge_internal_date_b3b(internal_date):
     check_parse_message({"id": "m", "internalDate": internal_date})
 
 
-@pytest.mark.xfail(strict=True, reason="B3c: Date header with -0000 or no zone gives naive date")
 @given(st.sampled_from(["-0000", ""]))
 @example("-0000")
 def test_parse_message_naive_date_b3c(zone):
@@ -197,7 +191,6 @@ def test_parse_message_naive_date_b3c(zone):
     check_parse_message({"id": "m", "payload": {"headers": [{"name": "Date", "value": date}]}})
 
 
-@pytest.mark.xfail(strict=True, reason="B3d: deeply nested parts raise RecursionError")
 def test_parse_message_deep_nesting_b3d():
     payload: dict[str, Any] = {"mimeType": "text/plain"}
     for _ in range(2000):
@@ -212,9 +205,6 @@ def test_parse_message_deep_nesting_b3d():
     assert not recursed, "RecursionError on 2000 nested parts"
 
 
-@pytest.mark.xfail(
-    strict=True, reason="B9-gmail-1: charset naming a strict/odd codec escapes _decode_text"
-)
 @given(st.sampled_from(["idna", "punycode", "undefined"]))
 @example("idna")  # UnicodeError: Unsupported error handling replace
 @example("undefined")  # UnicodeError: undefined encoding
@@ -228,9 +218,6 @@ def test_parse_message_hostile_charset_b9_gmail_1(charset):
     check_parse_message({"id": "m", "payload": payload})
 
 
-@pytest.mark.xfail(
-    strict=True, reason="B9-gmail-2: non-ASCII Cc/Bcc address raises UnicodeEncodeError"
-)
 @given(st.sampled_from(["Cc", "Bcc"]), st.just("josé@example.com"))
 @example("Cc", "josé@example.com")  # internationalized (RFC 6532) address
 @example("Bcc", "\x80")

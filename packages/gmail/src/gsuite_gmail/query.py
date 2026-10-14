@@ -2,6 +2,25 @@
 
 from dataclasses import dataclass
 
+# Characters that end or group a term in Gmail's search syntax
+_GROUPING = frozenset("(){}")
+
+
+def _term(operator: str, value: str) -> str:
+    """``operator:value`` as exactly one Gmail search term, whatever ``value`` holds.
+
+    Values with whitespace or grouping characters (``( ) { }``) are wrapped in
+    double quotes, Gmail's phrase syntax. Gmail has no escape for a ``"`` inside
+    a phrase, so double quotes are removed from the value: they cannot be
+    searched for anyway, and keeping one would end the phrase early and let the
+    rest of the value be read as further search terms. Other values are kept
+    as they are (``from:boss@example.com``).
+    """
+    value = value.replace('"', "")
+    if any(char.isspace() or char in _GROUPING for char in value):
+        return f'{operator}:"{value}"'
+    return f"{operator}:{value}"
+
 
 @dataclass
 class Query:
@@ -34,24 +53,31 @@ class Query:
 
 
 def from_(address: str) -> Query:
-    """Messages from a specific sender."""
-    return Query(f"from:{address}")
+    """Messages from a specific sender.
+
+    Like every operator below that takes a string, the value always makes one
+    search term: it is quoted when it has whitespace or ``( ) { }``, and any
+    ``"`` in it is dropped (Gmail cannot escape quotes inside a phrase).
+    """
+    return Query(_term("from", address))
 
 
 def to(address: str) -> Query:
     """Messages to a specific recipient."""
-    return Query(f"to:{address}")
+    return Query(_term("to", address))
 
 
 def subject(text: str) -> Query:
     """Messages with subject containing text."""
-    if " " in text:
-        return Query(f'subject:"{text}"')
-    return Query(f"subject:{text}")
+    return Query(_term("subject", text))
 
 
 def has_words(words: str) -> Query:
-    """Messages containing specific words."""
+    """Messages containing specific words.
+
+    ``words`` is Gmail search syntax, passed through as is (like :func:`raw`);
+    do not put untrusted input in it.
+    """
     return Query(words)
 
 
@@ -107,9 +133,7 @@ def in_spam() -> Query:
 
 def label(name: str) -> Query:
     """Messages with a specific label."""
-    if " " in name:
-        return Query(f'label:"{name}"')
-    return Query(f"label:{name}")
+    return Query(_term("label", name))
 
 
 def newer_than(days: int | None = None, months: int | None = None) -> Query:
@@ -132,17 +156,17 @@ def older_than(days: int | None = None, months: int | None = None) -> Query:
 
 def after(date: str) -> Query:
     """Messages after a date (YYYY/MM/DD)."""
-    return Query(f"after:{date}")
+    return Query(_term("after", date))
 
 
 def before(date: str) -> Query:
     """Messages before a date (YYYY/MM/DD)."""
-    return Query(f"before:{date}")
+    return Query(_term("before", date))
 
 
 def filename(name: str) -> Query:
     """Messages with attachment matching filename."""
-    return Query(f"filename:{name}")
+    return Query(_term("filename", name))
 
 
 def size_larger(bytes: int) -> Query:
@@ -157,11 +181,11 @@ def size_smaller(bytes: int) -> Query:
 
 def category(name: str) -> Query:
     """Messages in a category (primary, social, promotions, updates, forums)."""
-    return Query(f"category:{name}")
+    return Query(_term("category", name))
 
 
 def raw(query_string: str) -> Query:
-    """Raw Gmail query string."""
+    """Raw Gmail query string, passed through as is (not quoted or escaped)."""
     return Query(query_string)
 
 
@@ -181,6 +205,9 @@ def construct_query(
     """
     Build query from parameters.
 
+    Each of ``from_``, ``to``, ``subject`` and every label becomes exactly one
+    search term, quoted when needed (see :func:`from_`, :func:`label`).
+
     Args:
         from_: Sender email
         to: Recipient email
@@ -199,11 +226,11 @@ def construct_query(
     parts = []
 
     if from_:
-        parts.append(f"from:{from_}")
+        parts.append(_term("from", from_))
     if to:
-        parts.append(f"to:{to}")
+        parts.append(_term("to", to))
     if subject:
-        parts.append(f'subject:"{subject}"' if " " in subject else f"subject:{subject}")
+        parts.append(_term("subject", subject))
     if unread:
         parts.append("is:unread")
     if starred:
@@ -220,7 +247,7 @@ def construct_query(
         parts.append(f"older_than:{amount}{unit_map.get(unit, unit)}")
     if labels:
         for lbl in labels:
-            parts.append(f'label:"{lbl}"' if " " in lbl else f"label:{lbl}")
+            parts.append(_term("label", lbl))
     if has_attachment:
         parts.append("has:attachment")
 

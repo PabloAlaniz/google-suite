@@ -280,14 +280,12 @@ def test_construct_query_terms(from_, to, subject, labels):
     check_construct_query_terms(from_, to, subject, labels)
 
 
-@pytest.mark.xfail(strict=True, reason="B2: a quote in subject/label breaks out of the quoting")
 @given(st.sampled_from(["subject", "label"]), st.text(max_size=20))
 @example("subject", 'a" OR from:x')
 def test_query_quote_injection_b2(operator, value):
     check_query_single_term(operator, value)
 
 
-@pytest.mark.xfail(strict=True, reason="B2: whitespace in from_/to/... values injects terms")
 @given(st.sampled_from(["from", "to", "filename", "category"]), st.text(max_size=20))
 @example("from", "a@b.com OR label:x")
 def test_query_whitespace_injection_b2(operator, value):

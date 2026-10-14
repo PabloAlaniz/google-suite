@@ -41,19 +41,35 @@ IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE", "OPTIONS"})
 
 MAX_BACKOFF = 32.0
 MAX_RETRY_AFTER = 60.0
+# Google error bodies are a few hundred bytes; anything far larger is not one
+MAX_ERROR_BODY = 64 * 1024
 
 
 # ---- Status-based policy, shared by the sync (googleapiclient) and async (httpx) paths ----
 
 
+def parse_error_body(body: bytes | str | None) -> Any:
+    """Decode a JSON error body; ``None`` if it is not one. Never raises.
+
+    The body comes from the server (or a proxy in between), so it may be
+    anything: oversized, invalid UTF-8, or nested deep enough to exhaust the
+    JSON decoder's recursion limit.
+    """
+    if not body or len(body) > MAX_ERROR_BODY:
+        return None
+    try:
+        return json.loads(body)
+    except (ValueError, TypeError, RecursionError):
+        return None
+
+
 def reason_from_body(body: bytes | str | None) -> str | None:
     """The ``reason`` of the first error in a Google error body, if any."""
     try:
-        payload = json.loads(body or b"")
-        reason = payload["error"]["errors"][0]["reason"]
-        return str(reason)
-    except (ValueError, KeyError, IndexError, TypeError):
+        reason = parse_error_body(body)["error"]["errors"][0]["reason"]
+    except (KeyError, IndexError, TypeError):
         return None
+    return str(reason)
 
 
 def parse_retry_after(value: Any) -> int | None:

@@ -5,7 +5,6 @@ import math
 from unittest.mock import Mock, patch
 
 import httplib2
-import pytest
 from googleapiclient.errors import HttpError
 from hypothesis import example, given
 from hypothesis import strategies as st
@@ -87,11 +86,6 @@ def test_reason_from_body_extracts_reason(reason):
     assert reason_from_body(body.encode()) == reason
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=RecursionError,
-    reason="B4c: deeply nested JSON body raises RecursionError",
-)
 @given(st.integers(min_value=50_000, max_value=200_000))
 @example(100_000)
 def test_reason_from_body_deep_nesting(depth):

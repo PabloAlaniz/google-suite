@@ -27,6 +27,7 @@ from typing import Any
 from gsuite_core.api_utils import (
     _backoff,
     error_for_status,
+    parse_error_body,
     parse_retry_after,
     reason_from_body,
     should_retry_status,
@@ -49,8 +50,8 @@ def _httpx() -> Any:
 
 def _error_message(response: Any) -> str:
     try:
-        message = response.json()["error"]["message"]
-    except (ValueError, KeyError, TypeError):
+        message = parse_error_body(response.content)["error"]["message"]
+    except (KeyError, TypeError):
         message = response.text[:200]
     return f"HTTP {response.status_code}: {message}"
 

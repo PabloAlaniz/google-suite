@@ -1,16 +1,19 @@
 """Tests for API utilities."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from gsuite_core.api_utils import (
+    MAX_ERROR_BODY,
     MAX_RETRY_AFTER,
     _backoff,
     api_call,
     api_call_optional,
     map_http_error,
+    parse_error_body,
     parse_retry_after,
+    reason_from_body,
 )
 from gsuite_core.exceptions import (
     NotFoundError,
@@ -134,3 +137,17 @@ class TestHostileInput:
     )
     def test_backoff_clamps_retry_after(self, retry_after, expected):
         assert _backoff(0, 1.0, retry_after) == expected
+
+    def test_deeply_nested_body_has_no_reason(self):
+        assert reason_from_body("[" * 100_000) is None
+
+    def test_recursion_error_is_caught_below_the_size_cap(self):
+        # Exercise the RecursionError path itself, not just the size cap
+        with patch("gsuite_core.api_utils.MAX_ERROR_BODY", 10**7):
+            assert parse_error_body(b"[" * 1_000_000) is None
+
+    def test_oversized_body_is_not_parsed(self):
+        padding = " " * MAX_ERROR_BODY
+        body = '{"error": {"errors": [{"reason": "rateLimitExceeded"}]}}' + padding
+        assert parse_error_body(body) is None
+        assert reason_from_body(body.strip()) == "rateLimitExceeded"

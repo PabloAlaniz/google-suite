@@ -125,6 +125,8 @@ jobs:
       - name: Run tests
         env:
           COVERAGE_FILE: .coverage.${{ matrix.package }}
+          # Nightly runs explore many more property-based examples
+          HYPOTHESIS_PROFILE: ${{ github.event_name == 'schedule' && 'nightly' || 'ci' }}
         run: |
           case "${{ matrix.package }}" in
             api|cli) path="${{ matrix.package }}/tests" ;;

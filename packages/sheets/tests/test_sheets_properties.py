@@ -240,35 +240,30 @@ def test_numericise_passes_non_strings_through(value):
     assert numericise(value) is value
 
 
-@pytest.mark.xfail(strict=True, reason="B8: signed leading zeros are lost ('-007' -> -7)")
 @given(st.sampled_from("+-"), st.text(alphabet=string.digits, min_size=1, max_size=6))
 @example("-", "07")
 def test_numericise_keeps_signed_leading_zeros(sign, digits):
     check_numericise(f"{sign}0{digits}")
 
 
-@pytest.mark.xfail(strict=True, reason="B8: underscores are parsed as digit separators")
 @given(st.lists(st.integers(1, 999).map(str), min_size=2, max_size=4))
 @example(["1", "000"])
 def test_numericise_keeps_underscored_numbers(groups):
     check_numericise("_".join(groups))
 
 
-@pytest.mark.xfail(strict=True, reason="B8: 'nan'/'inf' become non-finite floats")
 @given(st.sampled_from(["nan", "NaN", "inf", "-inf", "Infinity", "+infinity"]))
 @example("nan")
 def test_numericise_keeps_nan_and_inf_text(value):
     check_numericise(value)
 
 
-@pytest.mark.xfail(strict=True, reason="B8: non-ASCII digits are parsed (U+0663 -> 3)")
 @given(st.text(non_ascii_digits, min_size=1, max_size=4))
 @example("\u0663")  # ARABIC-INDIC DIGIT THREE
 def test_numericise_keeps_unicode_digits(value):
     check_numericise(value)
 
 
-@pytest.mark.xfail(strict=True, reason="B9-sheets-3: padded leading zeros are lost (' 007' -> 7)")
 @given(st.sampled_from([" ", "\t", "\n"]), st.text(alphabet=string.digits, min_size=1, max_size=6))
 @example(" ", "07")
 def test_numericise_keeps_padded_leading_zeros(pad, digits):

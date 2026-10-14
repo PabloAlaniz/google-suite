@@ -55,3 +55,6 @@ site/
 
 # Hypothesis example database
 .hypothesis/
+
+# Local ClusterFuzzLite builds (CONTRIBUTING.md, Fuzzing)
+build-out/

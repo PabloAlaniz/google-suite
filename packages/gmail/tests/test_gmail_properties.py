@@ -19,6 +19,7 @@ from gsuite_gmail._testing.properties import (
     check_compose_roundtrip,
     check_construct_query_terms,
     check_html_to_text_plain_passthrough,
+    check_html_to_text_scales,
     check_html_to_text_strips_tags,
     check_parse_message,
     check_query_combinators,
@@ -68,6 +69,15 @@ def test_html_to_text_linear_time_b1():
         _html_to_text(markup)
         elapsed = time.perf_counter() - start
         assert elapsed < 0.5, f"{markup[:8]!r}*{len(markup)}: {elapsed:.2f}s"
+
+
+@given(st.text(max_size=12))
+@example("<script")
+@example("<style")
+@example("<a")
+@example("<!--")
+def test_html_to_text_scales(fragment):
+    check_html_to_text_scales(fragment)
 
 
 # ----------------------------------------------------------------------- parser

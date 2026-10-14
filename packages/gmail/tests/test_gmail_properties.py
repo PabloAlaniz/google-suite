@@ -63,7 +63,6 @@ B1_INPUTS = [
 ]
 
 
-@pytest.mark.xfail(strict=True, reason="B1: _html_to_text is quadratic on unclosed tags (DoS)")
 def test_html_to_text_linear_time_b1():
     for markup in B1_INPUTS:
         start = time.perf_counter()

@@ -63,10 +63,10 @@ demand with the `GSUITE_INTEGRATION_TOKEN` secret (the output of
 
 #### Property-based tests
 
-Code that parses external input (A1 ranges, `Retry-After`, error bodies,
-dates, colors, cell values) has property-based tests
-written with [Hypothesis](https://hypothesis.readthedocs.io/), in
-`test_<package>_properties.py`. The invariants themselves live in
+Code that parses external input (A1 ranges, Gmail payloads and HTML, query
+builders, `Retry-After`, error bodies, dates, colors, cell values) has
+property-based tests written with [Hypothesis](https://hypothesis.readthedocs.io/),
+in `test_<package>_properties.py`. The invariants themselves live in
 `<package>/_testing/properties.py` as `check_*` functions that raise
 `gsuite_core._testing.PropertyViolation`, so the tests and any fuzz harness
 check exactly the same properties.

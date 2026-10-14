@@ -1,7 +1,9 @@
 #!/bin/bash -eu
 # Build one fuzzer per fuzz/fuzz_*.py harness (run by ClusterFuzzLite).
 
-pip3 install .
+# Dependencies pinned by hash, then the SDK itself without resolving anything
+pip3 install --require-hashes -r .clusterfuzzlite/requirements.txt
+pip3 install --no-deps .
 
 for harness in fuzz/fuzz_*.py; do
   name=$(basename "$harness" .py)

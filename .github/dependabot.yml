@@ -36,3 +36,14 @@ updates:
       interval: weekly
     commit-message:
       prefix: build
+
+  # Hash-pinned runtime deps for the fuzz build (.clusterfuzzlite/build.sh)
+  - package-ecosystem: pip
+    directory: /.clusterfuzzlite
+    schedule:
+      interval: weekly
+    groups:
+      fuzz-deps:
+        patterns: ["*"]
+    commit-message:
+      prefix: build

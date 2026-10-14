@@ -49,7 +49,21 @@ def test_grid_range(cell_range, expected):
     assert grid_range(cell_range, sheet_id=7) == {"sheetId": 7, **expected}
 
 
-@pytest.mark.parametrize("bad", ["", "A1:", "1A", "A0", "A1:B2:C3", "Sheet1!"])
+@pytest.mark.parametrize(
+    "bad",
+    [
+        "",
+        "A1:",
+        "1A",
+        "A0",
+        "A1:B2:C3",
+        "Sheet1!",
+        "A\u0661",  # Arabic-Indic digit one: Sheets only knows ASCII digits
+        "\uff211",  # fullwidth A
+        "AAAA1",  # beyond ZZZ
+        "A1\n",
+    ],
+)
 def test_invalid_ranges(bad):
     with pytest.raises(ValidationError):
         grid_range(bad, 0)
@@ -70,6 +84,26 @@ def test_split_sheet(reference, expected):
     from gsuite_sheets.a1 import split_sheet
 
     assert split_sheet(reference) == expected
+
+
+@pytest.mark.parametrize("bad", ["'abc", "'a'b!C1", "'a''", "'Data' !A1"])
+def test_split_sheet_rejects_malformed_quotes(bad):
+    from gsuite_sheets.a1 import split_sheet
+
+    with pytest.raises(ValidationError):
+        split_sheet(bad)
+
+
+def test_zzz_is_the_last_column():
+    assert grid_range("ZZZ1", 0)["startColumnIndex"] == 18277
+
+
+@pytest.mark.parametrize(
+    ("reversed_range", "ordered"),
+    [("B5:A1", "A1:B5"), ("A5:B1", "A1:B5"), ("B1:A5", "A1:B5"), ("C:A", "A:C"), ("5:1", "1:5")],
+)
+def test_reversed_ranges_are_normalized_like_sheets(reversed_range, ordered):
+    assert grid_range(reversed_range, 3) == grid_range(ordered, 3)
 
 
 def test_grid_range_ignores_sheet_prefix():

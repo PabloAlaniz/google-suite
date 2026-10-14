@@ -97,7 +97,6 @@ def test_split_sheet_well_formed_is_lossless(reference):
     check_split_sheet_lossless(reference)
 
 
-@pytest.mark.xfail(strict=True, reason="B6: split_sheet drops text after a quoted title")
 @given(
     st.builds(
         lambda t, junk: quote_title(t) + junk,
@@ -110,7 +109,6 @@ def test_split_sheet_rejects_text_after_quoted_title(reference):
     check_split_sheet_lossless(reference)
 
 
-@pytest.mark.xfail(strict=True, reason="B6: split_sheet accepts an unterminated quote")
 @given(st.text(alphabet=st.characters(exclude_characters="'"), max_size=10).map("'".__add__))
 @example("'abc")
 def test_split_sheet_rejects_unterminated_quote(reference):
@@ -132,21 +130,18 @@ def test_grid_range_ignores_sheet_prefix(title, cell_range):
     check_grid_range(f"{quote_title(title)}!{cell_range}")
 
 
-@pytest.mark.xfail(strict=True, reason="B6: grid_range accepts reversed ranges (end < start)")
 @given(reversed_ranges())
 @example("B5:A1")
 def test_grid_range_rejects_or_normalizes_reversed(cell_range):
     check_grid_range(cell_range)
 
 
-@pytest.mark.xfail(strict=True, reason="B6: grid_range accepts non-ASCII digits as row numbers")
 @given(column_letters, st.text(non_ascii_digits, min_size=1, max_size=3))
 @example("A", "\u0661")  # ARABIC-INDIC DIGIT ONE
 def test_grid_range_rejects_unicode_digits(letters, digits):
     check_grid_range(f"{letters}{digits}")
 
 
-@pytest.mark.xfail(strict=True, reason="B6: grid_range accepts columns beyond ZZZ")
 @given(st.text(alphabet=string.ascii_uppercase, min_size=4, max_size=20), rows)
 @example("A" * 20, 1)
 def test_grid_range_rejects_columns_beyond_zzz(letters, row):

@@ -137,6 +137,22 @@ class TestRanges:
         }
         assert request["fields"] == "userEnteredFormat(textFormat)"
 
+    def test_format_and_merge_parse_quoted_titles_with_bang(self, ws, service):
+        expected = {
+            "sheetId": 7,
+            "startRowIndex": 1,
+            "endRowIndex": 3,
+            "startColumnIndex": 1,
+            "endColumnIndex": 3,
+        }
+        ws.format("'Wow!'!B2:C3", {"textFormat": {"bold": True}})
+        request = _kwargs(service.spreadsheets().batchUpdate)["body"]["requests"][0]["repeatCell"]
+        assert request["range"] == expected
+
+        ws.merge_cells("'Wow!'!B2:C3", "MERGE_ALL")
+        request = _kwargs(service.spreadsheets().batchUpdate)["body"]["requests"][0]["mergeCells"]
+        assert request["range"] == expected
+
 
 class TestClient:
     def test_open_escapes_title(self, sheets, service):

@@ -1,6 +1,6 @@
 """Tests for Calendar Event entity."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 
@@ -79,3 +79,13 @@ class TestAttendee:
         assert att.response_status == "needsAction"
         assert att.organizer is False
         assert att.self_ is False
+
+
+def test_duration_with_naive_start_and_aware_end_takes_naive_as_utc():
+    event = Event(
+        id="e",
+        summary="",
+        start=datetime(2024, 1, 1, 10),
+        end=datetime(2024, 1, 1, 11, tzinfo=UTC),
+    )
+    assert event.duration_minutes == 60

@@ -2,11 +2,9 @@
 
 from datetime import UTC, datetime, timedelta, timezone
 
-import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
 
-from gsuite_core._testing import PropertyViolation
 from gsuite_drive._testing.properties import check_parse_datetime
 
 offsets = st.builds(
@@ -31,11 +29,6 @@ def test_parse_datetime_aware_or_none(value):
     check_parse_datetime(value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=PropertyViolation,
-    reason="B9-dates-1: DriveParser._parse_datetime returns a naive datetime without offset",
-)
 @given(st.datetimes().map(datetime.isoformat))
 @example("2024-01-01T10:00:00")
 def test_parse_datetime_without_offset(value):

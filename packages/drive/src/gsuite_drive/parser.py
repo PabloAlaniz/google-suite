@@ -1,7 +1,7 @@
 """Drive response parsers - converts API responses to domain entities."""
 
 from dataclasses import fields
-from datetime import datetime
+from datetime import UTC, datetime
 
 from gsuite_drive.file import File, Folder
 
@@ -57,10 +57,11 @@ class DriveParser:
 
     @staticmethod
     def _parse_datetime(dt_string: str | None) -> datetime | None:
-        """Parse ISO datetime string to datetime object."""
+        """Parse an ISO datetime string to an aware datetime (UTC if it has no offset)."""
         if not dt_string:
             return None
         try:
-            return datetime.fromisoformat(dt_string.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(dt_string.replace("Z", "+00:00"))
         except (ValueError, TypeError):
             return None
+        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)

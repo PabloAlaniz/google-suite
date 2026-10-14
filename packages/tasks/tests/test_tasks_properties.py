@@ -2,11 +2,9 @@
 
 from datetime import UTC, datetime, timedelta, timezone
 
-import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
 
-from gsuite_core._testing import PropertyViolation
 from gsuite_tasks._testing.properties import (
     check_due_round_trip,
     check_parse_due,
@@ -36,11 +34,6 @@ def test_parse_timestamp_aware_or_none(value):
     check_parse_timestamp(value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=PropertyViolation,
-    reason="B7a: parse_timestamp returns a naive datetime for a timestamp without offset",
-)
 @given(naive_timestamps)
 @example("2024-01-01T10:00:00")
 def test_parse_timestamp_without_offset(value):

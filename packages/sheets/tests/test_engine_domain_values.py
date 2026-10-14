@@ -81,6 +81,21 @@ class TestColor:
             Color.from_hex("#FFF")
         assert issubclass(InvalidColorError, GSpreadManagerError)
 
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "GGGGGG",
+            "+1+2+3",
+            "##123456",
+            " 12345",
+            "123456\n",
+            "\uff11\uff12\uff13\uff14\uff15\uff16",
+        ],
+    )
+    def test_from_hex_rejects_malformed_six_characters(self, bad):
+        with pytest.raises(InvalidColorError):
+            Color.from_hex(bad)
+
 
 class TestFormatSerialization:
     def test_text_format_omits_none(self):

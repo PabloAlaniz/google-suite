@@ -66,13 +66,11 @@ def test_validation_and_formatting(api, backend):
     ]
 
 
-def test_bad_color_is_422(api):
-    body = {
-        "range": "B2",
-        "condition_type": "NUMBER_LESS",
-        "values": [0],
-        "background": "not-a-color",
-    }
+@pytest.mark.parametrize("field", ["background", "text_color"])
+@pytest.mark.parametrize("color", ["not-a-color", "GGGGGG", "+1+2+3", "##123456", " 12345"])
+def test_bad_color_is_422(api, field, color):
+    # Malformed 6-character values used to escape as a plain ValueError (500).
+    body = {"range": "B2", "condition_type": "NUMBER_LESS", "values": [0], field: color}
     assert api.post(f"{BASE}/conditional-format", json=body).status_code == 422
 
 

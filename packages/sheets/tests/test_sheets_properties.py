@@ -166,7 +166,6 @@ def test_color_from_hex_wrong_length(hex_color):
     check_color_from_hex(hex_color)
 
 
-@pytest.mark.xfail(strict=True, reason="B5: non-hex digits raise ValueError, not InvalidColorError")
 @given(
     st.text(alphabet=string.ascii_letters + string.digits, min_size=6, max_size=6).filter(
         lambda s: any(c not in string.hexdigits for c in s)
@@ -177,28 +176,24 @@ def test_color_from_hex_non_hex_raises_invalid_color(hex_color):
     check_color_from_hex(hex_color)
 
 
-@pytest.mark.xfail(strict=True, reason="B5: from_hex accepts signed components ('+1+2+3')")
 @given(st.lists(st.tuples(st.sampled_from("+-"), hex_digits).map("".join), min_size=3, max_size=3))
 @example(["+1", "+2", "+3"])
 def test_color_from_hex_rejects_signs(pairs):
     check_color_from_hex("".join(pairs))
 
 
-@pytest.mark.xfail(strict=True, reason="B5: from_hex accepts fullwidth digits")
 @given(st.text(non_ascii_digits, min_size=6, max_size=6))
 @example("\uff11\uff12\uff13\uff14\uff15\uff16")  # fullwidth "123456"
 def test_color_from_hex_rejects_unicode_digits(hex_color):
     check_color_from_hex(hex_color)
 
 
-@pytest.mark.xfail(strict=True, reason="B9-sheets-1: from_hex strips any number of '#'")
 @given(st.integers(2, 5), st.from_regex(r"[0-9A-Fa-f]{6}", fullmatch=True))
 @example(2, "123456")
 def test_color_from_hex_rejects_repeated_hash(hashes, digits):
     check_color_from_hex("#" * hashes + digits)
 
 
-@pytest.mark.xfail(strict=True, reason="B9-sheets-2: from_hex accepts whitespace (' 12345')")
 @given(
     st.lists(
         st.tuples(st.sampled_from(" \t\n"), hex_digits, st.booleans()).map(

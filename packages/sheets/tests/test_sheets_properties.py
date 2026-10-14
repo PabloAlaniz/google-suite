@@ -7,7 +7,6 @@ check exactly the same properties. Known bugs are strict xfails with an explicit
 
 import string
 
-import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
 
@@ -341,7 +340,6 @@ def test_overlaps_matches_cell_intersection(first, second):
     check_grid_range_overlaps(first, second)
 
 
-@pytest.mark.xfail(strict=True, reason="B9-sheets-4: an empty GridRange (start == end) overlaps")
 @given(st.integers(0, 6), bounds)
 @example(2, (0, 5, 0, 5))
 def test_empty_grid_range_overlaps_nothing(edge, other):

@@ -1,7 +1,7 @@
 """Calendar Event entity."""
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import UTC, datetime
 
 
 @dataclass
@@ -46,9 +46,16 @@ class Event:
 
     @property
     def duration_minutes(self) -> int | None:
-        """Get event duration in minutes."""
+        """Get event duration in minutes.
+
+        If only one of start/end has a timezone (an Event built by hand), the
+        naive one is taken as UTC rather than raising TypeError.
+        """
         if self.start and self.end:
-            delta = self.end - self.start
+            start, end = self.start, self.end
+            if (start.tzinfo is None) != (end.tzinfo is None):
+                start, end = (d if d.tzinfo else d.replace(tzinfo=UTC) for d in (start, end))
+            delta = end - start
             return int(delta.total_seconds() / 60)
         return None
 

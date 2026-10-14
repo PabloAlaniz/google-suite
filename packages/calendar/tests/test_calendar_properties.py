@@ -70,11 +70,6 @@ def test_event_duration_computable(case):
     check_event_duration(*case)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=TypeError,
-    reason="B7c: duration_minutes raises when only one of start/end has an offset",
-)
 @given(naive_timestamps, aware_timestamps)
 @example("2024-01-01T10:00:00", "2024-01-01T11:00:00Z")
 def test_event_duration_mixed_offsets(start, end):

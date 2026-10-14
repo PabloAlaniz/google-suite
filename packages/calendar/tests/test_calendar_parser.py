@@ -1,5 +1,9 @@
 """Tests for Calendar parser."""
 
+from datetime import UTC, timedelta
+
+import pytest
+
 from gsuite_calendar.parser import CalendarParser
 
 
@@ -125,3 +129,37 @@ class TestCalendarParser:
         assert attendee.name == "Test User"
         assert attendee.response_status == "accepted"
         assert attendee.self_ is True
+
+
+class TestOffsetlessDateTimes:
+    """dateTime values without an offset become aware (B7c)."""
+
+    def test_offsetless_datetime_uses_the_event_time_zone(self):
+        data = {
+            "id": "e",
+            "start": {"dateTime": "2024-07-01T10:00:00", "timeZone": "America/New_York"},
+            "end": {"dateTime": "2024-07-01T15:00:00Z"},
+        }
+        event = CalendarParser.parse_event(data, "primary")
+        assert event.start.utcoffset() == timedelta(hours=-4)
+        assert event.duration_minutes == 60
+
+    @pytest.mark.parametrize("zone", [None, "", "Not/AZone", "../../etc/passwd", "x\0y"])
+    def test_offsetless_datetime_without_usable_zone_is_utc(self, zone):
+        start = {"dateTime": "2024-01-01T10:00:00"}
+        if zone is not None:
+            start["timeZone"] = zone
+        data = {"id": "e", "start": start, "end": {"dateTime": "2024-01-01T11:00:00Z"}}
+        event = CalendarParser.parse_event(data, "primary")
+        assert event.start.tzinfo == UTC
+        assert event.duration_minutes == 60
+
+    def test_explicit_offset_wins_over_time_zone(self):
+        parsed = CalendarParser._parse_datetime("2024-01-01T10:00:00+02:00", "America/New_York")
+        assert parsed.utcoffset() == timedelta(hours=2)
+
+    def test_all_day_dates_stay_naive(self):
+        data = {"id": "e", "start": {"date": "2024-01-01"}, "end": {"date": "2024-01-02"}}
+        event = CalendarParser.parse_event(data, "primary")
+        assert event.start.tzinfo is None
+        assert event.duration_minutes == 24 * 60

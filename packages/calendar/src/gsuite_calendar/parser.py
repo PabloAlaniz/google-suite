@@ -1,6 +1,7 @@
 """Calendar response parsers - converts API responses to domain entities."""
 
-from datetime import datetime
+from datetime import UTC, datetime, tzinfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from gsuite_calendar.calendar_entity import CalendarEntity
 from gsuite_calendar.event import Attendee, Event
@@ -31,8 +32,10 @@ class CalendarParser:
             start = CalendarParser._parse_date(start_data.get("date"))
             end = CalendarParser._parse_date(end_data.get("date"))
         else:
-            start = CalendarParser._parse_datetime(start_data.get("dateTime"))
-            end = CalendarParser._parse_datetime(end_data.get("dateTime"))
+            start = CalendarParser._parse_datetime(
+                start_data.get("dateTime"), start_data.get("timeZone")
+            )
+            end = CalendarParser._parse_datetime(end_data.get("dateTime"), end_data.get("timeZone"))
 
         # Parse attendees
         attendees = [
@@ -114,15 +117,35 @@ class CalendarParser:
         )
 
     @staticmethod
-    def _parse_datetime(dt_string: str | None) -> datetime | None:
-        """Parse ISO datetime string to datetime object."""
+    def _parse_datetime(dt_string: str | None, time_zone: str | None = None) -> datetime | None:
+        """Parse an ISO datetime string to an aware datetime.
+
+        A value without an offset is local time in ``time_zone`` (the IANA
+        name an event's start/end carries), or UTC when there is none or it
+        is unknown. Mixing naive and aware values would make arithmetic such
+        as ``Event.duration_minutes`` raise.
+        """
         if not dt_string:
             return None
         try:
             # Handle Z suffix and timezone offset
-            return datetime.fromisoformat(dt_string.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(dt_string.replace("Z", "+00:00"))
         except (ValueError, TypeError):
             return None
+        if parsed.tzinfo is not None:
+            return parsed
+        return parsed.replace(tzinfo=CalendarParser._zone(time_zone))
+
+    @staticmethod
+    def _zone(name: str | None) -> tzinfo:
+        """The IANA zone ``name``, or UTC if it is missing or unknown."""
+        if not name:
+            return UTC
+        try:
+            return ZoneInfo(name)
+        except (ZoneInfoNotFoundError, ValueError, TypeError, OSError):
+            # Unknown, malformed, or not a valid path component
+            return UTC
 
     @staticmethod
     def _parse_date(date_string: str | None) -> datetime | None:

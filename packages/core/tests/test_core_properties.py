@@ -10,7 +10,6 @@ from googleapiclient.errors import HttpError
 from hypothesis import example, given
 from hypothesis import strategies as st
 
-from gsuite_core._testing import PropertyViolation
 from gsuite_core._testing.properties import (
     check_backoff,
     check_drive_query_literal,
@@ -107,22 +106,12 @@ def test_parse_retry_after_non_negative_or_none(value):
     check_parse_retry_after(value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=PropertyViolation,
-    reason="B4a: negative Retry-After is returned as is",
-)
 @given(st.integers(max_value=-1).map(str))
 @example("-5")
 def test_parse_retry_after_negative(value):
     check_parse_retry_after(value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=OverflowError,
-    reason="B4b: infinite Retry-After raises OverflowError",
-)
 @given(st.sampled_from([math.inf, -math.inf]))
 @example(math.inf)
 def test_parse_retry_after_infinite(value):
@@ -141,11 +130,6 @@ def test_backoff_within_bounds(attempt, base, retry_after):
     check_backoff(attempt, base, retry_after)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=PropertyViolation,
-    reason="B4a: negative retry_after gives a negative wait",
-)
 @given(st.integers(max_value=-1))
 @example(-5)
 def test_backoff_negative_retry_after(retry_after):
@@ -158,11 +142,6 @@ def _strict_sleep(seconds: float) -> None:
         raise ValueError("sleep length must be non-negative")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=ValueError,
-    reason="B4a: execute() sleeps a negative Retry-After",
-)
 @given(st.integers(min_value=-3600, max_value=-1))
 @example(-5)
 def test_execute_survives_negative_retry_after(retry_after):

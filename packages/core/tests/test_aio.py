@@ -147,6 +147,13 @@ async def test_rate_limit_error_after_retries_carries_retry_after(settings):
     assert exc_info.value.retry_after == 9
 
 
+async def test_negative_retry_after_falls_back_to_backoff(no_sleep, settings):
+    http, _ = client_with([error(429, headers={"retry-after": "-5"}), httpx.Response(200, json={})])
+    assert await http.json("GET", URL, service="test") == {}
+    (wait,) = no_sleep.await_args.args
+    assert 0 <= wait <= settings.retry_delay
+
+
 async def test_expired_token_refreshed_once_for_concurrent_requests():
     credentials = FakeCredentials(valid=False)
     http, seen = client_with([httpx.Response(200, json={})] * 5, credentials)

@@ -7,6 +7,7 @@ twentieth call of a listing retries that call, not the whole listing.
 
 import json
 import logging
+import math
 import random
 import time
 from collections.abc import Callable, Iterator
@@ -56,11 +57,18 @@ def reason_from_body(body: bytes | str | None) -> str | None:
 
 
 def parse_retry_after(value: Any) -> int | None:
-    """Seconds from a Retry-After header (the HTTP-date form falls back to backoff)."""
-    try:
-        return int(value) if value is not None else None
-    except (TypeError, ValueError):
+    """Seconds from a Retry-After header (the HTTP-date form falls back to backoff).
+
+    ``None`` for anything that is not a finite, non-negative number of seconds.
+    """
+    if value is None:
         return None
+    try:
+        # int() raises ValueError for nan, OverflowError for +-inf
+        seconds = int(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+    return seconds if seconds >= 0 else None
 
 
 def is_rate_limited(status: int, reason: str | None) -> bool:
@@ -158,8 +166,9 @@ def _backoff(attempt: int, base: float, retry_after: int | None = None) -> float
     clients that failed together. A server-sent Retry-After wins, capped so a
     bad header can't park a request for an hour.
     """
-    if retry_after is not None:
-        return float(min(retry_after, MAX_RETRY_AFTER))
+    if retry_after is not None and not math.isnan(retry_after):
+        # Clamp to [0, cap]: a negative or absurd value must not reach time.sleep
+        return float(min(max(retry_after, 0), MAX_RETRY_AFTER))
     # Backoff jitter, not security-sensitive.
     return random.uniform(0, min(MAX_BACKOFF, base * 2**attempt))  # noqa: S311
 

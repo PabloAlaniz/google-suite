@@ -194,6 +194,18 @@ def test_parse_message_huge_internal_date_b3b(internal_date):
     check_parse_message({"id": "m", "internalDate": internal_date})
 
 
+# Found by ClusterFuzzLite: parsedate_to_datetime raises OverflowError when a
+# field doesn't fit a C long/int
+@given(
+    st.integers(10**19, 10**30),
+    st.sampled_from(["{n} Jan 2024 00:00:00", "01 Jan {n} 00:00:00", "01 Jan 2024 {n}:00:00"]),
+)
+@example(10**20, "01 Jan 2024 00:00:00 +{n}")
+def test_parse_message_overflowing_date_header(number, template):
+    payload = {"headers": [{"name": "Date", "value": "Mon, " + template.format(n=number)}]}
+    check_parse_message({"id": "m", "payload": payload})
+
+
 @given(st.sampled_from(["-0000", ""]))
 @example("-0000")
 def test_parse_message_naive_date_b3c(zone):

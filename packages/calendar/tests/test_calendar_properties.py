@@ -2,7 +2,6 @@
 
 from datetime import UTC, datetime, timedelta, timezone
 
-import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
 
@@ -41,11 +40,6 @@ def test_rfc3339_is_utc_same_instant(value):
     check_rfc3339(value)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    raises=OverflowError,
-    reason="B9-dates-2: _rfc3339 overflows for datetimes whose UTC instant is out of range",
-)
 @given(
     st.sampled_from(
         [
@@ -56,6 +50,11 @@ def test_rfc3339_is_utc_same_instant(value):
 )
 @example(datetime(1, 1, 1, tzinfo=timezone(timedelta(hours=1))))
 def test_rfc3339_at_datetime_range_edges(value):
+    check_rfc3339(value)
+
+
+@given(st.datetimes(timezones=offsets | st.just(UTC)))
+def test_rfc3339_total_over_full_range(value):
     check_rfc3339(value)
 
 

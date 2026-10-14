@@ -18,15 +18,28 @@ from gsuite_core.exceptions import NotFoundError, ValidationError
 SendUpdates = Literal["all", "externalOnly", "none"]
 
 
+_MIN_UTC = datetime.min.replace(tzinfo=UTC)
+_MAX_UTC = datetime.max.replace(tzinfo=UTC)
+
+
 def _rfc3339(value: datetime) -> str:
     """UTC timestamp for the API. Naive datetimes are taken as UTC.
 
     Appending "Z" to isoformat() (as this used to) breaks aware datetimes:
     "2026-01-01T10:00:00+00:00Z" is rejected by the API.
+
+    Every caller passes a query bound (timeMin/timeMax). A bound whose UTC
+    instant falls outside datetime's range, e.g. ``datetime.min`` in UTC+1
+    used as "since forever", is clamped to the nearest representable UTC
+    instant: the API holds no events out there, so the query is the same.
     """
     if value.tzinfo is None:
         value = value.replace(tzinfo=UTC)
-    return value.astimezone(UTC).isoformat().replace("+00:00", "Z")
+    try:
+        value = value.astimezone(UTC)
+    except OverflowError:
+        value = _MIN_UTC if value.year == datetime.min.year else _MAX_UTC
+    return value.isoformat().replace("+00:00", "Z")
 
 
 logger = logging.getLogger(__name__)

@@ -24,13 +24,21 @@ def check_parse_date(value: str | None) -> None:
 
 
 def check_rfc3339(value: datetime) -> None:
-    """``_rfc3339`` gives a "Z" timestamp for the same instant (naive taken as UTC)."""
+    """``_rfc3339`` gives a "Z" timestamp for the same instant (naive taken as UTC).
+
+    An instant outside datetime's UTC range is clamped to its nearest end.
+    """
     if not isinstance(value, datetime):
         return
     text = _rfc3339(value)
     require(text.endswith("Z") and "+" not in text, f"{text!r} is not a UTC 'Z' timestamp")
     parsed = datetime.fromisoformat(text)
-    expected = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    aware = value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+    try:
+        expected = aware.astimezone(UTC)
+    except OverflowError:
+        low = aware.year == datetime.min.year
+        expected = (datetime.min if low else datetime.max).replace(tzinfo=UTC)
     require(parsed == expected, f"{value!r} -> {text!r} is a different instant")
 
 

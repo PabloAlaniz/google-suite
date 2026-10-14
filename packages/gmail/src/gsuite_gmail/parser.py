@@ -150,8 +150,8 @@ class GmailParser:
         if date_header:
             try:
                 date = parsedate_to_datetime(date_header)
-            except (ValueError, TypeError):
-                pass
+            except (ValueError, TypeError, OverflowError):
+                pass  # unparseable, or numbers too large for datetime
             else:
                 return date if date.tzinfo is not None else date.replace(tzinfo=UTC)
 

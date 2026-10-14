@@ -14,7 +14,7 @@ import re
 import time
 from collections.abc import Callable, Sequence
 from email import policy
-from email.utils import getaddresses
+from email.utils import getaddresses, unquote
 from typing import Any, cast
 
 from gsuite_core import GoogleAuth
@@ -220,13 +220,10 @@ _COMPOSE_HEADERS_OPTIONAL = {"content-transfer-encoding"}
 def _parsed_filename(name: str) -> str:
     """What the stdlib parser returns for a correctly encoded ``filename=name``.
 
-    It strips surrounding whitespace and, like email.utils.unquote, one pair of
-    enclosing angle brackets.
+    It strips surrounding whitespace, then applies email.utils.unquote: one pair
+    of enclosing double quotes (unescaping inside) or angle brackets goes.
     """
-    name = name.strip()
-    if len(name) > 1 and name.startswith("<") and name.endswith(">"):
-        return name[1:-1]
-    return name
+    return unquote(name.strip())
 
 
 def _breaks_line(value: str) -> bool:

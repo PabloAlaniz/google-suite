@@ -319,5 +319,7 @@ addresses = st.builds(
 @example(["a@b.com"], "hi\r\nBcc: evil@x.com", [], [])
 @example(["a@b.com\nBcc: evil@x.com"], "hi", [], [])
 @example(["a@b.com"], "hi", [], ["f\r\nX-Evil: 1.txt"])
+@example(["a@b.com"], "hi", [], ['"' * 40])  # found by ClusterFuzzLite
+@example(["a@b.com"], "hi", [], ['"a\\"b"'])
 def test_compose_roundtrip(to, subject, cc, attachment_names):
     check_compose_roundtrip(to, subject, cc, attachment_names)

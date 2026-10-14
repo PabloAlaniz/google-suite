@@ -11,6 +11,7 @@ import base64
 import binascii
 import email
 import re
+import time
 from collections.abc import Callable, Sequence
 from email import policy
 from email.utils import getaddresses
@@ -49,6 +50,31 @@ def check_html_to_text_plain_passthrough(text: str) -> None:
     require(once == expected, f"plain text {text!r} became {once!r}, expected {expected!r}")
     twice = _html_to_text(once)
     require(twice == once, f"not idempotent on plain text: {once!r} -> {twice!r}")
+
+
+def _html_to_text_seconds(markup: str, size: int) -> float:
+    big = markup * (size // len(markup) + 1)
+    start = time.perf_counter()
+    _html_to_text(big)
+    return time.perf_counter() - start
+
+
+def check_html_to_text_scales(markup: str, size: int = 200_000) -> None:
+    """Converting ``markup`` repeated 8x longer takes about 8x as long, not 64x.
+
+    Fuzzers only generate small inputs, where super-linear behavior costs
+    microseconds; repeating the fragment exposes it. Comparing two sizes keeps
+    the check independent of machine speed and instrumentation overhead; the
+    absolute slack absorbs timer noise on fast inputs.
+    """
+    if not markup:
+        return
+    small = min(_html_to_text_seconds(markup, size // 8) for _ in range(2))
+    large = _html_to_text_seconds(markup, size)
+    require(
+        large < 24 * small + 0.05,
+        f"{markup[:20]!r}: {small:.3f}s at {size // 8} chars but {large:.2f}s at {size}",
+    )
 
 
 # ----------------------------------------------------------------------- parser
@@ -245,12 +271,14 @@ def check_compose_roundtrip(
         expected <= set(names) <= expected | _COMPOSE_HEADERS_OPTIONAL,
         f"headers {names}, expected {sorted(expected)}",
     )
-    # Parsers drop the whitespace that follows "Subject:" and decode anything
-    # that looks like an RFC 2047 encoded word; neither is the composer's doing.
+    # Parsers decode anything that looks like an RFC 2047 encoded word, and the
+    # stdlib's folding can add or drop whitespace at the ends of the value (a
+    # leading space on Python 3.11 when the first token doesn't fit the line;
+    # whitespace-only subjects). Neither is the composer's doing.
     if "=?" not in subject:
         got_subject = str(parsed["Subject"])
         require(
-            got_subject == subject.lstrip(" \t"),
+            got_subject.strip() == subject.strip(),
             f"Subject {subject!r} came back as {got_subject!r}",
         )
     for header, sent in (("To", to), ("Cc", cc)):
@@ -272,6 +300,7 @@ __all__ = [
     "check_compose_roundtrip",
     "check_construct_query_terms",
     "check_html_to_text_plain_passthrough",
+    "check_html_to_text_scales",
     "check_html_to_text_strips_tags",
     "check_parse_message",
     "check_query_combinators",

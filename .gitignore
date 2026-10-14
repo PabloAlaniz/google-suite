@@ -52,3 +52,6 @@ Thumbs.db
 *.log
 *.db
 site/
+
+# Hypothesis example database
+.hypothesis/

@@ -1,10 +1,19 @@
 """Shared pytest fixtures for google-suite tests."""
 
+import os
 from collections import defaultdict
 from pathlib import Path
 from unittest.mock import MagicMock, Mock
 
 import pytest
+from hypothesis import settings
+
+# Property-based tests: "ci" (default) is derandomized so PR runs are
+# reproducible; the nightly CI run explores far more inputs with "nightly".
+settings.register_profile("ci", max_examples=100, derandomize=True, deadline=None)
+settings.register_profile("nightly", max_examples=2000, deadline=None)
+settings.register_profile("dev", max_examples=300)
+settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "ci"))
 
 
 def pytest_collection_finish(session):

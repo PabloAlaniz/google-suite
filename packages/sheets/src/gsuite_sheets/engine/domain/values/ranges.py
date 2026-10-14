@@ -99,11 +99,13 @@ class GridRange:
         """True si ambos rangos se intersecan (límites ``None`` = sin tope en ese eje).
 
         Compara solo la geometría: ignora ``sheet_id`` (quien compara decide si las hojas
-        coinciden).
+        coinciden). Un rango vacío (``start == end`` en algún eje) no se solapa con nada.
         """
 
         def axis(s1: int | None, e1: int | None, s2: int | None, e2: int | None) -> bool:
             start1, start2 = s1 or 0, s2 or 0
+            if (e1 is not None and e1 <= start1) or (e2 is not None and e2 <= start2):
+                return False  # eje vacío: no contiene celdas
             return (e2 is None or start1 < e2) and (e1 is None or start2 < e1)
 
         rows = axis(

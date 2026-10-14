@@ -7,7 +7,6 @@ check exactly the same properties. Known bugs are strict xfails with an explicit
 
 import string
 
-import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
 
@@ -97,7 +96,6 @@ def test_split_sheet_well_formed_is_lossless(reference):
     check_split_sheet_lossless(reference)
 
 
-@pytest.mark.xfail(strict=True, reason="B6: split_sheet drops text after a quoted title")
 @given(
     st.builds(
         lambda t, junk: quote_title(t) + junk,
@@ -110,7 +108,6 @@ def test_split_sheet_rejects_text_after_quoted_title(reference):
     check_split_sheet_lossless(reference)
 
 
-@pytest.mark.xfail(strict=True, reason="B6: split_sheet accepts an unterminated quote")
 @given(st.text(alphabet=st.characters(exclude_characters="'"), max_size=10).map("'".__add__))
 @example("'abc")
 def test_split_sheet_rejects_unterminated_quote(reference):
@@ -132,21 +129,18 @@ def test_grid_range_ignores_sheet_prefix(title, cell_range):
     check_grid_range(f"{quote_title(title)}!{cell_range}")
 
 
-@pytest.mark.xfail(strict=True, reason="B6: grid_range accepts reversed ranges (end < start)")
 @given(reversed_ranges())
 @example("B5:A1")
 def test_grid_range_rejects_or_normalizes_reversed(cell_range):
     check_grid_range(cell_range)
 
 
-@pytest.mark.xfail(strict=True, reason="B6: grid_range accepts non-ASCII digits as row numbers")
 @given(column_letters, st.text(non_ascii_digits, min_size=1, max_size=3))
 @example("A", "\u0661")  # ARABIC-INDIC DIGIT ONE
 def test_grid_range_rejects_unicode_digits(letters, digits):
     check_grid_range(f"{letters}{digits}")
 
 
-@pytest.mark.xfail(strict=True, reason="B6: grid_range accepts columns beyond ZZZ")
 @given(st.text(alphabet=string.ascii_uppercase, min_size=4, max_size=20), rows)
 @example("A" * 20, 1)
 def test_grid_range_rejects_columns_beyond_zzz(letters, row):
@@ -171,7 +165,6 @@ def test_color_from_hex_wrong_length(hex_color):
     check_color_from_hex(hex_color)
 
 
-@pytest.mark.xfail(strict=True, reason="B5: non-hex digits raise ValueError, not InvalidColorError")
 @given(
     st.text(alphabet=string.ascii_letters + string.digits, min_size=6, max_size=6).filter(
         lambda s: any(c not in string.hexdigits for c in s)
@@ -182,28 +175,24 @@ def test_color_from_hex_non_hex_raises_invalid_color(hex_color):
     check_color_from_hex(hex_color)
 
 
-@pytest.mark.xfail(strict=True, reason="B5: from_hex accepts signed components ('+1+2+3')")
 @given(st.lists(st.tuples(st.sampled_from("+-"), hex_digits).map("".join), min_size=3, max_size=3))
 @example(["+1", "+2", "+3"])
 def test_color_from_hex_rejects_signs(pairs):
     check_color_from_hex("".join(pairs))
 
 
-@pytest.mark.xfail(strict=True, reason="B5: from_hex accepts fullwidth digits")
 @given(st.text(non_ascii_digits, min_size=6, max_size=6))
 @example("\uff11\uff12\uff13\uff14\uff15\uff16")  # fullwidth "123456"
 def test_color_from_hex_rejects_unicode_digits(hex_color):
     check_color_from_hex(hex_color)
 
 
-@pytest.mark.xfail(strict=True, reason="B9-sheets-1: from_hex strips any number of '#'")
 @given(st.integers(2, 5), st.from_regex(r"[0-9A-Fa-f]{6}", fullmatch=True))
 @example(2, "123456")
 def test_color_from_hex_rejects_repeated_hash(hashes, digits):
     check_color_from_hex("#" * hashes + digits)
 
 
-@pytest.mark.xfail(strict=True, reason="B9-sheets-2: from_hex accepts whitespace (' 12345')")
 @given(
     st.lists(
         st.tuples(st.sampled_from(" \t\n"), hex_digits, st.booleans()).map(
@@ -250,35 +239,30 @@ def test_numericise_passes_non_strings_through(value):
     assert numericise(value) is value
 
 
-@pytest.mark.xfail(strict=True, reason="B8: signed leading zeros are lost ('-007' -> -7)")
 @given(st.sampled_from("+-"), st.text(alphabet=string.digits, min_size=1, max_size=6))
 @example("-", "07")
 def test_numericise_keeps_signed_leading_zeros(sign, digits):
     check_numericise(f"{sign}0{digits}")
 
 
-@pytest.mark.xfail(strict=True, reason="B8: underscores are parsed as digit separators")
 @given(st.lists(st.integers(1, 999).map(str), min_size=2, max_size=4))
 @example(["1", "000"])
 def test_numericise_keeps_underscored_numbers(groups):
     check_numericise("_".join(groups))
 
 
-@pytest.mark.xfail(strict=True, reason="B8: 'nan'/'inf' become non-finite floats")
 @given(st.sampled_from(["nan", "NaN", "inf", "-inf", "Infinity", "+infinity"]))
 @example("nan")
 def test_numericise_keeps_nan_and_inf_text(value):
     check_numericise(value)
 
 
-@pytest.mark.xfail(strict=True, reason="B8: non-ASCII digits are parsed (U+0663 -> 3)")
 @given(st.text(non_ascii_digits, min_size=1, max_size=4))
 @example("\u0663")  # ARABIC-INDIC DIGIT THREE
 def test_numericise_keeps_unicode_digits(value):
     check_numericise(value)
 
 
-@pytest.mark.xfail(strict=True, reason="B9-sheets-3: padded leading zeros are lost (' 007' -> 7)")
 @given(st.sampled_from([" ", "\t", "\n"]), st.text(alphabet=string.digits, min_size=1, max_size=6))
 @example(" ", "07")
 def test_numericise_keeps_padded_leading_zeros(pad, digits):
@@ -356,7 +340,6 @@ def test_overlaps_matches_cell_intersection(first, second):
     check_grid_range_overlaps(first, second)
 
 
-@pytest.mark.xfail(strict=True, reason="B9-sheets-4: an empty GridRange (start == end) overlaps")
 @given(st.integers(0, 6), bounds)
 @example(2, (0, 5, 0, 5))
 def test_empty_grid_range_overlaps_nothing(edge, other):

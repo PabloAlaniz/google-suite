@@ -17,10 +17,33 @@ from gsuite_sheets.engine.domain.numericise import numericise, numericise_all, n
         ("0", 0),
         ("3.0", 3.0),
         (42, 42),  # no-string pasa igual
+        (" 7 ", 7),  # se toleran espacios alrededor
+        ("1e3", 1000.0),
+        ("-0", 0),
     ],
 )
 def test_numericise(value, expected):
     assert numericise(value) == expected
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        "-007",  # ceros a la izquierda con signo
+        "+007",
+        " 007",  # ceros a la izquierda con espacios
+        "00",
+        "1_000",  # Python acepta guiones bajos; Sheets no
+        "\u0663",  # dígito arábigo-índico: no ASCII
+        "\uff11\uff12",  # dígitos de ancho completo
+        "nan",
+        "-inf",
+        "Infinity",
+        "1e999",  # desborda a infinito
+    ],
+)
+def test_non_canonical_numbers_stay_text(value):
+    assert numericise(value) is value
 
 
 def test_empty_to_zero():

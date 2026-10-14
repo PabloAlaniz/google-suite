@@ -81,6 +81,21 @@ class TestColor:
             Color.from_hex("#FFF")
         assert issubclass(InvalidColorError, GSpreadManagerError)
 
+    @pytest.mark.parametrize(
+        "bad",
+        [
+            "GGGGGG",
+            "+1+2+3",
+            "##123456",
+            " 12345",
+            "123456\n",
+            "\uff11\uff12\uff13\uff14\uff15\uff16",
+        ],
+    )
+    def test_from_hex_rejects_malformed_six_characters(self, bad):
+        with pytest.raises(InvalidColorError):
+            Color.from_hex(bad)
+
 
 class TestFormatSerialization:
     def test_text_format_omits_none(self):
@@ -139,6 +154,21 @@ class TestRanges:
 
     def test_grid_range_omits_absent_bounds(self):
         assert GridRange(sheet_id=7).to_dict() == {"sheetId": 7}
+
+    def test_overlaps(self):
+        a = GridRange(0, 0, 5, 0, 5)
+        assert a.overlaps(GridRange(0, 4, 6, 4, 6))
+        assert not a.overlaps(GridRange(0, 5, 6, 0, 5))  # fin exclusivo
+        assert a.overlaps(GridRange(0))  # sin límites: toda la hoja
+
+    @pytest.mark.parametrize(
+        "empty", [GridRange(0, 2, 2), GridRange(0, None, None, 3, 3), GridRange(0, 0, 0, 0, 0)]
+    )
+    def test_empty_grid_range_overlaps_nothing(self, empty):
+        whole = GridRange(0, 0, 5, 0, 5)
+        assert not empty.overlaps(whole)
+        assert not whole.overlaps(empty)
+        assert not empty.overlaps(empty)
 
     def test_spreadsheet_id_validates(self):
         assert str(SpreadsheetId("abc123")) == "abc123"

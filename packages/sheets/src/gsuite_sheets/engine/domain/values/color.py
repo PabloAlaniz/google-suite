@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from gsuite_sheets.engine.domain.errors import InvalidColorError
 
-# Longitud esperada de un color hexadecimal sin prefijo (RRGGBB).
-_HEX_RGB_LENGTH = 6
+# '#RRGGBB' o 'RRGGBB', solo dígitos hexadecimales ASCII (sin signos, espacios ni '#' repetidos).
+_HEX_RGB = re.compile(r"#?([0-9A-Fa-f]{6})")
 
 
 @dataclass(frozen=True)
@@ -25,9 +26,14 @@ class Color:
 
     @classmethod
     def from_hex(cls, hex_color: str) -> Color:
-        """Crea un Color desde un hex tipo '#RRGGBB' o 'RRGGBB'."""
-        h = hex_color.lstrip("#")
-        if len(h) != _HEX_RGB_LENGTH:
+        """Crea un Color desde un hex tipo '#RRGGBB' o 'RRGGBB'.
+
+        Cualquier otra forma (dígitos no hexadecimales o no ASCII, signos, espacios,
+        varios '#') lanza ``InvalidColorError``.
+        """
+        match = _HEX_RGB.fullmatch(hex_color)
+        if match is None:
             raise InvalidColorError(f"Color hex inválido: {hex_color!r} (se espera RRGGBB).")
+        h = match.group(1)
         r, g, b = (int(h[i : i + 2], 16) / 255 for i in (0, 2, 4))
         return cls(red=r, green=g, blue=b)

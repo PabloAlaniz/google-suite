@@ -5,7 +5,11 @@ from typing import Any
 
 from gsuite_core.exceptions import ValidationError
 
-_CELL = re.compile(r"^([A-Za-z]*)(\d*)$")
+# ASCII only: Sheets knows no other digits or letters in A1 references.
+_CELL = re.compile(r"([A-Za-z]*)([0-9]*)", re.ASCII)
+
+# Google Sheets addresses at most 18278 columns (A..ZZZ).
+_MAX_COLUMN_LETTERS = 3
 
 
 def quote_title(title: str) -> str:
@@ -29,6 +33,9 @@ def split_sheet(reference: str) -> tuple[str | None, str | None]:
     "'Q1 Budget'!A1:B2" -> ("Q1 Budget", "A1:B2"); "'Pablo''s'" -> ("Pablo's", None);
     "Data!A:A" -> ("Data", "A:A"); "B2" -> (None, "B2"). Quoted titles may
     contain "!" and doubled quotes, which a plain split("!") gets wrong.
+
+    Raises ``ValidationError`` for a quoted title that is never closed ("'abc")
+    or that is followed by anything other than "!" ("'a'b!C1").
     """
     if reference.startswith("'"):
         i = 1
@@ -39,9 +46,15 @@ def split_sheet(reference: str) -> tuple[str | None, str | None]:
                     continue
                 break
             i += 1
+        if i >= len(reference):
+            raise ValidationError("range", f"unterminated quoted sheet title in {reference!r}")
         title = reference[1:i].replace("''", "'")
         rest = reference[i + 1 :]
-        return title, (rest[1:] or None) if rest.startswith("!") else None
+        if not rest:
+            return title, None
+        if not rest.startswith("!"):
+            raise ValidationError("range", f"expected '!' after the sheet title in {reference!r}")
+        return title, rest[1:] or None
     if "!" in reference:
         title, rest = reference.split("!", 1)
         return title, rest or None
@@ -67,9 +80,11 @@ def column_letter(index: int) -> str:
 
 
 def _cell(ref: str, original: str) -> tuple[int | None, int | None]:
-    match = _CELL.match(ref)
+    match = _CELL.fullmatch(ref)
     if not match or not (match.group(1) or match.group(2)):
         raise ValidationError("range", f"invalid A1 range {original!r}")
+    if len(match.group(1)) > _MAX_COLUMN_LETTERS:
+        raise ValidationError("range", f"column beyond ZZZ in {original!r}")
     col = column_index(match.group(1)) if match.group(1) else None
     row = int(match.group(2)) - 1 if match.group(2) else None
     if row is not None and row < 0:
@@ -84,6 +99,11 @@ def grid_range(cell_range: str, sheet_id: int) -> dict[str, Any]:
     Supports "B2", "A1:C10", "A:C" (whole columns), "1:5" (whole rows) and
     open-ended "A2:C". Indexes are zero-based with exclusive ends. A sheet
     prefix ("'Data'!A1:B2") is ignored.
+
+    Reversed ranges are normalized the way Google Sheets treats them: "B5:A1"
+    is the same range as "A1:B5" (start and end are swapped on each axis where
+    the end precedes the start). Only ASCII letters and digits are accepted, and
+    columns stop at ZZZ; anything else raises ``ValidationError``.
     """
     if "!" in cell_range:
         cell_range = split_sheet(cell_range)[1] or ""
@@ -92,6 +112,10 @@ def grid_range(cell_range: str, sheet_id: int) -> dict[str, Any]:
         raise ValidationError("range", f"invalid A1 range {cell_range!r}")
     start_row, start_col = _cell(start_ref, cell_range)
     end_row, end_col = _cell(end_ref, cell_range) if end_ref else (start_row, start_col)
+    if start_row is not None and end_row is not None and end_row < start_row:
+        start_row, end_row = end_row, start_row
+    if start_col is not None and end_col is not None and end_col < start_col:
+        start_col, end_col = end_col, start_col
 
     grid: dict[str, Any] = {"sheetId": sheet_id}
     if start_row is not None:

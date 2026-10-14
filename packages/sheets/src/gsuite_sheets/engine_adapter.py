@@ -57,8 +57,7 @@ def _rectangular(rows: list[list[Any]]) -> list[list[Any]]:
 
 def cells_in_range(name: str, sheet_id: int, rows: list[list[Any]]) -> list[Cell]:
     """Every cell of ``name`` given the values API answer for it, empty ones included."""
-    cell_range = name.split("!", 1)[1] if "!" in name else name
-    grid = grid_range(cell_range, sheet_id)
+    grid = grid_range(name, sheet_id)
     start_row = grid.get("startRowIndex", 0)
     start_col = grid.get("startColumnIndex", 0)
     end_row = grid.get("endRowIndex", start_row + len(rows))
@@ -93,7 +92,7 @@ def format_body(
         "requests": [
             {
                 "repeatCell": {
-                    "range": grid_range(t.split("!", 1)[-1], sheet_id),
+                    "range": grid_range(t, sheet_id),
                     "cell": {"userEnteredFormat": cell_format},
                     "fields": fields,
                 }
@@ -128,7 +127,7 @@ def merge_body(sheet_id: int, range_name: str, merge_type: str) -> dict[str, Any
         "requests": [
             {
                 "mergeCells": {
-                    "range": grid_range(range_name.split("!", 1)[-1], sheet_id),
+                    "range": grid_range(range_name, sheet_id),
                     "mergeType": merge_type,
                 }
             }

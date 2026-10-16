@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Features
+
+* **searchconsole,analytics,tagmanager:** read-only clients for Search Console (sites, search analytics, URL inspection, sitemaps), Google Analytics 4 (Admin account summaries/properties, Data API `runReport`/`runRealtimeReport`) and Tag Manager v2 (accounts, containers, workspaces, tags, triggers, variables, versions)
+* **mcp:** 15 read-only tools for those APIs (`searchconsole_*`, `analytics_*`, `tagmanager_*`)
+* **api:** read-only `/searchconsole`, `/analytics` and `/tagmanager` routes
+* **core,cli:** opt-in scopes `webmasters.readonly`, `analytics.readonly`, `tagmanager.readonly`; `gsuite auth login --scopes` accepts `searchconsole`, `analytics`, `tagmanager` and `marketing` (not in `default`/`all`, so existing logins are not asked to re-consent)
+
 ## [0.5.2](https://github.com/PabloAlaniz/google-suite/compare/v0.5.1...v0.5.2) (2026-10-14)
 
 

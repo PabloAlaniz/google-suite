@@ -11,11 +11,14 @@ from mcp.server.mcpserver.exceptions import ToolError
 from gsuite_core import GoogleAuth, get_settings
 
 if TYPE_CHECKING:
+    from gsuite_analytics import Analytics
     from gsuite_calendar import Calendar
     from gsuite_contacts import Contacts
     from gsuite_drive import Drive
     from gsuite_gmail import Gmail
+    from gsuite_searchconsole import SearchConsole
     from gsuite_sheets import Sheets
+    from gsuite_tagmanager import TagManager
     from gsuite_tasks import Tasks
 
 
@@ -24,7 +27,8 @@ def login_hint() -> str:
     token_db = Path(settings.token_db_path).resolve()
     return (
         f"No valid Google login in {token_db}. Run `gsuite auth login` (add "
-        "`--scopes default,tasks,contacts` for Tasks and Contacts) in the directory "
+        "`--scopes default,tasks,contacts` for Tasks and Contacts, "
+        "`,marketing` for Search Console, Analytics and Tag Manager) in the directory "
         "this server runs from, or set GSUITE_TOKEN_DB_PATH and GSUITE_CREDENTIALS_FILE "
         "to absolute paths in the server's configuration."
     )
@@ -82,3 +86,21 @@ class Services:
         from gsuite_contacts import Contacts
 
         return Contacts(self.auth())
+
+    @cached_property
+    def searchconsole(self) -> SearchConsole:
+        from gsuite_searchconsole import SearchConsole
+
+        return SearchConsole(self.auth())
+
+    @cached_property
+    def analytics(self) -> Analytics:
+        from gsuite_analytics import Analytics
+
+        return Analytics(self.auth())
+
+    @cached_property
+    def tagmanager(self) -> TagManager:
+        from gsuite_tagmanager import TagManager
+
+        return TagManager(self.auth())

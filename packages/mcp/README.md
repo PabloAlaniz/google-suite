@@ -17,6 +17,7 @@ and uses your own Google login.
    pip install "gsuite-sdk[cli]"
    gsuite auth login                                   # Gmail, Calendar, Drive, Sheets
    gsuite auth login --force --scopes default,tasks,contacts   # + Tasks and Contacts
+   gsuite auth login --force --scopes default,tasks,contacts,marketing  # + Search Console, GA4, Tag Manager (read-only)
    ```
 
    The token is saved to `tokens.db` in the current directory (or
@@ -54,6 +55,13 @@ and uses your own Google login.
 | Sheets | `sheets_read`, `sheets_append`, `sheets_update`, `sheets_upsert` |
 | Tasks | `tasks_list`, `tasks_add`, `tasks_complete` |
 | Contacts | `contacts_search`, `contacts_get` |
+| Search Console (read-only) | `searchconsole_list_sites`, `searchconsole_query`, `searchconsole_inspect_url`, `searchconsole_list_sitemaps` |
+| Analytics GA4 (read-only) | `analytics_account_summaries`, `analytics_list_properties`, `analytics_run_report`, `analytics_run_realtime_report` |
+| Tag Manager (read-only) | `tagmanager_list_accounts`, `tagmanager_list_containers`, `tagmanager_list_workspaces`, `tagmanager_list_tags`, `tagmanager_list_triggers`, `tagmanager_list_variables`, `tagmanager_list_versions` |
+
+Search Console, Analytics and Tag Manager need the opt-in read-only scopes
+(`--scopes ...,marketing`) and their APIs enabled in your Cloud project. A login
+replaces the stored scopes, so keep listing the sets you already use.
 
 Read tools are annotated read-only; tools that send, share, overwrite or
 delete are marked so clients can ask before running them. Dates are ISO 8601;

@@ -1,4 +1,5 @@
-"""MCP server for gsuite-sdk: Gmail, Calendar, Drive, Sheets, Tasks and Contacts tools.
+"""MCP server for gsuite-sdk: Gmail, Calendar, Drive, Sheets, Tasks and Contacts tools,
+plus read-only Search Console, Google Analytics 4 and Tag Manager tools.
 
 Runs over stdio (``gsuite-mcp``) and reuses the login of ``gsuite auth login``
 (GSUITE_TOKEN_DB_PATH / GSUITE_CREDENTIALS_FILE). Tools are annotated so
@@ -23,17 +24,21 @@ from gsuite_mcp.services import Services
 
 INSTRUCTIONS = """\
 Google Workspace for the signed-in user: Gmail, Calendar, Drive, Sheets, Tasks
-and Contacts. Read tools are safe to call freely. Ask the user before tools
+and Contacts, plus read-only Search Console, Google Analytics 4 and Tag Manager.
+Read tools are safe to call freely. Ask the user before tools
 that send email, invite attendees, share files or delete anything. Dates are
 ISO 8601 (2026-03-01 or 2026-03-01T10:00); times without an offset use the
 server's GSUITE_DEFAULT_TIMEZONE (UTC by default). If a tool says there is no
-login, tell the user to run `gsuite auth login`."""
+login, tell the user to run `gsuite auth login`. Search Console, Analytics and
+Tag Manager need the opt-in read-only scopes:
+`gsuite auth login --force --scopes default,marketing`."""
 
 READ = ToolAnnotations(read_only_hint=True, open_world_hint=True)
 WRITE = ToolAnnotations(read_only_hint=False, destructive_hint=False, open_world_hint=True)
 DESTRUCTIVE = ToolAnnotations(read_only_hint=False, destructive_hint=True, open_world_hint=True)
 
 SendUpdates = Literal["all", "externalOnly", "none"]
+SCDimension = Literal["query", "page", "country", "device", "date", "searchAppearance"]
 F = TypeVar("F", bound=Callable[..., Any])
 
 
@@ -49,7 +54,8 @@ def sdk_errors(func: F) -> F:
         except PermissionDeniedError as exc:
             raise ToolError(
                 f"{exc.message}. Usually a scope missing from the login: run "
-                "`gsuite auth login --force --scopes default,tasks,contacts`."
+                "`gsuite auth login --force --scopes default,tasks,contacts` "
+                "(add `,marketing` for Search Console, Analytics and Tag Manager)."
             ) from exc
         except GSuiteError as exc:
             raise ToolError(f"{type(exc).__name__}: {exc.message}") from exc
@@ -399,6 +405,160 @@ def build_server(services: Services | None = None) -> MCPServer:
         if contact is None:
             raise ToolError(f"No contact {contact_id}")
         return to_json(contact)  # type: ignore[no-any-return]
+
+    # --------------------------------------------- search console (read-only)
+
+    @tool(READ)
+    def searchconsole_list_sites() -> dict[str, Any]:
+        """Search Console properties the user can see (siteUrl, permissionLevel).
+        Domain properties look like "sc-domain:example.com"."""
+        return results(svc.searchconsole.list_sites())
+
+    @tool(READ)
+    def searchconsole_query(
+        site_url: str,
+        start_date: str,
+        end_date: str,
+        dimensions: list[SCDimension] | None = None,
+        filters: list[dict[str, str]] | None = None,
+        row_limit: int = 100,
+        start_row: int = 0,
+        search_type: Literal["web", "image", "video", "news", "discover", "googleNews"] = "web",
+    ) -> dict[str, Any]:
+        """Search analytics: clicks, impressions, ctr and position, grouped by
+        `dimensions`. Dates are ISO days (data lags ~2-3 days). `filters` are
+        ANDed: [{"dimension": "query", "operator": "contains", "expression": "shoes"}];
+        operators: equals, notEquals, contains, notContains, includingRegex, excludingRegex.
+        `row_limit` max 25000."""
+        rows = svc.searchconsole.query(
+            site_url,
+            start_date,
+            end_date,
+            dimensions=list(dimensions or []),
+            filters=filters,
+            row_limit=row_limit,
+            start_row=start_row,
+            search_type=search_type,
+        )
+        return results(rows)
+
+    @tool(READ)
+    def searchconsole_inspect_url(
+        site_url: str, url: str, language_code: str | None = None
+    ) -> dict[str, Any]:
+        """URL Inspection: Google index status, coverage, canonical, mobile
+        usability and rich results for one URL of a property."""
+        return svc.searchconsole.inspect_url(site_url, url, language_code=language_code)
+
+    @tool(READ)
+    def searchconsole_list_sitemaps(site_url: str) -> dict[str, Any]:
+        """Sitemaps submitted for a property, with status, errors and warnings."""
+        return results(svc.searchconsole.list_sitemaps(site_url))
+
+    # ------------------------------------------------- analytics (read-only)
+
+    @tool(READ)
+    def analytics_account_summaries() -> dict[str, Any]:
+        """GA4 accounts with their properties (use it to find property IDs)."""
+        return results(svc.analytics.account_summaries())
+
+    @tool(READ)
+    def analytics_list_properties(account_id: str, show_deleted: bool = False) -> dict[str, Any]:
+        """GA4 properties of an account ("123" or "accounts/123")."""
+        return results(svc.analytics.list_properties(account_id, show_deleted=show_deleted))
+
+    @tool(READ)
+    def analytics_run_report(
+        property_id: str,
+        metrics: list[str],
+        dimensions: list[str] | None = None,
+        start_date: str = "28daysAgo",
+        end_date: str = "today",
+        date_ranges: list[list[str]] | None = None,
+        dimension_filters: list[dict[str, Any]] | None = None,
+        metric_filters: list[dict[str, Any]] | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        order_by: str | None = None,
+        descending: bool = True,
+    ) -> dict[str, Any]:
+        """GA4 Data API runReport. Metrics e.g. activeUsers, sessions,
+        screenPageViews, conversions; dimensions e.g. date, country, pagePath,
+        sessionSource. Dates: ISO days or today/yesterday/NdaysAgo; `date_ranges`
+        ([[start, end], ...]) overrides start/end. Filters are ANDed:
+        {"field": "country", "value": "Argentina"}, {"field": .., "operator":
+        "CONTAINS", "value": ..}, {"field": .., "values": [..]}, numeric
+        {"field": "sessions", "operator": "GREATER_THAN", "value": 10}; "not": true negates."""
+        if any(len(r) != 2 for r in date_ranges or []):
+            raise ToolError("Each date range is [start, end]")
+        ranges = [(r[0], r[1]) for r in date_ranges] if date_ranges else [(start_date, end_date)]
+        return svc.analytics.run_report(
+            property_id,
+            dimensions,
+            metrics,
+            date_ranges=ranges,
+            dimension_filters=dimension_filters,
+            metric_filters=metric_filters,
+            limit=limit,
+            offset=offset,
+            order_by=order_by,
+            descending=descending,
+        )
+
+    @tool(READ)
+    def analytics_run_realtime_report(
+        property_id: str,
+        metrics: list[str] | None = None,
+        dimensions: list[str] | None = None,
+        dimension_filters: list[dict[str, Any]] | None = None,
+        limit: int = 100,
+    ) -> dict[str, Any]:
+        """GA4 realtime report (last 30 minutes). Default metric activeUsers;
+        dimensions e.g. country, unifiedScreenName, deviceCategory."""
+        return svc.analytics.run_realtime_report(
+            property_id,
+            dimensions,
+            metrics or ["activeUsers"],
+            dimension_filters=dimension_filters,
+            limit=limit,
+        )
+
+    # ----------------------------------------------- tag manager (read-only)
+
+    @tool(READ)
+    def tagmanager_list_accounts() -> dict[str, Any]:
+        """Tag Manager accounts (path like "accounts/123")."""
+        return results(svc.tagmanager.list_accounts())
+
+    @tool(READ)
+    def tagmanager_list_containers(account_path: str) -> dict[str, Any]:
+        """Containers of an account ("accounts/123"), with their public GTM-XXXX id."""
+        return results(svc.tagmanager.list_containers(account_path))
+
+    @tool(READ)
+    def tagmanager_list_workspaces(container_path: str) -> dict[str, Any]:
+        """Workspaces of a container ("accounts/123/containers/456")."""
+        return results(svc.tagmanager.list_workspaces(container_path))
+
+    @tool(READ)
+    def tagmanager_list_tags(workspace_path: str) -> dict[str, Any]:
+        """Tags of a workspace ("accounts/1/containers/2/workspaces/3")."""
+        return results(svc.tagmanager.list_tags(workspace_path))
+
+    @tool(READ)
+    def tagmanager_list_triggers(workspace_path: str) -> dict[str, Any]:
+        """Triggers of a workspace ("accounts/1/containers/2/workspaces/3")."""
+        return results(svc.tagmanager.list_triggers(workspace_path))
+
+    @tool(READ)
+    def tagmanager_list_variables(workspace_path: str) -> dict[str, Any]:
+        """Variables of a workspace ("accounts/1/containers/2/workspaces/3")."""
+        return results(svc.tagmanager.list_variables(workspace_path))
+
+    @tool(READ)
+    def tagmanager_list_versions(container_path: str) -> dict[str, Any]:
+        """Version headers of a container ("accounts/123/containers/456")."""
+        return results(svc.tagmanager.list_versions(container_path))
 
     return server
 

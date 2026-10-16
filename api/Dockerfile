@@ -32,7 +32,7 @@ RUN uv sync --locked --no-dev --no-editable --extra api --extra cloudrun
 # googleapiclient bundles ~500 discovery documents (~100 MB); keep the ones the
 # SDK builds. api/tests/test_dockerfile.py checks this list against the
 # build() calls in the code, and CI builds every one inside the image.
-ARG DISCOVERY_KEEP="gmail.v1 calendar.v3 drive.v3 sheets.v4 tasks.v1 people.v1 oauth2.v2"
+ARG DISCOVERY_KEEP="gmail.v1 calendar.v3 drive.v3 sheets.v4 tasks.v1 people.v1 oauth2.v2 searchconsole.v1 analyticsadmin.v1beta analyticsdata.v1beta tagmanager.v2"
 RUN cd /opt/venv/lib/python3.*/site-packages/googleapiclient/discovery_cache/documents \
     && mkdir /tmp/keep \
     && for doc in $DISCOVERY_KEEP; do mv "$doc.json" /tmp/keep/; done \

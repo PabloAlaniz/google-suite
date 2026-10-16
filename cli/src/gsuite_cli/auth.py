@@ -25,6 +25,10 @@ SCOPE_SETS = {
     "sheets": Scopes.sheets,
     "tasks": Scopes.tasks,
     "contacts": Scopes.contacts,
+    "searchconsole": Scopes.searchconsole,
+    "analytics": Scopes.analytics,
+    "tagmanager": Scopes.tagmanager,
+    "marketing": Scopes.marketing,
     "all": Scopes.all,
 }
 
@@ -48,8 +52,10 @@ def login(
         "--scopes",
         "-s",
         help=(
-            "Comma-separated: default, gmail, calendar, drive, sheets, tasks, contacts, all "
-            "(e.g. default,tasks)"
+            "Comma-separated: default, gmail, calendar, drive, sheets, tasks, contacts, "
+            "searchconsole, analytics, tagmanager, marketing (the three read-only), all "
+            "(e.g. default,tasks or default,marketing). A new login replaces the stored "
+            "scopes, so list every set you still need."
         ),
     ),
 ):

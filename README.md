@@ -16,6 +16,9 @@ Unified Python SDK for Google Workspace APIs with Clean Architecture.
 - 📊 **Sheets** - Read/write, upsert, typed rows, validation, conditional formats, charts, pivots, export (engine from [GSpreadManager](docs/MIGRATING_FROM_GSPREADMANAGER.md))
 - ✅ **Tasks** - Task lists, tasks, subtasks, due dates, complete/reopen
 - 👥 **Contacts** - List, search, create, update and delete contacts (People API)
+- 🔎 **Search Console** (read-only) - Sites, search analytics, URL inspection, sitemaps
+- 📈 **Google Analytics 4** (read-only) - Account summaries, properties, reports, realtime reports
+- 🏷️ **Tag Manager** (read-only) - Accounts, containers, workspaces, tags, triggers, variables, versions
 - 🚀 **REST API** - Single FastAPI gateway for all services
 - 💻 **CLI** - Unified command-line interface
 
@@ -195,6 +198,57 @@ ana = contacts.create(given_name="Ana", emails=["ana@example.com"])
 contacts.update(ana.id, phones=["+54 11 5555-5555"])
 ```
 
+### Search Console, Analytics (GA4) and Tag Manager (read-only)
+
+These three are read-only and opt-in: their scopes (`webmasters.readonly`,
+`analytics.readonly`, `tagmanager.readonly`) are not in `default` or `all`, so
+existing logins keep working without re-consent. To use them:
+
+1. In your Google Cloud project enable the **Google Search Console API**, the
+   **Google Analytics Admin API**, the **Google Analytics Data API** and the
+   **Tag Manager API**.
+2. If your OAuth consent screen lists scopes explicitly, add the three above.
+3. Log in again. A login replaces the stored scopes, so list every set you
+   still need (here, with Tasks and Contacts too):
+
+```bash
+gsuite auth login --force --scopes default,tasks,contacts,marketing
+```
+
+`marketing` is `searchconsole,analytics,tagmanager`; each can also be asked for
+alone. Restart the MCP server / redeploy the API (`gsuite auth export`) after.
+
+```python
+from gsuite_analytics import Analytics
+from gsuite_searchconsole import SearchConsole
+from gsuite_tagmanager import TagManager
+
+sc = SearchConsole(auth)
+sc.list_sites()
+sc.query(
+    "sc-domain:example.com", "2026-09-01", "2026-09-30",
+    dimensions=["query", "page"],
+    filters=[{"dimension": "country", "operator": "equals", "expression": "arg"}],
+    row_limit=100,
+)
+sc.inspect_url("sc-domain:example.com", "https://example.com/blog/")
+
+ga = Analytics(auth)
+ga.account_summaries()
+ga.run_report(
+    "123456789", ["date", "sessionSource"], ["activeUsers", "sessions"],
+    date_ranges=[("28daysAgo", "today")],
+    dimension_filters=[{"field": "country", "value": "Argentina"}],
+    limit=50, order_by="sessions",
+)
+ga.run_realtime_report("123456789", ["country"], ["activeUsers"])
+
+gtm = TagManager(auth)
+container = gtm.list_containers("accounts/123")[0]["path"]
+workspace = gtm.list_workspaces(container)[0]["path"]
+gtm.list_tags(workspace), gtm.list_triggers(workspace), gtm.list_versions(container)
+```
+
 ### REST API
 
 ```bash
@@ -214,6 +268,11 @@ curl http://localhost:8080/sheets/list
 curl http://localhost:8080/sheets/{spreadsheet_id}/values/Sheet1!A1:D10
 curl http://localhost:8080/tasks/lists/@default/tasks
 curl "http://localhost:8080/contacts/search?q=ana"
+# Read-only, need the "marketing" scopes
+curl http://localhost:8080/searchconsole/sites
+curl -X POST http://localhost:8080/analytics/properties/123456789:runReport \
+  -H 'Content-Type: application/json' -d '{"metrics": ["sessions"], "dimensions": ["date"]}'
+curl "http://localhost:8080/tagmanager/tags?parent=accounts/1/containers/2/workspaces/3"
 ```
 
 **Interactive API docs available at `/docs` when server is running.** See [API Documentation](#api-documentation) section below for details.

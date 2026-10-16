@@ -24,12 +24,12 @@ classifiers = [
     "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "google-auth>=2.27.0",
+    "google-auth>=2.62.0",
     "google-auth-oauthlib>=1.2.0",
     "google-api-python-client>=2.114.0",
     "google-auth-httplib2>=0.2.0",
     "httplib2>=0.19.0",
-    "pydantic>=2.5.0",
+    "pydantic>=2.14.1",
     "pydantic-settings>=2.1.0",
     # zoneinfo needs it where the OS has no time zone database (Windows)
     "tzdata>=2024.1; sys_platform == 'win32'",
@@ -40,7 +40,7 @@ dev = [
     "pytest>=7.4.0",
     "pytest-asyncio>=0.21.0",
     "pytest-cov>=4.1.0",
-    "ruff>=0.1.0",
+    "ruff>=0.17.0",
     "mypy>=1.8.0",
     "httpx>=0.27.0",
     "hypothesis>=6.100.0",
@@ -50,7 +50,7 @@ cloudrun = [
     "google-cloud-logging>=3.9.0",
 ]
 api = [
-    "fastapi>=0.109.0",
+    "fastapi>=0.143.0",
     "uvicorn[standard]>=0.27.0",
     "python-multipart>=0.0.6",
     "email-validator>=2.1.0",

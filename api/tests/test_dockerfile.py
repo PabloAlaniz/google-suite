@@ -4,7 +4,7 @@ import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BUILD_CALL = re.compile(r'\bbuild\(\s*"([a-z0-9]+)",\s*"(v[0-9.]+)"')
+BUILD_CALL = re.compile(r'\bbuild\(\s*"([a-z0-9]+)",\s*"(v[0-9][0-9a-z.]*)"')
 
 
 def _kept() -> set[str]:

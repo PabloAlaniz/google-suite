@@ -282,7 +282,7 @@ jobs:
         working-directory: /tmp
         run: |
           /tmp/smoke/bin/python -c "
-          import gsuite_core, gsuite_gmail, gsuite_calendar, gsuite_drive, gsuite_sheets, gsuite_tasks, gsuite_contacts, gsuite_mcp
+          import gsuite_core, gsuite_gmail, gsuite_calendar, gsuite_drive, gsuite_sheets, gsuite_tasks, gsuite_contacts, gsuite_searchconsole, gsuite_analytics, gsuite_tagmanager, gsuite_mcp
           import gsuite_api.main, gsuite_cli.main
           "
           /tmp/smoke/bin/gsuite --help

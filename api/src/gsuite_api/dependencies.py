@@ -7,13 +7,16 @@ from typing import Annotated
 from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
 
+from gsuite_analytics import Analytics
 from gsuite_calendar import Calendar
 from gsuite_contacts import Contacts
 from gsuite_core import GoogleAuth, Settings, SQLiteTokenStore, TokenStore, get_settings
 from gsuite_core.exceptions import NotAuthenticatedError
 from gsuite_drive import Drive
 from gsuite_gmail import Gmail
+from gsuite_searchconsole import SearchConsole
 from gsuite_sheets import Sheets
+from gsuite_tagmanager import TagManager
 from gsuite_tasks import Tasks
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
@@ -122,9 +125,24 @@ def get_contacts(auth: AuthenticatedDep) -> Contacts:
     return Contacts(auth)
 
 
+def get_searchconsole(auth: AuthenticatedDep) -> SearchConsole:
+    return SearchConsole(auth)
+
+
+def get_analytics(auth: AuthenticatedDep) -> Analytics:
+    return Analytics(auth)
+
+
+def get_tagmanager(auth: AuthenticatedDep) -> TagManager:
+    return TagManager(auth)
+
+
 GmailDep = Annotated[Gmail, Depends(get_gmail)]
 CalendarDep = Annotated[Calendar, Depends(get_calendar)]
 DriveDep = Annotated[Drive, Depends(get_drive)]
 SheetsDep = Annotated[Sheets, Depends(get_sheets)]
 TasksDep = Annotated[Tasks, Depends(get_tasks)]
 ContactsDep = Annotated[Contacts, Depends(get_contacts)]
+SearchConsoleDep = Annotated[SearchConsole, Depends(get_searchconsole)]
+AnalyticsDep = Annotated[Analytics, Depends(get_analytics)]
+TagManagerDep = Annotated[TagManager, Depends(get_tagmanager)]

@@ -38,6 +38,11 @@ class Scopes:
     CONTACTS_FULL = "https://www.googleapis.com/auth/contacts"
     CONTACTS_READONLY = "https://www.googleapis.com/auth/contacts.readonly"
 
+    # Search Console, Google Analytics, Tag Manager (read-only, opt-in)
+    WEBMASTERS_READONLY = "https://www.googleapis.com/auth/webmasters.readonly"
+    ANALYTICS_READONLY = "https://www.googleapis.com/auth/analytics.readonly"
+    TAGMANAGER_READONLY = "https://www.googleapis.com/auth/tagmanager.readonly"
+
     # User info
     USERINFO_EMAIL = "https://www.googleapis.com/auth/userinfo.email"
     USERINFO_PROFILE = "https://www.googleapis.com/auth/userinfo.profile"
@@ -87,6 +92,31 @@ class Scopes:
         return [
             cls.CONTACTS_FULL,
         ]
+
+    @classmethod
+    def searchconsole(cls) -> list[str]:
+        """Search Console, read-only."""
+        return [cls.WEBMASTERS_READONLY]
+
+    @classmethod
+    def analytics(cls) -> list[str]:
+        """Google Analytics 4 (Admin and Data APIs), read-only."""
+        return [cls.ANALYTICS_READONLY]
+
+    @classmethod
+    def tagmanager(cls) -> list[str]:
+        """Tag Manager, read-only."""
+        return [cls.TAGMANAGER_READONLY]
+
+    @classmethod
+    def marketing(cls) -> list[str]:
+        """Search Console + Analytics + Tag Manager, all read-only.
+
+        Opt-in: not part of ``default()`` or ``all()``, so existing logins are
+        not asked to re-consent. Add it with
+        ``gsuite auth login --force --scopes default,marketing``.
+        """
+        return cls.searchconsole() + cls.analytics() + cls.tagmanager()
 
     @classmethod
     def all(cls) -> list[str]:

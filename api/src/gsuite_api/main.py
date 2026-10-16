@@ -10,7 +10,18 @@ from fastapi.middleware.cors import CORSMiddleware
 from gsuite_api.dependencies import require_api_key
 from gsuite_api.errors import install_error_handlers
 from gsuite_api.observability import RequestContextMiddleware, configure_logging
-from gsuite_api.routes import calendar, contacts, drive, gmail, health, sheets, tasks
+from gsuite_api.routes import (
+    analytics,
+    calendar,
+    contacts,
+    drive,
+    gmail,
+    health,
+    searchconsole,
+    sheets,
+    tagmanager,
+    tasks,
+)
 from gsuite_core import Settings, __version__, get_settings
 
 logger = logging.getLogger(__name__)
@@ -77,6 +88,19 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(tasks.router, prefix="/tasks", tags=["Tasks"], dependencies=protected)
     app.include_router(
         contacts.router, prefix="/contacts", tags=["Contacts"], dependencies=protected
+    )
+    # Read-only marketing APIs; they need the opt-in "marketing" scopes
+    app.include_router(
+        searchconsole.router,
+        prefix="/searchconsole",
+        tags=["Search Console"],
+        dependencies=protected,
+    )
+    app.include_router(
+        analytics.router, prefix="/analytics", tags=["Analytics"], dependencies=protected
+    )
+    app.include_router(
+        tagmanager.router, prefix="/tagmanager", tags=["Tag Manager"], dependencies=protected
     )
 
     return app

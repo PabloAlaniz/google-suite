@@ -32,7 +32,17 @@ def auth():
 @pytest.fixture
 def services(auth):
     svc = Services(auth)
-    for name in ("gmail", "calendar", "drive", "sheets", "tasks", "contacts"):
+    for name in (
+        "gmail",
+        "calendar",
+        "drive",
+        "sheets",
+        "tasks",
+        "contacts",
+        "searchconsole",
+        "analytics",
+        "tagmanager",
+    ):
         svc.__dict__[name] = MagicMock(name=name)  # replaces the cached_property
     return svc
 
@@ -72,7 +82,7 @@ class TestTools:
         async with Client(server) as client:
             tools = {t.name: t for t in (await client.list_tools()).tools}
 
-        assert len(tools) == 23
+        assert len(tools) == 38
         assert tools["gmail_search"].annotations.read_only_hint is True
         assert tools["gmail_send"].annotations.read_only_hint is False
         assert tools["gmail_send"].annotations.destructive_hint is False
@@ -357,3 +367,117 @@ def test_to_json_skips_raw_and_private_fields():
     assert "_gmail" not in data
     assert "plain" not in data
     assert data["date"] == "2026-03-01T10:00:00+00:00"
+
+
+class TestMarketingTools:
+    async def test_marketing_tools_are_read_only(self, server):
+        async with Client(server) as client:
+            tools = {t.name: t for t in (await client.list_tools()).tools}
+        marketing = [
+            n for n in tools if n.split("_")[0] in {"searchconsole", "analytics", "tagmanager"}
+        ]
+        assert len(marketing) == 15
+        assert all(tools[n].annotations.read_only_hint is True for n in marketing)
+
+    async def test_searchconsole_query(self, server, services):
+        services.searchconsole.query.return_value = [{"query": "x", "clicks": 1}]
+        status, body = await call(
+            server,
+            "searchconsole_query",
+            site_url="sc-domain:example.com",
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+            dimensions=["query"],
+            filters=[{"dimension": "query", "operator": "contains", "expression": "x"}],
+        )
+        assert status == "ok"
+        assert body["count"] == 1
+        kwargs = services.searchconsole.query.call_args.kwargs
+        assert kwargs["dimensions"] == ["query"]
+        assert kwargs["row_limit"] == 100
+
+    async def test_searchconsole_rejects_unknown_dimension(self, server):
+        status, _ = await call(
+            server,
+            "searchconsole_query",
+            site_url="s",
+            start_date="2026-09-01",
+            end_date="2026-09-30",
+            dimensions=["browser"],
+        )
+        assert status == "error"
+
+    async def test_searchconsole_other_tools(self, server, services):
+        services.searchconsole.list_sites.return_value = [{"siteUrl": "sc-domain:a.com"}]
+        services.searchconsole.list_sitemaps.return_value = []
+        services.searchconsole.inspect_url.return_value = {"indexStatusResult": {"verdict": "PASS"}}
+        assert (await call(server, "searchconsole_list_sites"))[1]["count"] == 1
+        assert (await call(server, "searchconsole_list_sitemaps", site_url="s"))[1]["count"] == 0
+        _status, body = await call(server, "searchconsole_inspect_url", site_url="s", url="u")
+        assert body["indexStatusResult"]["verdict"] == "PASS"
+
+    async def test_analytics_run_report(self, server, services):
+        services.analytics.run_report.return_value = {"rows": [], "row_count": 0}
+        status, _ = await call(
+            server,
+            "analytics_run_report",
+            property_id="123",
+            metrics=["activeUsers"],
+            dimensions=["date"],
+            date_ranges=[["2026-09-01", "2026-09-30"], ["2025-09-01", "2025-09-30"]],
+        )
+        assert status == "ok"
+        args = services.analytics.run_report.call_args
+        assert args.args == ("123", ["date"], ["activeUsers"])
+        assert args.kwargs["date_ranges"] == [
+            ("2026-09-01", "2026-09-30"),
+            ("2025-09-01", "2025-09-30"),
+        ]
+
+    async def test_analytics_bad_date_range(self, server):
+        status, text = await call(
+            server, "analytics_run_report", property_id="1", metrics=["x"], date_ranges=[["a"]]
+        )
+        assert status == "error"
+        assert "[start, end]" in text
+
+    async def test_analytics_scope_error_mentions_marketing(self, server, services):
+        services.analytics.account_summaries.side_effect = PermissionDeniedError(
+            "analytics", "accountSummaries"
+        )
+        status, text = await call(server, "analytics_account_summaries")
+        assert status == "error"
+        assert "marketing" in text
+
+    async def test_analytics_realtime_defaults(self, server, services):
+        services.analytics.run_realtime_report.return_value = {"rows": []}
+        services.analytics.list_properties.return_value = [{"name": "properties/1"}]
+        await call(server, "analytics_run_realtime_report", property_id="1")
+        assert services.analytics.run_realtime_report.call_args.args[2] == ["activeUsers"]
+        assert (await call(server, "analytics_list_properties", account_id="1"))[1]["count"] == 1
+
+    @pytest.mark.parametrize(
+        ("tool", "method", "arg"),
+        [
+            ("tagmanager_list_accounts", "list_accounts", {}),
+            ("tagmanager_list_containers", "list_containers", {"account_path": "accounts/1"}),
+            (
+                "tagmanager_list_workspaces",
+                "list_workspaces",
+                {"container_path": "accounts/1/containers/2"},
+            ),
+            (
+                "tagmanager_list_versions",
+                "list_versions",
+                {"container_path": "accounts/1/containers/2"},
+            ),
+            ("tagmanager_list_tags", "list_tags", {"workspace_path": "w"}),
+            ("tagmanager_list_triggers", "list_triggers", {"workspace_path": "w"}),
+            ("tagmanager_list_variables", "list_variables", {"workspace_path": "w"}),
+        ],
+    )
+    async def test_tagmanager_tools(self, server, services, tool, method, arg):
+        getattr(services.tagmanager, method).return_value = [{"path": "p"}]
+        status, body = await call(server, tool, **arg)
+        assert status == "ok"
+        assert body == {"count": 1, "results": [{"path": "p"}]}

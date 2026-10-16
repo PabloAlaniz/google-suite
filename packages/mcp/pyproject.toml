@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gsuite-mcp"
 version = "0.5.2"
-description = "MCP server for Google Workspace (Gmail, Calendar, Drive, Sheets, Tasks, Contacts), built on gsuite-sdk"
+description = "MCP server for Google Workspace (Gmail, Calendar, Drive, Sheets, Tasks, Contacts, read-only Search Console, GA4, Tag Manager), built on gsuite-sdk"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.11"

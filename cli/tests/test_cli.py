@@ -306,3 +306,24 @@ class TestSheetsEngineCli:
         )
         assert result.exit_code == 0, result.output
         assert doc.permissions[0]["emailAddress"] == "ana@example.com"
+
+
+class TestMarketingScopes:
+    def test_marketing_is_opt_in(self):
+        from gsuite_cli.auth import _resolve_scopes
+        from gsuite_core import Scopes
+
+        marketing = {
+            Scopes.WEBMASTERS_READONLY,
+            Scopes.ANALYTICS_READONLY,
+            Scopes.TAGMANAGER_READONLY,
+        }
+        assert not marketing & set(Scopes.default())
+        assert not marketing & set(Scopes.all())
+        assert set(_resolve_scopes("default,marketing")) == set(Scopes.default()) | marketing
+        assert _resolve_scopes("analytics") == [Scopes.ANALYTICS_READONLY]
+        assert _resolve_scopes("searchconsole,tagmanager") == [
+            Scopes.WEBMASTERS_READONLY,
+            Scopes.TAGMANAGER_READONLY,
+        ]
+        assert all(s.endswith(".readonly") for s in marketing)

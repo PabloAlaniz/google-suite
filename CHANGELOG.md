@@ -14,6 +14,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 * **api:** read-only `/searchconsole`, `/analytics` and `/tagmanager` routes
 * **core,cli:** opt-in scopes `webmasters.readonly`, `analytics.readonly`, `tagmanager.readonly`; `gsuite auth login --scopes` accepts `searchconsole`, `analytics`, `tagmanager` and `marketing` (not in `default`/`all`, so existing logins are not asked to re-consent)
 
+## [0.6.0](https://github.com/PabloAlaniz/google-suite/compare/v0.5.2...v0.6.0) (2026-10-16)
+
+
+### Features
+
+* read-only Search Console, GA4 and Tag Manager support ([#55](https://github.com/PabloAlaniz/google-suite/issues/55)) ([896d406](https://github.com/PabloAlaniz/google-suite/commit/896d406a775c17d9bb6641ff448a1159955485f4))
+
 ## [0.5.2](https://github.com/PabloAlaniz/google-suite/compare/v0.5.1...v0.5.2) (2026-10-14)
 
 

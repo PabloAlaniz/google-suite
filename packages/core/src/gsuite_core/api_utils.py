@@ -314,8 +314,10 @@ def paginate(
     items_key: str,
     service: str,
     max_items: int | None = None,
-    page_size_param: str = "maxResults",
+    page_size_param: str | None = "maxResults",
     max_page_size: int = 100,
+    resource_type: str = "resource",
+    resource_id: str = "unknown",
     **params: Any,
 ) -> Iterator[dict[str, Any]]:
     """
@@ -326,8 +328,11 @@ def paginate(
         items_key: Key holding the items in each response ("messages", "files")
         service: Service name for error messages
         max_items: Stop after this many items (None = everything)
-        page_size_param: Name of the page size parameter ("maxResults", "pageSize")
+        page_size_param: Name of the page size parameter ("maxResults", "pageSize"),
+            or None for endpoints that take none (the server picks the page size)
         max_page_size: Largest page the endpoint accepts
+        resource_type: What is listed, for error messages (see ``execute``)
+        resource_id: The parent being listed, for error messages
         **params: Other request parameters
 
     Example:
@@ -340,11 +345,13 @@ def paginate(
 
     while max_items is None or yielded < max_items:
         remaining = max_page_size if max_items is None else max_items - yielded
-        page_params = {**params, page_size_param: min(remaining, max_page_size)}
+        page_params = dict(params)
+        if page_size_param:
+            page_params[page_size_param] = min(remaining, max_page_size)
         if page_token:
             page_params["pageToken"] = page_token
 
-        response = execute(list_method(**page_params), service)
+        response = execute(list_method(**page_params), service, resource_type, resource_id)
 
         for item in response.get(items_key, []):
             yield item

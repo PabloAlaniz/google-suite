@@ -57,8 +57,10 @@ imagen Docker más chica. 0.6.0 sumó las APIs de marketing en solo lectura
   - [x] Search Console: sitios, search analytics, inspección de URL, sitemaps
   - [x] GA4: account summaries, properties, `runReport`, `runRealtimeReport`
   - [x] Tag Manager v2: cuentas, containers, workspaces, tags, triggers, variables, versiones
-  - [ ] Comandos de CLI (`gsuite searchconsole|analytics|tagmanager`) y referencia en el skill
-  - [ ] Tests de propiedades, de integración y autopaginación de `SearchConsole.query`
+  - [x] Comandos de CLI (`gsuite searchconsole|analytics|tagmanager`) y referencia en el skill
+  - [x] Tests de propiedades, fuzzing y tests de integración (opt-in, solo lectura)
+  - [x] `SearchConsole.query_all` (pagina más allá de las 25000 filas; CLI `--all`)
+  - [ ] Modelos tipados (hoy devuelven `dict`), antes del freeze de v1.0
 
 - [ ] **Google Meet**
   - [ ] Crear y listar reuniones

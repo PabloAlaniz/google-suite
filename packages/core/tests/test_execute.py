@@ -206,6 +206,27 @@ class TestPaginate:
         method = self._list_method([{}])
         assert list(paginate(method, "items", "calendar")) == []
 
+    def test_without_page_size(self):
+        method = self._list_method(
+            [{"tag": [{"id": 1}], "nextPageToken": "p2"}, {"tag": [{"id": 2}]}]
+        )
+
+        items = list(paginate(method, "tag", "tagmanager", page_size_param=None, parent="a/1"))
+
+        assert [i["id"] for i in items] == [1, 2]
+        first, second = (c.kwargs for c in method.call_args_list)
+        assert first == {"parent": "a/1"}
+        assert second == {"parent": "a/1", "pageToken": "p2"}
+
+    def test_names_the_resource_in_errors(self):
+        method = MagicMock(return_value=request("GET", http_error(404)))
+
+        with pytest.raises(NotFoundError) as exc:
+            list(paginate(method, "tag", "tagmanager", resource_type="tags", resource_id="a/1"))
+
+        assert exc.value.resource_type == "tags"
+        assert exc.value.resource_id == "a/1"
+
 
 def test_authorized_http_sets_timeout(settings):
     settings.request_timeout = 12

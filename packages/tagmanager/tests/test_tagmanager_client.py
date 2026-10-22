@@ -2,8 +2,11 @@
 
 from unittest.mock import MagicMock
 
+import httplib2
 import pytest
+from googleapiclient.errors import HttpError
 
+from gsuite_core.exceptions import NotFoundError
 from gsuite_tagmanager import TagManager
 
 WS = "accounts/1/containers/2/workspaces/3"
@@ -67,3 +70,15 @@ def test_versions(gtm):
     assert gtm.list_versions("accounts/1/containers/2")[0]["containerVersionId"] == "7"
     containers.versions().live.return_value.execute.return_value = {"containerVersionId": "7"}
     assert gtm.get_live_version("accounts/1/containers/2")["containerVersionId"] == "7"
+
+
+def test_not_found_names_the_parent(gtm):
+    tags = gtm.service.accounts().containers().workspaces().tags()
+    not_found = HttpError(httplib2.Response({"status": "404"}), b"")
+    tags.list.return_value.execute.side_effect = not_found
+
+    with pytest.raises(NotFoundError) as exc:
+        gtm.list_tags(WS)
+
+    assert (exc.value.resource_type, exc.value.resource_id) == ("tags", WS)
+    assert tags.list.call_args.kwargs == {"parent": WS}

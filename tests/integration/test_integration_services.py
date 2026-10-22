@@ -10,12 +10,15 @@ from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
+from gsuite_analytics import Analytics
 from gsuite_calendar import Calendar
 from gsuite_contacts import Contacts
 from gsuite_core import Scopes
 from gsuite_drive import Drive
 from gsuite_gmail import Gmail
+from gsuite_searchconsole import SearchConsole
 from gsuite_sheets import Sheets
+from gsuite_tagmanager import TagManager
 from gsuite_tasks import Tasks
 
 
@@ -126,6 +129,51 @@ def test_contacts_roundtrip(auth, need_scopes, name):
     finally:
         assert contacts.delete(contact.id)
     assert contacts.get(contact.id) is None
+
+
+def test_searchconsole_read_only(auth, need_scopes):
+    need_scopes(Scopes.searchconsole(), "Search Console")
+    sc = SearchConsole(auth)
+    sites = sc.list_sites()
+    assert isinstance(sites, list)
+    if not sites:
+        pytest.skip("the account has no Search Console properties")
+
+    site = sites[0]["siteUrl"]
+    end = date.today() - timedelta(days=3)  # the data lags 2-3 days
+    rows = sc.query(site, end - timedelta(days=7), end, dimensions=["date"], row_limit=5)
+    for row in rows:
+        assert {"date", "clicks", "impressions", "ctr", "position"} <= row.keys()
+    assert isinstance(sc.list_sitemaps(site), list)
+
+
+def test_analytics_read_only(auth, need_scopes):
+    need_scopes(Scopes.analytics(), "Analytics")
+    ga = Analytics(auth)
+    properties = [
+        p["property"] for a in ga.account_summaries() for p in a.get("propertySummaries", [])
+    ]
+    if not properties:
+        pytest.skip("the account has no GA4 properties")
+
+    report = ga.run_report(properties[0], ["date"], ["activeUsers"], [("7daysAgo", "today")])
+
+    assert report["dimensions"] == ["date"]
+    assert report["metrics"] == ["activeUsers"]
+    assert ga.get_property(properties[0])["name"] == properties[0]
+
+
+def test_tagmanager_read_only(auth, need_scopes):
+    need_scopes(Scopes.tagmanager(), "Tag Manager")
+    gtm = TagManager(auth)
+    accounts = gtm.list_accounts()
+    if not accounts:
+        pytest.skip("the account has no Tag Manager accounts")
+
+    containers = gtm.list_containers(accounts[0]["path"])
+    assert all(c["path"].startswith(accounts[0]["path"]) for c in containers)
+    if containers:
+        assert isinstance(gtm.list_versions(containers[0]["path"]), list)
 
 
 @pytest.mark.parametrize("missing", ["nonexistent-id-0000"])

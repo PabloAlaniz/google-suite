@@ -117,3 +117,46 @@ def test_list_sitemaps(sc):
     }
     assert sc.list_sitemaps("https://example.com/")[0]["path"].endswith("sitemap.xml")
     assert sc.service.sitemaps().list.call_args.kwargs == {"siteUrl": "https://example.com/"}
+
+
+def _pages(sc, sizes):
+    """query() returns pages of the given sizes, in order; returns the mocked method."""
+    method = sc.service.searchanalytics().query
+    method.return_value.execute.side_effect = [
+        {"rows": [{"keys": [str(i)], "clicks": i} for i in range(n)]} for n in sizes
+    ]
+    return method
+
+
+def test_query_all_pages_past_the_cap(sc):
+    method = _pages(sc, [25000, 25000, 3])
+
+    rows = sc.query_all("s", "2026-01-01", "2026-01-31", dimensions=["query"])
+
+    assert len(rows) == 50003
+    bodies = [c.kwargs["body"] for c in method.call_args_list]
+    assert [(b["startRow"], b["rowLimit"]) for b in bodies] == [
+        (0, 25000),
+        (25000, 25000),
+        (50000, 25000),
+    ]
+
+
+def test_query_all_max_rows_shrinks_last_page(sc):
+    method = _pages(sc, [25000, 5000])
+
+    rows = sc.query_all("s", "2026-01-01", "2026-01-31", max_rows=30000)
+
+    assert len(rows) == 30000
+    assert [c.kwargs["body"]["rowLimit"] for c in method.call_args_list] == [25000, 5000]
+
+
+def test_query_all_short_first_page(sc):
+    method = _pages(sc, [0])
+    assert sc.query_all("s", "2026-01-01", "2026-01-31") == []
+    assert method.call_count == 1
+
+
+def test_query_all_rejects_bad_max_rows(sc):
+    with pytest.raises(ValidationError):
+        sc.query_all("s", "2026-01-01", "2026-01-31", max_rows=0)

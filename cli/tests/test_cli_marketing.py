@@ -85,6 +85,19 @@ class TestSearchConsole:
         )
         assert json.loads(result.output) == [ROW]
 
+    def test_query_all(self, sc):
+        sc.query_all.return_value = [ROW]
+
+        result = runner.invoke(
+            app, ["searchconsole", "query", "s", "-s", "a", "-e", "b", "--all", "-o", "json"]
+        )
+
+        assert json.loads(result.output) == [ROW]
+        sc.query.assert_not_called()
+        sc.query_all.assert_called_once_with(
+            "s", "a", "b", dimensions=[], filters=[], search_type="web"
+        )
+
     def test_query_empty(self, sc):
         sc.query.return_value = []
         result = runner.invoke(app, ["searchconsole", "query", "s", "-s", "a", "-e", "b"])

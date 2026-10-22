@@ -23,7 +23,7 @@
     "gsuite": {
       "command": "uvx",
       "args": [
-        "gsuite-mcp==0.7.0"
+        "gsuite-mcp==0.8.0"
       ]
     }
   }

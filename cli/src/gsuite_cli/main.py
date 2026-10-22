@@ -38,7 +38,7 @@ app.add_typer(tagmanager.app, name="tagmanager", help="Tag Manager (read-only)")
 
 
 @app.command()
-def status():
+def status() -> None:
     """Show overall status of Google Suite CLI."""
     from gsuite_core import GoogleAuth, __version__, get_settings
 
@@ -67,7 +67,7 @@ def serve(
     host: str = typer.Option("127.0.0.1", help="Host to bind (0.0.0.0 exposes it to your network)"),
     port: int = typer.Option(8080, help="Port to bind"),
     reload: bool = typer.Option(False, help="Enable auto-reload"),
-):
+) -> None:
     """Start the unified API server."""
     import uvicorn
 

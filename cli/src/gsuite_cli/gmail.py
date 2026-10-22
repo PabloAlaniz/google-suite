@@ -38,7 +38,7 @@ def list_messages(
     from_addr: str | None = typer.Option(None, "--from", "-f", help="From address"),
     limit: int = typer.Option(20, "--limit", "-l", help="Max messages"),
     output: str = typer.Option("table", "--output", "-o", help="Output: table, json"),
-):
+) -> None:
     """List Gmail messages."""
     gmail = get_gmail()
 
@@ -106,7 +106,7 @@ def read_message(
     message_id: str = typer.Argument(..., help="Message ID"),
     mark_read: bool = typer.Option(False, "--mark-read", "-r", help="Mark as read"),
     output: str = typer.Option("text", "--output", "-o", help="Output: text, json, html"),
-):
+) -> None:
     """Read a specific message."""
     gmail = get_gmail()
 
@@ -233,7 +233,7 @@ def reply(
 
 
 @app.command()
-def labels():
+def labels() -> None:
     """List all Gmail labels."""
     gmail = get_gmail()
 
@@ -257,7 +257,7 @@ def labels():
 def search(
     query_str: str = typer.Argument(..., help="Search query"),
     limit: int = typer.Option(20, "--limit", "-l", help="Max results"),
-):
+) -> None:
     """Search messages with Gmail query syntax."""
     gmail = get_gmail()
 
@@ -288,7 +288,7 @@ def search(
 
 
 @app.command()
-def profile():
+def profile() -> None:
     """Show Gmail profile info."""
     gmail = get_gmail()
 

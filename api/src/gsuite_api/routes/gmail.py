@@ -2,11 +2,12 @@
 
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 from pydantic import BaseModel, EmailStr, Field
 
 from gsuite_api.dependencies import GmailDep
 from gsuite_api.responses import download_response
+from gsuite_gmail import Message
 
 router = APIRouter()
 
@@ -137,7 +138,7 @@ class FilterRequest(BaseModel):
 # ========== Helper Functions ==========
 
 
-def _message_to_response(m) -> MessageResponse:
+def _message_to_response(m: Message) -> MessageResponse:
     return MessageResponse(
         id=m.id,
         thread_id=m.thread_id,
@@ -155,7 +156,7 @@ def _message_to_response(m) -> MessageResponse:
     )
 
 
-def _message_to_detail(m) -> MessageDetailResponse:
+def _message_to_detail(m: Message) -> MessageDetailResponse:
     return MessageDetailResponse(
         id=m.id,
         thread_id=m.thread_id,
@@ -193,7 +194,7 @@ def list_messages(
     query: str | None = Query(None, description="Gmail search query"),
     labels: list[str] | None = Query(None, description="Filter by label IDs"),
     limit: int = Query(25, ge=1, le=100),
-):
+) -> dict[str, Any]:
     """
     List messages with optional filters.
 
@@ -211,7 +212,7 @@ def list_messages(
 
 
 @router.get("/messages/unread")
-def list_unread(gmail: GmailDep, limit: int = Query(25, le=100)):
+def list_unread(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]:
     """Get unread messages."""
     messages = gmail.get_unread(max_results=limit)
     return {
@@ -221,7 +222,7 @@ def list_unread(gmail: GmailDep, limit: int = Query(25, le=100)):
 
 
 @router.get("/messages/starred")
-def list_starred(gmail: GmailDep, limit: int = Query(25, le=100)):
+def list_starred(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]:
     """Get starred messages."""
     messages = gmail.get_starred(max_results=limit)
     return {
@@ -231,7 +232,7 @@ def list_starred(gmail: GmailDep, limit: int = Query(25, le=100)):
 
 
 @router.get("/messages/important")
-def list_important(gmail: GmailDep, limit: int = Query(25, le=100)):
+def list_important(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]:
     """Get important messages."""
     messages = gmail.get_important(max_results=limit)
     return {
@@ -241,7 +242,7 @@ def list_important(gmail: GmailDep, limit: int = Query(25, le=100)):
 
 
 @router.get("/messages/sent")
-def list_sent(gmail: GmailDep, limit: int = Query(25, le=100)):
+def list_sent(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]:
     """Get sent messages."""
     messages = gmail.get_sent(max_results=limit)
     return {
@@ -251,7 +252,7 @@ def list_sent(gmail: GmailDep, limit: int = Query(25, le=100)):
 
 
 @router.get("/messages/{message_id}")
-def get_message(message_id: str, gmail: GmailDep):
+def get_message(message_id: str, gmail: GmailDep) -> MessageDetailResponse:
     """Get a specific message with full body and attachments."""
     message = gmail.get_message(message_id)
     if not message:
@@ -260,7 +261,7 @@ def get_message(message_id: str, gmail: GmailDep):
 
 
 @router.post("/messages/send")
-def send_message(request: SendRequest, gmail: GmailDep):
+def send_message(request: SendRequest, gmail: GmailDep) -> dict[str, Any]:
     """
     Send an email.
 
@@ -310,7 +311,7 @@ def batch_modify_labels(request: BatchModifyRequest, gmail: GmailDep) -> dict[st
 
 
 @router.post("/messages/{message_id}/read")
-def mark_as_read(message_id: str, gmail: GmailDep):
+def mark_as_read(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Mark message as read."""
     message = gmail.get_message(message_id)
     if not message:
@@ -320,7 +321,7 @@ def mark_as_read(message_id: str, gmail: GmailDep):
 
 
 @router.post("/messages/{message_id}/unread")
-def mark_as_unread(message_id: str, gmail: GmailDep):
+def mark_as_unread(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Mark message as unread."""
     message = gmail.get_message(message_id)
     if not message:
@@ -330,7 +331,7 @@ def mark_as_unread(message_id: str, gmail: GmailDep):
 
 
 @router.post("/messages/{message_id}/star")
-def star_message(message_id: str, gmail: GmailDep):
+def star_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Star a message."""
     message = gmail.get_message(message_id)
     if not message:
@@ -340,7 +341,7 @@ def star_message(message_id: str, gmail: GmailDep):
 
 
 @router.delete("/messages/{message_id}/star")
-def unstar_message(message_id: str, gmail: GmailDep):
+def unstar_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Remove star from message."""
     message = gmail.get_message(message_id)
     if not message:
@@ -350,7 +351,7 @@ def unstar_message(message_id: str, gmail: GmailDep):
 
 
 @router.post("/messages/{message_id}/important")
-def mark_important(message_id: str, gmail: GmailDep):
+def mark_important(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Mark message as important."""
     message = gmail.get_message(message_id)
     if not message:
@@ -360,7 +361,7 @@ def mark_important(message_id: str, gmail: GmailDep):
 
 
 @router.delete("/messages/{message_id}/important")
-def mark_not_important(message_id: str, gmail: GmailDep):
+def mark_not_important(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Remove important mark from message."""
     message = gmail.get_message(message_id)
     if not message:
@@ -370,7 +371,7 @@ def mark_not_important(message_id: str, gmail: GmailDep):
 
 
 @router.delete("/messages/{message_id}")
-def trash_message(message_id: str, gmail: GmailDep):
+def trash_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Move message to trash."""
     message = gmail.get_message(message_id)
     if not message:
@@ -380,7 +381,7 @@ def trash_message(message_id: str, gmail: GmailDep):
 
 
 @router.post("/messages/{message_id}/untrash")
-def untrash_message(message_id: str, gmail: GmailDep):
+def untrash_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Remove message from trash."""
     message = gmail.get_message(message_id)
     if not message:
@@ -390,7 +391,7 @@ def untrash_message(message_id: str, gmail: GmailDep):
 
 
 @router.post("/messages/{message_id}/archive")
-def archive_message(message_id: str, gmail: GmailDep):
+def archive_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Archive message (remove from inbox)."""
     message = gmail.get_message(message_id)
     if not message:
@@ -400,7 +401,7 @@ def archive_message(message_id: str, gmail: GmailDep):
 
 
 @router.post("/messages/{message_id}/inbox")
-def move_to_inbox(message_id: str, gmail: GmailDep):
+def move_to_inbox(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Move message to inbox."""
     message = gmail.get_message(message_id)
     if not message:
@@ -413,7 +414,7 @@ def move_to_inbox(message_id: str, gmail: GmailDep):
 
 
 @router.post("/messages/{message_id}/labels")
-def modify_labels(message_id: str, request: ModifyLabelsRequest, gmail: GmailDep):
+def modify_labels(message_id: str, request: ModifyLabelsRequest, gmail: GmailDep) -> dict[str, Any]:
     """Add or remove labels from a message."""
     message = gmail.get_message(message_id)
     if not message:
@@ -439,7 +440,7 @@ def modify_labels(message_id: str, request: ModifyLabelsRequest, gmail: GmailDep
 
 
 @router.post("/messages/{message_id}/reply")
-def reply_to_message(message_id: str, request: ReplyRequest, gmail: GmailDep):
+def reply_to_message(message_id: str, request: ReplyRequest, gmail: GmailDep) -> dict[str, Any]:
     """Reply to a message (keeps thread)."""
     message = gmail.get_message(message_id)
     if not message:
@@ -476,7 +477,7 @@ def forward_message(message_id: str, request: ForwardRequest, gmail: GmailDep) -
 
 
 @router.get("/messages/{message_id}/attachments/{attachment_id}")
-def download_attachment(message_id: str, attachment_id: str, gmail: GmailDep):
+def download_attachment(message_id: str, attachment_id: str, gmail: GmailDep) -> Response:
     """Download an attachment."""
     message = gmail.get_message(message_id)
     if not message:
@@ -495,7 +496,7 @@ def download_attachment(message_id: str, attachment_id: str, gmail: GmailDep):
 
 
 @router.get("/threads/{thread_id}")
-def get_thread(thread_id: str, gmail: GmailDep):
+def get_thread(thread_id: str, gmail: GmailDep) -> ThreadResponse:
     """Get a full email thread with all messages."""
     thread = gmail.get_thread(thread_id)
     if not thread:
@@ -538,7 +539,7 @@ def get_thread(thread_id: str, gmail: GmailDep):
 
 
 @router.get("/labels")
-def list_labels(gmail: GmailDep):
+def list_labels(gmail: GmailDep) -> dict[str, Any]:
     """List all labels with stats."""
     labels = gmail.get_labels()
     return {
@@ -562,7 +563,7 @@ def list_labels(gmail: GmailDep):
 
 
 @router.get("/profile")
-def get_profile(gmail: GmailDep):
+def get_profile(gmail: GmailDep) -> dict[str, Any]:
     """Get authenticated user's profile."""
     return gmail.get_profile()
 

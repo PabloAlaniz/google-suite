@@ -145,7 +145,7 @@ def _worksheet(ws: Worksheet) -> WorksheetResponse:
 def list_spreadsheets(
     sheets: SheetsDep,
     limit: int = Query(50, le=100),
-):
+) -> dict[str, Any]:
     """List all spreadsheets accessible to the user."""
     spreadsheets = sheets.list_spreadsheets(max_results=limit)
     return {
@@ -158,7 +158,7 @@ def list_spreadsheets(
 def get_spreadsheet(
     sheets: SheetsDep,
     spreadsheet_id: str,
-):
+) -> dict[str, Any]:
     """Get spreadsheet metadata and worksheets."""
     doc = sheets.open_by_key(spreadsheet_id)
     return {
@@ -185,7 +185,7 @@ def get_values(
     sheets: SheetsDep,
     spreadsheet_id: str,
     range: str,
-):
+) -> dict[str, Any]:
     """Get values from a range (e.g., Sheet1!A1:D10)."""
     values = sheets.get_values(spreadsheet_id, range)
     return {
@@ -202,7 +202,7 @@ def update_values(
     range: str,
     request: UpdateRequest,
     value_input: Literal["USER_ENTERED", "RAW"] = ValueInputQuery,
-):
+) -> dict[str, Any]:
     """Update values in a range."""
     result = sheets.update_values(spreadsheet_id, range, request.values, value_input)
     return {
@@ -221,7 +221,7 @@ def append_values(
     sheet_name: str,
     request: AppendRequest,
     value_input: Literal["USER_ENTERED", "RAW"] = ValueInputQuery,
-):
+) -> dict[str, Any]:
     """Append values to a sheet."""
     # Quoted so sheet names like "2024" or "Q1 Budget" resolve to the sheet
     result = sheets.append_values(spreadsheet_id, a1(sheet_name), request.values, value_input)
@@ -239,7 +239,7 @@ def batch_update(
     spreadsheet_id: str,
     request: BatchUpdateRequest,
     value_input: Literal["USER_ENTERED", "RAW"] = ValueInputQuery,
-):
+) -> dict[str, Any]:
     """Batch update multiple ranges."""
     data = [{"range": d.range, "values": d.values} for d in request.data]
     result = sheets.batch_update(spreadsheet_id, data, value_input)
@@ -255,7 +255,7 @@ def clear_values(
     sheets: SheetsDep,
     spreadsheet_id: str,
     range: str,
-):
+) -> dict[str, Any]:
     """Clear values from a range."""
     sheets.clear_values(spreadsheet_id, range)
     return {
@@ -269,7 +269,7 @@ def clear_values(
 def create_spreadsheet(
     sheets: SheetsDep,
     title: str = Query(...),
-):
+) -> dict[str, Any]:
     """Create a new spreadsheet."""
     doc = sheets.create(title)
     return {

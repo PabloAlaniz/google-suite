@@ -6,7 +6,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from gsuite_calendar import Calendar
+from gsuite_calendar import Calendar, Event
 from gsuite_cli.output import print_json
 from gsuite_core import GoogleAuth
 
@@ -34,7 +34,7 @@ def list_events(
     calendar_id: str | None = typer.Option(None, "--calendar", "-c", help="Calendar ID"),
     limit: int = typer.Option(50, "--limit", "-l", help="Max events"),
     output: str = typer.Option("table", "--output", "-o", help="Output: table, json"),
-):
+) -> None:
     """List upcoming calendar events."""
     cal = get_calendar()
 
@@ -84,7 +84,7 @@ def list_events(
 @app.command()
 def today(
     calendar_id: str | None = typer.Option(None, "--calendar", "-c", help="Calendar ID"),
-):
+) -> None:
     """Show today's events."""
     cal = get_calendar()
 
@@ -189,7 +189,7 @@ def delete(
     event_id: str = typer.Argument(..., help="Event ID to delete"),
     calendar_id: str | None = typer.Option(None, "--calendar", "-c", help="Calendar ID"),
     confirm: bool = typer.Option(False, "--yes", "-y", help="Skip confirmation"),
-):
+) -> None:
     """Delete a calendar event."""
     if not confirm:
         confirm = typer.confirm("Are you sure you want to delete this event?")
@@ -206,7 +206,7 @@ def delete(
 
 
 @app.command()
-def calendars():
+def calendars() -> None:
     """List all accessible calendars."""
     cal = get_calendar()
 
@@ -227,7 +227,7 @@ def calendars():
 
 
 @app.command()
-def week():
+def week() -> None:
     """Show this week's events."""
     cal = get_calendar()
 
@@ -239,7 +239,7 @@ def week():
         return
 
     # Group by day
-    by_day = {}
+    by_day: dict[str, list[Event]] = {}
     for event in events:
         if event.start:
             day_key = event.start.strftime("%Y-%m-%d")

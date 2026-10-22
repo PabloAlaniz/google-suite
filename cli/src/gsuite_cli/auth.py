@@ -58,7 +58,7 @@ def login(
             "scopes, so list every set you still need."
         ),
     ),
-):
+) -> None:
     """
     Authenticate with Google (opens browser).
 
@@ -97,7 +97,7 @@ def login(
 
 
 @app.command()
-def logout():
+def logout() -> None:
     """Revoke and delete stored credentials."""
     auth = GoogleAuth()
 
@@ -108,7 +108,7 @@ def logout():
 
 
 @app.command()
-def status():
+def status() -> None:
     """Check authentication status."""
     auth = GoogleAuth()
 
@@ -126,7 +126,7 @@ def status():
 
 
 @app.command()
-def refresh():
+def refresh() -> None:
     """Refresh the OAuth access token."""
     auth = GoogleAuth()
 
@@ -153,7 +153,7 @@ def refresh():
 
 
 @app.command("export")
-def export_token():
+def export_token() -> None:
     """Export token as JSON (for migration to Cloud Run)."""
     auth = GoogleAuth()
 

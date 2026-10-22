@@ -175,6 +175,7 @@ class Analytics:
         )
 
     def get_property(self, property_id: str | int) -> dict[str, Any]:
+        """One GA4 property by id (``123`` or ``properties/123``)."""
         name = property_name(property_id)
         return dict(execute(self.admin.properties().get(name=name), "analytics", "property", name))
 

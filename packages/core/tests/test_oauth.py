@@ -6,9 +6,10 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-from google.auth.exceptions import RefreshError
+from google.auth.exceptions import RefreshError, TransportError
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
+from googleapiclient.errors import HttpError
 
 from gsuite_core.auth.oauth import GoogleAuth
 from gsuite_core.auth.scopes import Scopes
@@ -294,6 +295,32 @@ class TestGoogleAuth:
         with pytest.raises(TokenRefreshError):
             auth_instance.refresh()
 
+    @patch("gsuite_core.auth.oauth.Request")
+    def test_refresh_network_error_is_token_refresh_error(
+        self, mock_request_class, auth_instance, mock_credentials
+    ):
+        auth_instance._credentials = mock_credentials
+        mock_credentials.expired = True
+        mock_credentials.refresh_token = "refresh_token_123"
+        mock_credentials.refresh.side_effect = TransportError("connection reset")
+
+        with pytest.raises(TokenRefreshError):
+            auth_instance.refresh()
+
+    @patch("gsuite_core.auth.oauth.Request")
+    def test_refresh_store_failure_is_not_a_refresh_error(
+        self, mock_request_class, auth_instance, mock_credentials
+    ):
+        """A token store failure after a good refresh surfaces unwrapped."""
+        auth_instance._credentials = mock_credentials
+        mock_credentials.expired = True
+        mock_credentials.refresh_token = "refresh_token_123"
+        auth_instance.token_store = Mock()
+        auth_instance.token_store.save_token.side_effect = OSError("disk full")
+
+        with pytest.raises(OSError, match="disk full"):
+            auth_instance.refresh()
+
     @patch("gsuite_core.auth.oauth.InstalledAppFlow")
     def test_authenticate_already_valid(self, mock_flow, auth_instance, mock_credentials):
         """Test authenticate when already authenticated."""
@@ -461,8 +488,18 @@ class TestGoogleAuth:
         """Test get_user_email when API call fails."""
         auth_instance._credentials = mock_credentials
         mock_credentials.valid = True
-        mock_build.side_effect = Exception("API error")
+        mock_build.side_effect = HttpError(Mock(status=403), b"forbidden")
 
         email = auth_instance.get_user_email()
 
         assert email is None
+
+    @patch("googleapiclient.discovery.build")
+    def test_get_user_email_bug_propagates(self, mock_build, auth_instance, mock_credentials):
+        """Only API, auth and network errors mean "no email"; a bug is not hidden."""
+        auth_instance._credentials = mock_credentials
+        mock_credentials.valid = True
+        mock_build.side_effect = TypeError("bad call")
+
+        with pytest.raises(TypeError):
+            auth_instance.get_user_email()

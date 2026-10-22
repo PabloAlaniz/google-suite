@@ -176,3 +176,13 @@ class TestSelectiveInvalidation:
         backend.client.spreadsheet_by_key("doc0").worksheets[0].grid.set(5, 2, "MUT")
         ws.clear("A1:B2")  # batch_clear de un rango que no se superpone con 4:6
         assert list(ws.iter_rows(page_size=3, skiprows=3)) == ROWS[3:]  # sigue cacheada
+
+
+class TestUnparseableCachedRange:
+    def test_write_drops_cached_range_it_cannot_parse(self):
+        cache = _Cache()
+        cache.load(("values_get", "H!no-es-a1"), lambda: [["viejo"]])
+        cache.invalidate_range(0, "H", "A1")
+        loads: list[int] = []
+        cache.load(("values_get", "H!no-es-a1"), lambda: loads.append(1) or [["nuevo"]])
+        assert loads  # conservador: se invalidó aunque no se pudo comparar

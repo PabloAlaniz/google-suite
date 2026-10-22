@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0](https://github.com/PabloAlaniz/google-suite/compare/v0.7.0...v0.8.0) (2026-10-22)
+
+
+### Features
+
+* **searchconsole:** query_all pages past the 25000-row cap ([#64](https://github.com/PabloAlaniz/google-suite/issues/64)) ([cc12748](https://github.com/PabloAlaniz/google-suite/commit/cc12748114feca60705b926d36f1516ed81eec16))
+
+
+### Bug Fixes
+
+* **analytics,searchconsole:** validate property IDs, numeric filters and days ([#63](https://github.com/PabloAlaniz/google-suite/issues/63)) ([a580fe9](https://github.com/PabloAlaniz/google-suite/commit/a580fe9a3bf707f67ef2670696c045dfd1ba4e0d))
+* **core:** stop swallowing unexpected errors in auth and token storage ([#66](https://github.com/PabloAlaniz/google-suite/issues/66)) ([c99b93b](https://github.com/PabloAlaniz/google-suite/commit/c99b93bb64941b32eaa3605c11927b9446a427fa))
+
 ## [0.7.0](https://github.com/PabloAlaniz/google-suite/compare/v0.6.0...v0.7.0) (2026-10-22)
 
 

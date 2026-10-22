@@ -2,7 +2,8 @@
 
 from pathlib import Path
 
-from google.auth.exceptions import RefreshError
+import httplib2
+from google.auth.exceptions import GoogleAuthError, RefreshError, TransportError
 from google.auth.transport.requests import Request
 from google.oauth2 import service_account
 from google.oauth2.credentials import Credentials
@@ -165,12 +166,11 @@ class GoogleAuth:
 
         try:
             self._credentials.refresh(Request())
-            self._save_credentials()
-            return True
-        except RefreshError as e:
+        except (RefreshError, TransportError) as e:
             raise TokenRefreshError(cause=e) from e
-        except Exception as e:
-            raise TokenRefreshError(cause=e) from e
+        # a token store failure is not a refresh failure: let it surface as-is
+        self._save_credentials()
+        return True
 
     def authenticate(self, force: bool = False) -> Credentials:
         """
@@ -251,11 +251,12 @@ class GoogleAuth:
             return None
 
         from googleapiclient.discovery import build
+        from googleapiclient.errors import HttpError
 
         try:
             service = build("oauth2", "v2", credentials=self._credentials)
             user_info = service.userinfo().get().execute()
             email = user_info.get("email")
             return str(email) if email else None
-        except Exception:
+        except (HttpError, GoogleAuthError, httplib2.HttpLib2Error, OSError):
             return None

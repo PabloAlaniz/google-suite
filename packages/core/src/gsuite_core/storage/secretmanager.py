@@ -80,9 +80,8 @@ class SecretManagerTokenStore(TokenStore):
 
         except exceptions.NotFound:
             return None
-        except Exception as e:
-            logger.error(f"Error accessing secret: {e}")
-            return None
+        # anything else (PermissionDenied, a corrupt payload) propagates, as in
+        # save_token/delete_token: reporting "no token" would hide the misconfiguration
 
     def save_token(self, token_data: dict[str, Any], user_id: str = "default") -> None:
         """Store token data in Secret Manager."""

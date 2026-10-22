@@ -20,6 +20,7 @@ from collections.abc import Callable
 from typing import Any
 
 from gsuite_sheets.a1 import split_sheet
+from gsuite_sheets.engine.domain.errors import InvalidRangeError
 from gsuite_sheets.engine.domain.values import GridRange, rowcol_to_a1
 from gsuite_sheets.engine.ports.sheets import ClientPort, SpreadsheetPort, WorksheetPort
 
@@ -112,7 +113,7 @@ class _Cache:
             return False
         try:
             cached = GridRange.from_a1(cached_a1, 0)
-        except Exception:
+        except InvalidRangeError:
             return True
         return cached.overlaps(written)
 

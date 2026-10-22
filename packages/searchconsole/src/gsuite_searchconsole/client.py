@@ -131,6 +131,41 @@ class SearchConsole:
             for row in data.get("rows", [])
         ]
 
+    def query_all(
+        self,
+        site_url: str,
+        start_date: date | str,
+        end_date: date | str,
+        dimensions: list[str] | None = None,
+        filters: list[dict[str, str]] | None = None,
+        max_rows: int | None = None,
+        search_type: str = "web",
+        aggregation_type: str | None = None,
+        data_state: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Every row of ``query`` (or the first ``max_rows``), paging past the 25000-row cap."""
+        if max_rows is not None and max_rows < 1:
+            raise ValidationError("max_rows", "max_rows must be at least 1")
+        rows: list[dict[str, Any]] = []
+        while max_rows is None or len(rows) < max_rows:
+            limit = MAX_ROW_LIMIT if max_rows is None else min(MAX_ROW_LIMIT, max_rows - len(rows))
+            page = self.query(
+                site_url,
+                start_date,
+                end_date,
+                dimensions=dimensions,
+                filters=filters,
+                row_limit=limit,
+                start_row=len(rows),
+                search_type=search_type,
+                aggregation_type=aggregation_type,
+                data_state=data_state,
+            )
+            rows.extend(page)
+            if len(page) < limit:
+                break
+        return rows
+
     def inspect_url(
         self, site_url: str, url: str, language_code: str | None = None
     ) -> dict[str, Any]:

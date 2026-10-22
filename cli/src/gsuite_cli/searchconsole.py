@@ -74,19 +74,29 @@ def query(
     search_type: str = typer.Option("web", "--type", help="web, image, video, news, discover"),
     limit: int = typer.Option(100, "--limit", "-l", help="Max rows (1-25000)"),
     start_row: int = typer.Option(0, "--start-row", help="Row offset, for paging"),
+    all_rows: bool = typer.Option(
+        False, "--all", help="Every row, paging past 25000 (ignores --limit and --start-row)"
+    ),
     output: str = OUTPUT_OPTION,
 ) -> None:
     """Search analytics: clicks, impressions, CTR and position."""
-    rows = get_searchconsole().query(
-        site_url,
-        start,
-        end,
-        dimensions=dimension,
-        filters=[_filter(f) for f in filters],
-        row_limit=limit,
-        start_row=start_row,
-        search_type=search_type,
-    )
+    sc = get_searchconsole()
+    parsed = [_filter(f) for f in filters]
+    if all_rows:
+        rows = sc.query_all(
+            site_url, start, end, dimensions=dimension, filters=parsed, search_type=search_type
+        )
+    else:
+        rows = sc.query(
+            site_url,
+            start,
+            end,
+            dimensions=dimension,
+            filters=parsed,
+            row_limit=limit,
+            start_row=start_row,
+            search_type=search_type,
+        )
 
     if output == "json":
         print_json(rows)

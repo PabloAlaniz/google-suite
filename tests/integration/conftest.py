@@ -6,9 +6,10 @@ Skipped unless GSUITE_INTEGRATION=1. Credentials come from, in order:
 - the local token store (`gsuite auth login`).
 
 Use a throwaway account: every test creates its own resources (named
-``gsuite-it-<random>``) and deletes them when it ends. Tasks and Contacts
-tests are skipped when the token lacks their scopes; log in with
-`gsuite auth login --force --scopes all` to run everything.
+``gsuite-it-<random>``) and deletes them when it ends. Tasks, Contacts and
+the read-only marketing tests are skipped when the token lacks their scopes;
+log in with `gsuite auth login --force --scopes all,marketing` to run
+everything.
 """
 
 from __future__ import annotations
@@ -77,7 +78,9 @@ def granted(auth: GoogleAuth) -> set[str]:
 
 def _require(granted: set[str], scopes: list[str], what: str) -> None:
     if not set(scopes) <= granted:
-        pytest.skip(f"token lacks the {what} scope: gsuite auth login --force --scopes all")
+        pytest.skip(
+            f"token lacks the {what} scope: gsuite auth login --force --scopes all,marketing"
+        )
 
 
 @pytest.fixture

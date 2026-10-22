@@ -18,6 +18,7 @@ plain dicts and lists, as the Google APIs send them.
 gsuite searchconsole sites -o json
 gsuite searchconsole query sc-domain:example.com --start 2026-03-01 --end 2026-03-28 --dim query --limit 50 -o json
 gsuite searchconsole query sc-domain:example.com --start 2026-03-01 --end 2026-03-28 --dim page --filter query:contains:shoes
+gsuite searchconsole query sc-domain:example.com --start 2026-03-01 --end 2026-03-28 --dim query --dim page --all -o json
 gsuite searchconsole inspect sc-domain:example.com https://example.com/pricing -o json
 gsuite searchconsole sitemaps sc-domain:example.com
 
@@ -67,7 +68,9 @@ print(result["indexStatusResult"]["coverageState"])
 sc.list_sitemaps("sc-domain:example.com")
 ```
 
-`query` returns at most `row_limit` rows (up to 25000); page with `start_row`.
+`query` returns at most `row_limit` rows (up to 25000); page with `start_row`,
+or call `sc.query_all(site, start, end, dimensions=[...], max_rows=None)` (CLI:
+`--all`) to get every row.
 
 ## Analytics (GA4)
 

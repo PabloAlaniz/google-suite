@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from typing import Any
 
 from googleapiclient.discovery import build
@@ -31,9 +32,26 @@ def property_name(property_id: str | int) -> str:
     value = str(property_id).strip()
     if value.startswith("properties/"):
         value = value.removeprefix("properties/")
-    if not value.isdigit():
+    # isdigit() alone accepts "²" and other Unicode digits the API rejects
+    if not (value.isascii() and value.isdigit()):
         raise ValidationError("property_id", f"Not a GA4 property ID: {property_id!r}")
     return f"properties/{value}"
+
+
+def _number(value: Any) -> dict[str, Any]:
+    """A NumericValue: int64Value for integers, doubleValue for finite floats."""
+    if isinstance(value, str):
+        for parse in (int, float):
+            try:
+                value = parse(value)
+                break
+            except ValueError:
+                continue
+    if isinstance(value, int) and not isinstance(value, bool):
+        return {"int64Value": str(value)}
+    if isinstance(value, float) and math.isfinite(value):
+        return {"doubleValue": value}
+    raise ValidationError("value", f"A numeric filter needs a number, got {value!r}")
 
 
 def _filter(f: dict[str, Any]) -> dict[str, Any]:
@@ -44,8 +62,7 @@ def _filter(f: dict[str, Any]) -> dict[str, Any]:
         return {"fieldName": field, "inListFilter": {"values": [str(v) for v in f["values"]]}}
     op = str(f.get("operator", "EXACT")).upper()
     if op in NUMERIC_OPS:
-        value = f.get("value")
-        number = {"doubleValue": value} if isinstance(value, float) else {"int64Value": str(value)}
+        number = _number(f.get("value"))
         return {"fieldName": field, "numericFilter": {"operation": op, "value": number}}
     if op not in MATCH_TYPES:
         raise ValidationError("operator", f"Unknown filter operator: {op!r}")

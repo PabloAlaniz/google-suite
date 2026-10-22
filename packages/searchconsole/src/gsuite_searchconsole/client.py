@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from googleapiclient.discovery import build
@@ -17,7 +17,9 @@ MAX_ROW_LIMIT = 25000
 
 
 def _day(value: date | str) -> str:
-    return value.isoformat() if isinstance(value, date) else date.fromisoformat(value).isoformat()
+    """ISO day; a datetime keeps only its date (the API rejects a time part)."""
+    day = value if isinstance(value, date) else date.fromisoformat(value)
+    return (day.date() if isinstance(day, datetime) else day).isoformat()
 
 
 def build_filters(filters: list[dict[str, str]] | None) -> list[dict[str, Any]]:

@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0](https://github.com/PabloAlaniz/google-suite/compare/v0.6.0...v0.7.0) (2026-10-22)
+
+
+### Features
+
+* **cli:** searchconsole, analytics and tagmanager commands ([#62](https://github.com/PabloAlaniz/google-suite/issues/62)) ([c48f29f](https://github.com/PabloAlaniz/google-suite/commit/c48f29f3d0dff1cb09fb3f61b853b943a8be7a89))
+
+
+### Bug Fixes
+
+* **deps:** bump certifi to 2026.10.19 (PYSEC-2026-4320) ([#59](https://github.com/PabloAlaniz/google-suite/issues/59)) ([3bc9446](https://github.com/PabloAlaniz/google-suite/commit/3bc944623be65f050403936ee704f864231a16e2))
+
 ## [0.6.0](https://github.com/PabloAlaniz/google-suite/compare/v0.5.2...v0.6.0) (2026-10-16)
 
 

@@ -1,0 +1,128 @@
+# Search Console, Analytics and Tag Manager
+
+Read-only. Not in the default login: enable the **Google Search Console API**,
+**Google Analytics Admin API** + **Google Analytics Data API** and **Tag
+Manager API** in the Cloud project, then log in with their scopes
+(`marketing` is the three together):
+
+```bash
+gsuite auth login --force --scopes default,marketing
+```
+
+Without them, calls fail with `PermissionDeniedError`. Every method returns
+plain dicts and lists, as the Google APIs send them.
+
+## CLI
+
+```bash
+gsuite searchconsole sites -o json
+gsuite searchconsole query sc-domain:example.com --start 2026-03-01 --end 2026-03-28 --dim query --limit 50 -o json
+gsuite searchconsole query sc-domain:example.com --start 2026-03-01 --end 2026-03-28 --dim page --filter query:contains:shoes
+gsuite searchconsole inspect sc-domain:example.com https://example.com/pricing -o json
+gsuite searchconsole sitemaps sc-domain:example.com
+
+gsuite analytics accounts -o json                       # find property IDs
+gsuite analytics report 123456 --metric sessions --dim date --start 7daysAgo -o json
+gsuite analytics report 123456 --metric activeUsers --dim country --order-by activeUsers --limit 10
+gsuite analytics realtime 123456 --dim country
+
+gsuite tagmanager accounts -o json
+gsuite tagmanager containers accounts/123
+gsuite tagmanager tags accounts/123/containers/456/workspaces/7 -o json
+gsuite tagmanager versions accounts/123/containers/456
+```
+
+`--filter` is `dimension:operator:expression` (repeatable, ANDed); operators
+are `equals`, `notEquals`, `contains`, `notContains`, `includingRegex` and
+`excludingRegex`. Search Console data lags 2-3 days.
+
+## Search Console
+
+`SearchConsole(auth)` from `gsuite_searchconsole`. Properties are URL
+prefixes (`https://example.com/`) or domains (`sc-domain:example.com`).
+
+```python
+from gsuite_core import GoogleAuth
+from gsuite_searchconsole import SearchConsole
+
+auth = GoogleAuth()
+sc = SearchConsole(auth)
+
+for site in sc.list_sites():
+    print(site["siteUrl"], site["permissionLevel"])
+
+rows = sc.query(
+    "sc-domain:example.com",
+    "2026-03-01",
+    "2026-03-28",
+    dimensions=["query", "page"],
+    filters=[{"dimension": "country", "operator": "equals", "expression": "arg"}],
+    row_limit=1000,
+)
+for row in rows:
+    print(row["query"], row["page"], row["clicks"], row["impressions"], row["ctr"], row["position"])
+
+result = sc.inspect_url("sc-domain:example.com", "https://example.com/pricing")
+print(result["indexStatusResult"]["coverageState"])
+sc.list_sitemaps("sc-domain:example.com")
+```
+
+`query` returns at most `row_limit` rows (up to 25000); page with `start_row`.
+
+## Analytics (GA4)
+
+`Analytics(auth)` from `gsuite_analytics`. Property IDs are `"123456"`,
+`123456` or `"properties/123456"`.
+
+```python
+from gsuite_analytics import Analytics
+
+ga = Analytics(auth)
+
+for account in ga.account_summaries():
+    for prop in account.get("propertySummaries", []):
+        print(account["displayName"], prop["displayName"], prop["property"])
+
+report = ga.run_report(
+    "123456",
+    ["date"],
+    ["activeUsers", "sessions"],
+    date_ranges=[("28daysAgo", "today")],
+    dimension_filters=[{"field": "country", "value": "Argentina"}],
+    order_by="date",
+    descending=False,
+)
+for row in report["rows"]:            # values are strings, as GA4 sends them
+    print(row["date"], row["activeUsers"], row["sessions"])
+
+ga.run_realtime_report("123456", ["country"], ["activeUsers"])
+```
+
+Filters: `{"field": f, "value": v}` (exact), `{"field": f, "operator":
+"CONTAINS", "value": v}`, `{"field": f, "values": [..]}` (in list), numeric
+`{"field": m, "operator": "GREATER_THAN", "value": 10}`; add `"not": True` to
+negate.
+
+## Tag Manager
+
+`TagManager(auth)` from `gsuite_tagmanager`. Everything is addressed by its
+API path: `accounts/1`, `accounts/1/containers/2`,
+`accounts/1/containers/2/workspaces/3`.
+
+```python
+from gsuite_tagmanager import TagManager
+
+gtm = TagManager(auth)
+
+for account in gtm.list_accounts():
+    for container in gtm.list_containers(account["path"]):
+        print(container["publicId"], container["name"], container["path"])
+
+workspace = "accounts/1/containers/2/workspaces/3"
+gtm.list_tags(workspace)
+gtm.list_triggers(workspace)
+gtm.list_variables(workspace)
+
+gtm.list_versions("accounts/1/containers/2")
+live = gtm.get_live_version("accounts/1/containers/2")   # the published version
+```

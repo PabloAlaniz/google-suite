@@ -52,9 +52,11 @@ class TagManager:
         return self.service.accounts()
 
     def list_accounts(self) -> list[dict[str, Any]]:
+        """Accounts the user can see (``path``, ``accountId``, ``name``)."""
         return _paged(self._accounts.list, "account", "accounts", "-")
 
     def list_containers(self, account_path: str) -> list[dict[str, Any]]:
+        """Containers of an account, e.g. ``accounts/1``."""
         res = self._accounts.containers()
         return _paged(
             lambda **kw: res.list(parent=account_path, **kw),
@@ -64,6 +66,7 @@ class TagManager:
         )
 
     def list_workspaces(self, container_path: str) -> list[dict[str, Any]]:
+        """Workspaces of a container, e.g. ``accounts/1/containers/2``."""
         res = self._accounts.containers().workspaces()
         return _paged(
             lambda **kw: res.list(parent=container_path, **kw),
@@ -77,12 +80,15 @@ class TagManager:
         return _paged(lambda **kw: res.list(parent=workspace_path, **kw), key, kind, workspace_path)
 
     def list_tags(self, workspace_path: str) -> list[dict[str, Any]]:
+        """Tags of a workspace, e.g. ``accounts/1/containers/2/workspaces/3``."""
         return self._workspace_list("tags", "tag", workspace_path)
 
     def list_triggers(self, workspace_path: str) -> list[dict[str, Any]]:
+        """Triggers of a workspace."""
         return self._workspace_list("triggers", "trigger", workspace_path)
 
     def list_variables(self, workspace_path: str) -> list[dict[str, Any]]:
+        """User-defined variables of a workspace."""
         return self._workspace_list("variables", "variable", workspace_path)
 
     def list_versions(self, container_path: str) -> list[dict[str, Any]]:

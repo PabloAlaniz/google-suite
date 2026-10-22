@@ -19,7 +19,19 @@ ROOT = Path(__file__).resolve().parent.parent
 GITHUB = "https://github.com/PabloAlaniz/google-suite/blob/main/"
 LINK = re.compile(r"(\]\()([^)\s]+)(\))")
 
-PACKAGES = ["core", "gmail", "calendar", "drive", "sheets", "tasks", "contacts", "mcp"]
+PACKAGES = [
+    "core",
+    "gmail",
+    "calendar",
+    "drive",
+    "sheets",
+    "tasks",
+    "contacts",
+    "searchconsole",
+    "analytics",
+    "tagmanager",
+    "mcp",
+]
 
 # repo path -> site path
 GENERATED = {

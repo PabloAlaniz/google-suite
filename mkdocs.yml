@@ -60,6 +60,9 @@ plugins:
             - packages/sheets/src
             - packages/tasks/src
             - packages/contacts/src
+            - packages/searchconsole/src
+            - packages/analytics/src
+            - packages/tagmanager/src
           options:
             docstring_style: google
             show_source: false
@@ -84,6 +87,9 @@ nav:
       - Sheets: services/sheets.md
       - Tasks: services/tasks.md
       - Contacts: services/contacts.md
+      - Search Console: services/searchconsole.md
+      - Google Analytics: services/analytics.md
+      - Tag Manager: services/tagmanager.md
       - MCP server: services/mcp.md
   - Guides:
       - Async: ASYNC.md
@@ -97,6 +103,9 @@ nav:
       - Sheets: reference/sheets.md
       - Tasks: reference/tasks.md
       - Contacts: reference/contacts.md
+      - Search Console: reference/searchconsole.md
+      - Google Analytics: reference/analytics.md
+      - Tag Manager: reference/tagmanager.md
   - Project:
       - Changelog: project/changelog.md
       - Contributing: project/contributing.md

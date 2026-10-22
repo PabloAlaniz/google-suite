@@ -53,6 +53,9 @@ jobs:
             sheets: packages/sheets/**
             tasks: packages/tasks/**
             contacts: packages/contacts/**
+            searchconsole: packages/searchconsole/**
+            analytics: packages/analytics/**
+            tagmanager: packages/tagmanager/**
             mcp: packages/mcp/**
             api: api/**
             cli:

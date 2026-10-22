@@ -21,11 +21,24 @@ PACKAGES = [
     "sheets",
     "tasks",
     "contacts",
+    "searchconsole",
+    "analytics",
+    "tagmanager",
     "mcp",
     "api",
     "cli",
 ]
-SERVICES = {"gmail", "calendar", "drive", "sheets", "tasks", "contacts"}
+SERVICES = {
+    "gmail",
+    "calendar",
+    "drive",
+    "sheets",
+    "tasks",
+    "contacts",
+    "searchconsole",
+    "analytics",
+    "tagmanager",
+}
 
 
 def select(event: str, changes: list[str]) -> list[str]:

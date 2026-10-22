@@ -1,16 +1,17 @@
 # Roadmap - google-suite
 
-**Actualizado:** 2026-10-07  
+**Actualizado:** 2026-10-22  
 **Basado en:** [Análisis FODA](./FODA.md)
 
-## 🎯 Versión: 0.2.0 (próximo release)
+## 🎯 Versión actual: 0.6.x
 
 Los sprints 1–13 (2026-10) cubrieron la estabilización y la expansión
 planificadas para el primer semestre: CI dividida por paquete, gobernanza del
 repo, endurecimiento de la API, resiliencia del core, Drive y Sheets
 completos, el motor de GSpreadManager incorporado ([ADR 0001](adr/0001-incorporate-gspreadmanager.md)),
 async (base + Sheets), Tasks, Contacts, sitio de docs, tests de integración e
-imagen Docker más chica. 0.2.0 los publica.
+imagen Docker más chica. 0.6.0 sumó las APIs de marketing en solo lectura
+(Search Console, GA4 y Tag Manager).
 
 ---
 
@@ -50,6 +51,14 @@ imagen Docker más chica. 0.2.0 los publica.
   - [x] Listar, buscar, crear, actualizar (con etag) y borrar
   - [ ] Grupos de contactos
   - [ ] Directorio de la organización (Workspace)
+
+- [x] **APIs de marketing, solo lectura** (0.6.0: `gsuite_searchconsole`, `gsuite_analytics`,
+      `gsuite_tagmanager`; REST `/searchconsole`, `/analytics`, `/tagmanager`; tools MCP)
+  - [x] Search Console: sitios, search analytics, inspección de URL, sitemaps
+  - [x] GA4: account summaries, properties, `runReport`, `runRealtimeReport`
+  - [x] Tag Manager v2: cuentas, containers, workspaces, tags, triggers, variables, versiones
+  - [ ] Comandos de CLI (`gsuite searchconsole|analytics|tagmanager`) y referencia en el skill
+  - [ ] Tests de propiedades, de integración y autopaginación de `SearchConsole.query`
 
 - [ ] **Google Meet**
   - [ ] Crear y listar reuniones

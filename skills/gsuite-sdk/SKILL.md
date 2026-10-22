@@ -1,6 +1,6 @@
 ---
 name: gsuite-sdk
-description: Work with Gmail, Google Calendar, Drive, Sheets, Tasks and Contacts through the gsuite-sdk Python library and its `gsuite` CLI (JSON output for agents). Use it to read and send email, manage events, upload and share files, read and write spreadsheets, and manage tasks and contacts.
+description: Work with Gmail, Google Calendar, Drive, Sheets, Tasks and Contacts, and read Search Console, Google Analytics 4 and Tag Manager, through the gsuite-sdk Python library and its `gsuite` CLI (JSON output for agents). Use it to read and send email, manage events, upload and share files, read and write spreadsheets, manage tasks and contacts, and pull search, traffic and tag data.
 license: MIT
 compatibility: Python 3.11+ (pip install "gsuite-sdk[cli]"); a Google Cloud OAuth client file; network access to Google APIs.
 metadata:
@@ -19,7 +19,8 @@ metadata:
 
 # gsuite-sdk
 
-One OAuth login for Gmail, Calendar, Drive, Sheets, Tasks and Contacts, usable
+One OAuth login for Gmail, Calendar, Drive, Sheets, Tasks and Contacts (plus
+read-only Search Console, Analytics and Tag Manager), usable
 three ways: the `gsuite` CLI (prefer it: most commands print JSON with
 `-o json`), the Python SDK, or a REST API (`gsuite serve`).
 
@@ -48,11 +49,14 @@ the same place, or set absolute paths. Set `GSUITE_DEFAULT_TIMEZONE` (e.g.
 ```bash
 gsuite auth login                                  # Gmail, Calendar, Drive, Sheets
 gsuite auth login --force --scopes default,tasks,contacts   # add Tasks and Contacts
+gsuite auth login --force --scopes default,marketing        # add Search Console, Analytics, Tag Manager
 gsuite auth status
 ```
 
 `--scopes` takes a comma-separated list of `default, gmail, calendar, drive,
-sheets, tasks, contacts, all`. Tasks and Contacts are not in the default login.
+sheets, tasks, contacts, searchconsole, analytics, tagmanager, marketing, all`.
+Tasks, Contacts and the read-only marketing scopes are not in the default login
+(`all` doesn't include the marketing ones either).
 The token refreshes itself; log in again (`--force`) only after a
 `TokenRefreshError` or when a call fails with `PermissionDeniedError` because a
 scope is missing.
@@ -98,6 +102,10 @@ gsuite tasks add "Pay rent" --due 2026-03-01
 gsuite tasks done TASK_ID
 
 gsuite contacts search ana -o json
+
+gsuite searchconsole query sc-domain:example.com --start 2026-03-01 --end 2026-03-28 --dim query -o json
+gsuite analytics report 123456 --metric sessions --dim date --start 7daysAgo -o json
+gsuite tagmanager containers accounts/123 -o json
 ```
 
 No JSON output on `calendar today`, `calendar week` or `gmail search`: use
@@ -138,6 +146,7 @@ Per service, with everything else the SDK can do:
 [Gmail](references/gmail.md) · [Calendar](references/calendar.md) ·
 [Drive](references/drive.md) · [Sheets](references/sheets.md) ·
 [Tasks and Contacts](references/tasks-contacts.md) ·
+[Search Console, Analytics and Tag Manager](references/marketing.md) ·
 [REST API and deployment](references/rest-api.md) ·
 [MCP server](references/mcp.md)
 

@@ -318,6 +318,13 @@ gsuite contacts search ana
 gsuite contacts add -g Ana -e ana@example.com -p "+54 11 5555-5555"
 gsuite contacts show CONTACT_ID
 
+# Search Console, Analytics, Tag Manager (read-only; login with --scopes default,marketing)
+gsuite searchconsole sites
+gsuite searchconsole query sc-domain:example.com --start 2026-01-01 --end 2026-01-28 --dim query
+gsuite analytics accounts      # find GA4 property IDs
+gsuite analytics report 123456 --metric sessions --dim date --start 7daysAgo
+gsuite tagmanager containers accounts/123
+
 # Server
 gsuite serve --port 8080       # Start REST API
 gsuite status                  # Overall status

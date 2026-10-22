@@ -4,7 +4,18 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from gsuite_cli import auth, calendar, contacts, drive, gmail, sheets, tasks
+from gsuite_cli import (
+    analytics,
+    auth,
+    calendar,
+    contacts,
+    drive,
+    gmail,
+    searchconsole,
+    sheets,
+    tagmanager,
+    tasks,
+)
 
 console = Console()
 app = typer.Typer(
@@ -21,6 +32,9 @@ app.add_typer(drive.app, name="drive", help="Drive operations")
 app.add_typer(sheets.app, name="sheets", help="Sheets operations")
 app.add_typer(tasks.app, name="tasks", help="Tasks operations")
 app.add_typer(contacts.app, name="contacts", help="Contacts operations")
+app.add_typer(searchconsole.app, name="searchconsole", help="Search Console (read-only)")
+app.add_typer(analytics.app, name="analytics", help="Google Analytics 4 (read-only)")
+app.add_typer(tagmanager.app, name="tagmanager", help="Tag Manager (read-only)")
 
 
 @app.command()

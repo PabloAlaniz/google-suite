@@ -12,13 +12,16 @@ from pathlib import Path
 import pytest
 from typer.main import get_command
 
+from gsuite_analytics import Analytics
 from gsuite_calendar import Calendar, CalendarEntity, Event
 from gsuite_cli.main import app
 from gsuite_contacts import Contact, Contacts
 from gsuite_core import GoogleAuth, Settings
 from gsuite_drive import Drive, File
 from gsuite_gmail import Draft, Gmail, Label, Message, Thread
+from gsuite_searchconsole import SearchConsole
 from gsuite_sheets import Sheets, Spreadsheet, Worksheet
+from gsuite_tagmanager import TagManager
 from gsuite_tasks import Task, TaskList, Tasks
 
 # Installed with `uv sync --group skill`; the lowest-deps job (pip extras only) skips it
@@ -61,6 +64,9 @@ CHECK = agent_skill_check.SkillCheck(
         "tasklist": TaskList,
         "contacts": Contacts,
         "contact": Contact,
+        "sc": SearchConsole,
+        "ga": Analytics,
+        "gtm": TagManager,
     },
     cli=get_command(app),
     prog="gsuite",

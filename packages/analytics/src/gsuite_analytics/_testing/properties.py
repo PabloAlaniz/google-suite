@@ -14,8 +14,8 @@ from gsuite_analytics.client import (
     NUMERIC_OPS,
     build_filter,
     property_name,
-    rows_to_dicts,
 )
+from gsuite_analytics.parser import parse_metric, parse_report
 from gsuite_core._testing import PropertyViolation, require
 from gsuite_core.exceptions import ValidationError
 
@@ -83,8 +83,8 @@ def check_build_filter(filters: list[dict[str, Any]]) -> None:
         _check_leaf(e["notExpression"] if negated else e)
 
 
-def check_rows_to_dicts(dims: list[str], mets: list[str], rows: list[list[str]]) -> None:
-    """Each row becomes a dict keyed by the header names, in order."""
+def check_parse_report(dims: list[str], mets: list[str], rows: list[list[str]]) -> None:
+    """Each row maps the header names to its values, in order; metrics become numbers."""
     width = len(dims) + len(mets)
     rows = [r[:width] + [""] * (width - len(r)) for r in rows]
     data = {
@@ -98,13 +98,30 @@ def check_rows_to_dicts(dims: list[str], mets: list[str], rows: list[list[str]])
             for r in rows
         ],
     }
-    out = rows_to_dicts(data)
-    require(out["dimensions"] == dims and out["metrics"] == mets, f"headers changed: {out!r}")
-    require(out["row_count"] == len(rows), f"row_count {out['row_count']} != {len(rows)}")
-    for raw, row in zip(rows, out["rows"], strict=True):
-        expected = dict(zip(dims, raw[: len(dims)], strict=True))
-        expected.update(zip(mets, raw[len(dims) :], strict=True))
-        require(row == expected, f"row {raw!r} -> {row!r}, expected {expected!r}")
+    out = parse_report(data)
+    require(out.dimensions == dims and out.metrics == mets, f"headers changed: {out!r}")
+    require(out.row_count == len(rows), f"row_count {out.row_count} != {len(rows)}")
+    for raw, row in zip(rows, out.rows, strict=True):
+        dimensions = dict(zip(dims, raw[: len(dims)], strict=True))
+        require(row.dimensions == dimensions, f"row {raw!r} -> {row!r}, expected {dimensions!r}")
+        metrics = {n: parse_metric(v) for n, v in zip(mets, raw[len(dims) :], strict=True)}
+        require(row.metrics == metrics, f"row {raw!r} -> {row!r}, expected {metrics!r}")
+        for value in row.metrics.values():
+            require(
+                value is None or (isinstance(value, int | float) and math.isfinite(value)),
+                f"metric not a finite number: {value!r}",
+            )
 
 
-__all__ = ["check_build_filter", "check_property_name", "check_rows_to_dicts"]
+def check_parse_metric(value: str) -> None:
+    """A metric is an int when the text is one, a finite float when it reads as one, else None."""
+    number = parse_metric(value)
+    if number is None:
+        return
+    require(math.isfinite(number), f"parse_metric({value!r}) = {number!r}")
+    require(value.isascii(), f"non-ASCII {value!r} parsed as {number!r}")
+    expected = int(value) if isinstance(number, int) else float(value)
+    require(number == expected, f"parse_metric({value!r}) = {number!r}")
+
+
+__all__ = ["check_build_filter", "check_parse_metric", "check_parse_report", "check_property_name"]

@@ -151,17 +151,16 @@ def test_searchconsole_read_only(auth, need_scopes):
 def test_analytics_read_only(auth, need_scopes):
     need_scopes(Scopes.analytics(), "Analytics")
     ga = Analytics(auth)
-    properties = [
-        p["property"] for a in ga.account_summaries() for p in a.get("propertySummaries", [])
-    ]
+    properties = [p.name for a in ga.account_summaries() for p in a.properties]
     if not properties:
         pytest.skip("the account has no GA4 properties")
 
     report = ga.run_report(properties[0], ["date"], ["activeUsers"], [("7daysAgo", "today")])
 
-    assert report["dimensions"] == ["date"]
-    assert report["metrics"] == ["activeUsers"]
-    assert ga.get_property(properties[0])["name"] == properties[0]
+    assert report.dimensions == ["date"]
+    assert report.metrics == ["activeUsers"]
+    assert all(isinstance(r.metrics["activeUsers"], int) for r in report.rows)
+    assert ga.get_property(properties[0]).name == properties[0]
 
 
 def test_tagmanager_read_only(auth, need_scopes):

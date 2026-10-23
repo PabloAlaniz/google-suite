@@ -3,5 +3,15 @@
 __version__ = "0.1.0"
 
 from gsuite_analytics.client import Analytics, build_filter, property_name
+from gsuite_analytics.models import AccountSummary, Property, PropertySummary, Report, ReportRow
 
-__all__ = ["Analytics", "build_filter", "property_name"]
+__all__ = [
+    "AccountSummary",
+    "Analytics",
+    "Property",
+    "PropertySummary",
+    "Report",
+    "ReportRow",
+    "build_filter",
+    "property_name",
+]

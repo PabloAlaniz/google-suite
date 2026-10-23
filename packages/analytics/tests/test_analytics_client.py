@@ -1,10 +1,12 @@
 """Analytics (GA4) client on mocked discovery services."""
 
+from datetime import UTC, datetime
 from unittest.mock import MagicMock
 
 import pytest
 
-from gsuite_analytics import Analytics, build_filter, property_name
+from gsuite_analytics import Analytics, ReportRow, build_filter, property_name
+from gsuite_analytics.parser import parse_metric
 from gsuite_core.exceptions import ValidationError
 
 REPORT = {
@@ -70,24 +72,55 @@ def test_build_filter_rejects(bad):
 def test_account_summaries_paginates(ga):
     method = ga.admin.accountSummaries().list
     method.return_value.execute.side_effect = [
-        {"accountSummaries": [{"account": "accounts/1"}], "nextPageToken": "p2"},
+        {
+            "accountSummaries": [
+                {
+                    "name": "accountSummaries/1",
+                    "account": "accounts/1",
+                    "displayName": "Acme",
+                    "propertySummaries": [
+                        {
+                            "property": "properties/9",
+                            "displayName": "Web",
+                            "propertyType": "PROPERTY_TYPE_ORDINARY",
+                            "parent": "accounts/1",
+                        }
+                    ],
+                }
+            ],
+            "nextPageToken": "p2",
+        },
         {"accountSummaries": [{"account": "accounts/2"}]},
     ]
-    assert [s["account"] for s in ga.account_summaries()] == ["accounts/1", "accounts/2"]
+    first, second = ga.account_summaries()
+    assert (first.account_id, first.display_name) == ("1", "Acme")
+    assert [(p.property_id, p.display_name) for p in first.properties] == [("9", "Web")]
+    assert first.properties[0].property_type == "PROPERTY_TYPE_ORDINARY"
+    assert (second.account_id, second.properties) == ("2", [])
 
 
 def test_list_properties_filters_by_account(ga):
     method = ga.admin.properties().list
     method.return_value.execute.return_value = {"properties": [{"name": "properties/9"}]}
-    assert ga.list_properties("1")[0]["name"] == "properties/9"
+    assert ga.list_properties("1")[0].property_id == "9"
     assert method.call_args.kwargs["filter"] == "parent:accounts/1"
     ga.list_properties("accounts/2")
     assert method.call_args.kwargs["filter"] == "parent:accounts/2"
 
 
 def test_get_property(ga):
-    ga.admin.properties().get.return_value.execute.return_value = {"name": "properties/9"}
-    assert ga.get_property(9) == {"name": "properties/9"}
+    ga.admin.properties().get.return_value.execute.return_value = {
+        "name": "properties/9",
+        "displayName": "Web",
+        "timeZone": "America/Argentina/Buenos_Aires",
+        "currencyCode": "ARS",
+        "createTime": "2024-05-01T12:00:00.123Z",
+    }
+    prop = ga.get_property(9)
+    assert (prop.name, prop.display_name, prop.currency_code) == ("properties/9", "Web", "ARS")
+    assert prop.time_zone == "America/Argentina/Buenos_Aires"
+    assert prop.create_time == datetime(2024, 5, 1, 12, 0, 0, 123000, tzinfo=UTC)
+    assert prop.delete_time is None
 
 
 def test_run_report(ga):
@@ -103,8 +136,10 @@ def test_run_report(ga):
         limit=10,
         order_by="activeUsers",
     )
-    assert out["rows"] == [{"country": "Argentina", "activeUsers": "42"}]
-    assert out["row_count"] == 1
+    assert out.rows == [ReportRow({"country": "Argentina"}, {"activeUsers": 42})]
+    assert out.row_count == 1
+    assert out.raw["metricHeaders"] == [{"name": "activeUsers", "type": "TYPE_INTEGER"}]
+    assert "rows" not in out.raw
     kwargs = method.call_args.kwargs
     assert kwargs["property"] == "properties/123"
     body = kwargs["body"]
@@ -117,13 +152,17 @@ def test_run_report(ga):
 
 def test_run_report_defaults_and_dimension_order(ga):
     method = ga.data.properties().runReport
-    method.return_value.execute.return_value = {"totals": [{"x": 1}]}
+    method.return_value.execute.return_value = {
+        "metricHeaders": [{"name": "sessions"}],
+        "totals": [{"metricValues": [{"value": "12.5"}]}],
+    }
     out = ga.run_report("1", None, ["sessions"], order_by="date", descending=False)
     body = method.call_args.kwargs["body"]
     assert body["dateRanges"] == [{"startDate": "28daysAgo", "endDate": "today"}]
     assert body["orderBys"] == [{"dimension": {"dimensionName": "date"}, "desc": False}]
-    assert out["rows"] == []
-    assert out["totals"] == [{"x": 1}]
+    assert out.rows == []
+    assert out.row_count == 0
+    assert out.totals == [ReportRow({}, {"sessions": 12.5})]
 
 
 def test_reports_need_metrics(ga):
@@ -139,5 +178,20 @@ def test_run_realtime_report(ga):
     out = ga.run_realtime_report(
         "123", ["country"], ["activeUsers"], dimension_filters=[{"field": "country", "value": "AR"}]
     )
-    assert out["rows"][0]["activeUsers"] == "42"
+    assert out.rows[0].metrics["activeUsers"] == 42
     assert "dimensionFilter" in method.call_args.kwargs["body"]
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [("42", 42), ("-3", -3), ("0.53", 0.53), ("1.2e3", 1200.0), (".5", 0.5)],
+)
+def test_parse_metric(value, expected):
+    number = parse_metric(value)
+    assert number == expected
+    assert type(number) is type(expected)
+
+
+@pytest.mark.parametrize("value", ["", "abc", "nan", "inf", "1e999", "1_000", " 4 ", "٤٢", None])
+def test_parse_metric_rejects(value):
+    assert parse_metric(value) is None

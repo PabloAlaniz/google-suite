@@ -412,7 +412,7 @@ def build_server(services: Services | None = None) -> MCPServer:
     def searchconsole_list_sites() -> dict[str, Any]:
         """Search Console properties the user can see (siteUrl, permissionLevel).
         Domain properties look like "sc-domain:example.com"."""
-        return results(svc.searchconsole.list_sites())
+        return results(to_json(svc.searchconsole.list_sites()))
 
     @tool(READ)
     def searchconsole_query(
@@ -426,8 +426,9 @@ def build_server(services: Services | None = None) -> MCPServer:
         search_type: Literal["web", "image", "video", "news", "discover", "googleNews"] = "web",
     ) -> dict[str, Any]:
         """Search analytics: clicks, impressions, ctr and position, grouped by
-        `dimensions`. Dates are ISO days (data lags ~2-3 days). `filters` are
-        ANDed: [{"dimension": "query", "operator": "contains", "expression": "shoes"}];
+        `dimensions` (each row's `keys` maps dimension -> value). Dates are ISO
+        days (data lags ~2-3 days). `filters` are ANDed:
+        [{"dimension": "query", "operator": "contains", "expression": "shoes"}];
         operators: equals, notEquals, contains, notContains, includingRegex, excludingRegex.
         `row_limit` max 25000."""
         rows = svc.searchconsole.query(
@@ -440,20 +441,22 @@ def build_server(services: Services | None = None) -> MCPServer:
             start_row=start_row,
             search_type=search_type,
         )
-        return results(rows)
+        return results(to_json(rows))
 
     @tool(READ)
     def searchconsole_inspect_url(
         site_url: str, url: str, language_code: str | None = None
     ) -> dict[str, Any]:
-        """URL Inspection: Google index status, coverage, canonical, mobile
-        usability and rich results for one URL of a property."""
-        return svc.searchconsole.inspect_url(site_url, url, language_code=language_code)
+        """URL Inspection: Google index status, coverage, canonical and last
+        crawl for one URL of a property; `raw` has the full result (mobile
+        usability, rich results)."""
+        inspection = svc.searchconsole.inspect_url(site_url, url, language_code=language_code)
+        return to_json(inspection, skip=set())  # type: ignore[no-any-return]
 
     @tool(READ)
     def searchconsole_list_sitemaps(site_url: str) -> dict[str, Any]:
         """Sitemaps submitted for a property, with status, errors and warnings."""
-        return results(svc.searchconsole.list_sitemaps(site_url))
+        return results(to_json(svc.searchconsole.list_sitemaps(site_url)))
 
     # ------------------------------------------------- analytics (read-only)
 

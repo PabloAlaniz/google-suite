@@ -50,7 +50,7 @@ auth = GoogleAuth()
 sc = SearchConsole(auth)
 
 for site in sc.list_sites():
-    print(site["siteUrl"], site["permissionLevel"])
+    print(site.site_url, site.permission_level)
 
 rows = sc.query(
     "sc-domain:example.com",
@@ -61,12 +61,17 @@ rows = sc.query(
     row_limit=1000,
 )
 for row in rows:
-    print(row["query"], row["page"], row["clicks"], row["impressions"], row["ctr"], row["position"])
+    print(row.keys["query"], row.keys["page"], row.clicks, row.impressions, row.ctr, row.position)
 
 result = sc.inspect_url("sc-domain:example.com", "https://example.com/pricing")
-print(result["indexStatusResult"]["coverageState"])
-sc.list_sitemaps("sc-domain:example.com")
+print(result.verdict, result.coverage_state, result.last_crawl_time)  # result.raw: full result
+for sitemap in sc.list_sitemaps("sc-domain:example.com"):
+    print(sitemap.path, sitemap.last_downloaded, sitemap.errors, sitemap.warnings)
 ```
+
+Results are dataclasses (`Site`, `SearchAnalyticsRow`, `UrlInspection`,
+`Sitemap`); each keeps the API resource in `.raw`. A row's `keys` maps each
+requested dimension to its value.
 
 `query` returns at most `row_limit` rows (up to 25000); page with `start_row`,
 or call `sc.query_all(site, start, end, dimensions=[...], max_rows=None)` (CLI:

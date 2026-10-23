@@ -139,11 +139,12 @@ def test_searchconsole_read_only(auth, need_scopes):
     if not sites:
         pytest.skip("the account has no Search Console properties")
 
-    site = sites[0]["siteUrl"]
+    site = sites[0].site_url
     end = date.today() - timedelta(days=3)  # the data lags 2-3 days
     rows = sc.query(site, end - timedelta(days=7), end, dimensions=["date"], row_limit=5)
     for row in rows:
-        assert {"date", "clicks", "impressions", "ctr", "position"} <= row.keys()
+        assert set(row.keys) == {"date"}
+        assert row.impressions >= row.clicks >= 0
     assert isinstance(sc.list_sitemaps(site), list)
 
 

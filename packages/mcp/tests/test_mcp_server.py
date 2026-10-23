@@ -14,6 +14,7 @@ from gsuite_drive import File, Permission
 from gsuite_gmail import Message
 from gsuite_mcp import Services, build_server
 from gsuite_mcp.serialize import to_json
+from gsuite_searchconsole import SearchAnalyticsRow, Site, UrlInspection
 from gsuite_tasks import Task
 
 DOC = "application/vnd.google-apps.document"
@@ -380,7 +381,7 @@ class TestMarketingTools:
         assert all(tools[n].annotations.read_only_hint is True for n in marketing)
 
     async def test_searchconsole_query(self, server, services):
-        services.searchconsole.query.return_value = [{"query": "x", "clicks": 1}]
+        services.searchconsole.query.return_value = [SearchAnalyticsRow({"query": "x"}, clicks=1)]
         status, body = await call(
             server,
             "searchconsole_query",
@@ -392,6 +393,8 @@ class TestMarketingTools:
         )
         assert status == "ok"
         assert body["count"] == 1
+        assert body["results"][0]["keys"] == {"query": "x"}
+        assert "raw" not in body["results"][0]
         kwargs = services.searchconsole.query.call_args.kwargs
         assert kwargs["dimensions"] == ["query"]
         assert kwargs["row_limit"] == 100
@@ -408,13 +411,19 @@ class TestMarketingTools:
         assert status == "error"
 
     async def test_searchconsole_other_tools(self, server, services):
-        services.searchconsole.list_sites.return_value = [{"siteUrl": "sc-domain:a.com"}]
+        services.searchconsole.list_sites.return_value = [Site("sc-domain:a.com", "siteOwner")]
         services.searchconsole.list_sitemaps.return_value = []
-        services.searchconsole.inspect_url.return_value = {"indexStatusResult": {"verdict": "PASS"}}
-        assert (await call(server, "searchconsole_list_sites"))[1]["count"] == 1
+        raw = {"indexStatusResult": {"verdict": "PASS"}}
+        services.searchconsole.inspect_url.return_value = UrlInspection(
+            "u", verdict="PASS", last_crawl_time=datetime(2026, 9, 1, tzinfo=UTC), raw=raw
+        )
+        _status, body = await call(server, "searchconsole_list_sites")
+        assert body["results"] == [{"site_url": "sc-domain:a.com", "permission_level": "siteOwner"}]
         assert (await call(server, "searchconsole_list_sitemaps", site_url="s"))[1]["count"] == 0
         _status, body = await call(server, "searchconsole_inspect_url", site_url="s", url="u")
-        assert body["indexStatusResult"]["verdict"] == "PASS"
+        assert body["verdict"] == "PASS"
+        assert body["last_crawl_time"] == "2026-09-01T00:00:00+00:00"
+        assert body["raw"] == raw
 
     async def test_analytics_run_report(self, server, services):
         services.analytics.run_report.return_value = {"rows": [], "row_count": 0}

@@ -9,6 +9,8 @@ from googleapiclient.discovery import build
 
 from gsuite_core import GoogleAuth, authorized_http, execute
 from gsuite_core.exceptions import ValidationError
+from gsuite_searchconsole.models import SearchAnalyticsRow, Site, Sitemap, UrlInspection
+from gsuite_searchconsole.parser import parse_inspection, parse_row, parse_site, parse_sitemap
 
 DIMENSIONS = {"query", "page", "country", "device", "date", "searchAppearance"}
 OPERATORS = {"equals", "notEquals", "contains", "notContains", "includingRegex", "excludingRegex"}
@@ -68,10 +70,10 @@ class SearchConsole:
             )
         return self._service
 
-    def list_sites(self) -> list[dict[str, Any]]:
-        """Properties the user can see: [{"siteUrl", "permissionLevel"}]."""
+    def list_sites(self) -> list[Site]:
+        """Properties the user can see."""
         data = execute(self.service.sites().list(), "searchconsole", "sites")
-        return list(data.get("siteEntry", []))
+        return [parse_site(s) for s in data.get("siteEntry", [])]
 
     def query(
         self,
@@ -85,8 +87,8 @@ class SearchConsole:
         search_type: str = "web",
         aggregation_type: str | None = None,
         data_state: str | None = None,
-    ) -> list[dict[str, Any]]:
-        """Search analytics rows: keys (one per dimension), clicks, impressions, ctr, position."""
+    ) -> list[SearchAnalyticsRow]:
+        """Search analytics rows: keys (dimension -> value), clicks, impressions, ctr, position."""
         dimensions = list(dimensions or [])
         unknown = set(dimensions) - DIMENSIONS
         if unknown:
@@ -122,16 +124,7 @@ class SearchConsole:
             "searchanalytics",
             site_url,
         )
-        return [
-            {
-                **dict(zip(dimensions, row.get("keys", []), strict=False)),
-                "clicks": row.get("clicks", 0),
-                "impressions": row.get("impressions", 0),
-                "ctr": row.get("ctr", 0.0),
-                "position": row.get("position", 0.0),
-            }
-            for row in data.get("rows", [])
-        ]
+        return [parse_row(row, dimensions) for row in data.get("rows", [])]
 
     def query_all(
         self,
@@ -144,11 +137,11 @@ class SearchConsole:
         search_type: str = "web",
         aggregation_type: str | None = None,
         data_state: str | None = None,
-    ) -> list[dict[str, Any]]:
+    ) -> list[SearchAnalyticsRow]:
         """Every row of ``query`` (or the first ``max_rows``), paging past the 25000-row cap."""
         if max_rows is not None and max_rows < 1:
             raise ValidationError("max_rows", "max_rows must be at least 1")
-        rows: list[dict[str, Any]] = []
+        rows: list[SearchAnalyticsRow] = []
         while max_rows is None or len(rows) < max_rows:
             limit = MAX_ROW_LIMIT if max_rows is None else min(MAX_ROW_LIMIT, max_rows - len(rows))
             page = self.query(
@@ -170,8 +163,9 @@ class SearchConsole:
 
     def inspect_url(
         self, site_url: str, url: str, language_code: str | None = None
-    ) -> dict[str, Any]:
-        """URL Inspection result (index status, mobile usability, rich results...)."""
+    ) -> UrlInspection:
+        """URL Inspection result: index status; the full result (mobile usability, rich
+        results...) is in ``raw``."""
         body: dict[str, Any] = {"inspectionUrl": url, "siteUrl": site_url}
         if language_code:
             body["languageCode"] = language_code
@@ -181,11 +175,11 @@ class SearchConsole:
             "urlInspection",
             url,
         )
-        return dict(data.get("inspectionResult", {}))
+        return parse_inspection(dict(data.get("inspectionResult", {})), url)
 
-    def list_sitemaps(self, site_url: str) -> list[dict[str, Any]]:
+    def list_sitemaps(self, site_url: str) -> list[Sitemap]:
         """Sitemaps submitted for a property."""
         data = execute(
             self.service.sitemaps().list(siteUrl=site_url), "searchconsole", "sitemaps", site_url
         )
-        return list(data.get("sitemap", []))
+        return [parse_sitemap(s) for s in data.get("sitemap", [])]

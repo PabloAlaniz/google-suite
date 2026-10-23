@@ -1,5 +1,8 @@
 """Search Console CLI commands (read-only)."""
 
+import dataclasses
+from typing import Any
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -31,6 +34,14 @@ def get_searchconsole() -> SearchConsole:
     return SearchConsole(auth)
 
 
+def _as_dict(item: Any, keep_raw: bool = False) -> dict[str, Any]:
+    """A Search Console entity as JSON-ready fields (``raw`` only when asked)."""
+    data = dataclasses.asdict(item)
+    if not keep_raw:
+        data.pop("raw", None)
+    return data
+
+
 def _filter(value: str) -> dict[str, str]:
     """dimension:operator:expression, e.g. query:contains:shoes."""
     parts = value.split(":", 2)
@@ -46,14 +57,14 @@ def sites(output: str = OUTPUT_OPTION) -> None:
     result = get_searchconsole().list_sites()
 
     if output == "json":
-        print_json(result)
+        print_json([_as_dict(s) for s in result])
         return
 
     table = Table(title=f"Sites ({len(result)})")
     table.add_column("Site", style="cyan")
     table.add_column("Permission", style="dim")
     for s in result:
-        table.add_row(s.get("siteUrl", ""), s.get("permissionLevel", ""))
+        table.add_row(s.site_url, s.permission_level)
     console.print(table)
 
 
@@ -99,7 +110,7 @@ def query(
         )
 
     if output == "json":
-        print_json(rows)
+        print_json([_as_dict(r) for r in rows])
         return
 
     if not rows:
@@ -113,11 +124,11 @@ def query(
         table.add_column(m, justify="right")
     for r in rows:
         table.add_row(
-            *(str(r.get(d, "")) for d in dimension),
-            str(r["clicks"]),
-            str(r["impressions"]),
-            f"{r['ctr']:.1%}",
-            f"{r['position']:.1f}",
+            *(r.keys.get(d, "") for d in dimension),
+            str(r.clicks),
+            str(r.impressions),
+            f"{r.ctr:.1%}",
+            f"{r.position:.1f}",
         )
     console.print(table)
 
@@ -132,24 +143,23 @@ def inspect(
     result = get_searchconsole().inspect_url(site_url, url)
 
     if output == "json":
-        print_json(result)
+        print_json(_as_dict(result, keep_raw=True))
         return
 
-    index = result.get("indexStatusResult", {})
     table = Table(title=url, show_header=False)
     table.add_column("Field", style="cyan")
     table.add_column("Value")
-    for label, key in (
-        ("Verdict", "verdict"),
-        ("Coverage", "coverageState"),
-        ("Indexing", "indexingState"),
-        ("Page fetch", "pageFetchState"),
-        ("Robots.txt", "robotsTxtState"),
-        ("Last crawl", "lastCrawlTime"),
-        ("Google canonical", "googleCanonical"),
-        ("User canonical", "userCanonical"),
+    for label, value in (
+        ("Verdict", result.verdict),
+        ("Coverage", result.coverage_state),
+        ("Indexing", result.indexing_state),
+        ("Page fetch", result.page_fetch_state),
+        ("Robots.txt", result.robots_txt_state),
+        ("Last crawl", result.last_crawl_time),
+        ("Google canonical", result.google_canonical),
+        ("User canonical", result.user_canonical),
     ):
-        table.add_row(label, str(index.get(key, "")))
+        table.add_row(label, "" if value is None else str(value))
     console.print(table)
 
 
@@ -162,7 +172,7 @@ def sitemaps(
     result = get_searchconsole().list_sitemaps(site_url)
 
     if output == "json":
-        print_json(result)
+        print_json([_as_dict(s) for s in result])
         return
 
     if not result:
@@ -176,9 +186,9 @@ def sitemaps(
     table.add_column("Warnings", justify="right")
     for s in result:
         table.add_row(
-            s.get("path", ""),
-            s.get("lastDownloaded", ""),
-            str(s.get("errors", 0)),
-            str(s.get("warnings", 0)),
+            s.path,
+            str(s.last_downloaded or ""),
+            str(s.errors),
+            str(s.warnings),
         )
     console.print(table)

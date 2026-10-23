@@ -1,12 +1,12 @@
 """SearchConsole client on a mocked discovery service."""
 
-from datetime import date
+from datetime import UTC, date, datetime
 from unittest.mock import MagicMock
 
 import pytest
 
 from gsuite_core.exceptions import ValidationError
-from gsuite_searchconsole import SearchConsole
+from gsuite_searchconsole import SearchAnalyticsRow, SearchConsole, Site
 
 
 @pytest.fixture
@@ -20,7 +20,13 @@ def test_list_sites(sc):
     sc.service.sites().list().execute.return_value = {
         "siteEntry": [{"siteUrl": "sc-domain:example.com", "permissionLevel": "siteOwner"}]
     }
-    assert sc.list_sites()[0]["siteUrl"] == "sc-domain:example.com"
+    assert sc.list_sites() == [
+        Site(
+            "sc-domain:example.com",
+            "siteOwner",
+            raw={"siteUrl": "sc-domain:example.com", "permissionLevel": "siteOwner"},
+        )
+    ]
 
 
 def test_list_sites_empty(sc):
@@ -50,14 +56,20 @@ def test_query_builds_body_and_maps_rows(sc):
         row_limit=50,
     )
     assert rows == [
-        {
-            "query": "shoes",
-            "country": "ARG",
-            "clicks": 3,
-            "impressions": 40,
-            "ctr": 0.075,
-            "position": 4.2,
-        }
+        SearchAnalyticsRow(
+            {"query": "shoes", "country": "ARG"},
+            clicks=3,
+            impressions=40,
+            ctr=0.075,
+            position=4.2,
+            raw={
+                "keys": ["shoes", "ARG"],
+                "clicks": 3,
+                "impressions": 40,
+                "ctr": 0.075,
+                "position": 4.2,
+            },
+        )
     ]
     body = method.call_args.kwargs["body"]
     assert method.call_args.kwargs["siteUrl"] == "sc-domain:example.com"
@@ -99,11 +111,26 @@ def test_query_rejects_bad_dates(sc):
 
 def test_inspect_url(sc):
     method = sc.service.urlInspection().index().inspect
-    method.return_value.execute.return_value = {
-        "inspectionResult": {"indexStatusResult": {"verdict": "PASS"}}
+    inspection = {
+        "inspectionResultLink": "https://search.google.com/x",
+        "indexStatusResult": {
+            "verdict": "PASS",
+            "coverageState": "Submitted and indexed",
+            "lastCrawlTime": "2026-09-01T10:00:00Z",
+            "googleCanonical": "https://example.com/a",
+        },
+        "mobileUsabilityResult": {"verdict": "PASS"},
     }
+    method.return_value.execute.return_value = {"inspectionResult": inspection}
     result = sc.inspect_url("https://example.com/", "https://example.com/a", language_code="es")
-    assert result["indexStatusResult"]["verdict"] == "PASS"
+    assert result.url == "https://example.com/a"
+    assert result.is_indexed
+    assert result.coverage_state == "Submitted and indexed"
+    assert result.last_crawl_time == datetime(2026, 9, 1, 10, tzinfo=UTC)
+    assert result.google_canonical == "https://example.com/a"
+    assert result.user_canonical is None
+    assert result.inspection_result_link == "https://search.google.com/x"
+    assert result.raw == inspection
     assert method.call_args.kwargs["body"] == {
         "inspectionUrl": "https://example.com/a",
         "siteUrl": "https://example.com/",
@@ -113,9 +140,22 @@ def test_inspect_url(sc):
 
 def test_list_sitemaps(sc):
     sc.service.sitemaps().list.return_value.execute.return_value = {
-        "sitemap": [{"path": "https://example.com/sitemap.xml"}]
+        "sitemap": [
+            {
+                "path": "https://example.com/sitemap.xml",
+                "type": "sitemap",
+                "lastDownloaded": "2026-09-02T03:04:05.123Z",
+                "isPending": False,
+                "warnings": "1",
+                "errors": "2",
+            }
+        ]
     }
-    assert sc.list_sitemaps("https://example.com/")[0]["path"].endswith("sitemap.xml")
+    (sitemap,) = sc.list_sitemaps("https://example.com/")
+    assert sitemap.path == "https://example.com/sitemap.xml"
+    assert sitemap.last_downloaded == datetime(2026, 9, 2, 3, 4, 5, 123000, tzinfo=UTC)
+    assert sitemap.last_submitted is None
+    assert (sitemap.warnings, sitemap.errors) == (1, 2)
     assert sc.service.sitemaps().list.call_args.kwargs == {"siteUrl": "https://example.com/"}
 
 

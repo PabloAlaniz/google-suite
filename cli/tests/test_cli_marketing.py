@@ -7,6 +7,7 @@ import pytest
 from typer.testing import CliRunner
 
 from gsuite_cli.main import app
+from gsuite_searchconsole import SearchAnalyticsRow, Site, Sitemap, UrlInspection
 
 runner = CliRunner()
 
@@ -32,7 +33,16 @@ def gtm():
         yield client
 
 
-ROW = {"query": "shoes", "clicks": 12, "impressions": 340, "ctr": 0.035, "position": 4.27}
+ROW = SearchAnalyticsRow(
+    {"query": "shoes"}, clicks=12, impressions=340, ctr=0.035, position=4.27, raw={"keys": ["x"]}
+)
+ROW_JSON = {
+    "keys": {"query": "shoes"},
+    "clicks": 12,
+    "impressions": 340,
+    "ctr": 0.035,
+    "position": 4.27,
+}
 
 REPORT = {
     "dimensions": ["country"],
@@ -44,9 +54,7 @@ REPORT = {
 
 class TestSearchConsole:
     def test_sites(self, sc):
-        sc.list_sites.return_value = [
-            {"siteUrl": "sc-domain:example.com", "permissionLevel": "siteOwner"}
-        ]
+        sc.list_sites.return_value = [Site("sc-domain:example.com", "siteOwner")]
         result = runner.invoke(app, ["searchconsole", "sites"])
         assert result.exit_code == 0, result.output
         assert "sc-domain:example.com" in result.output
@@ -83,7 +91,7 @@ class TestSearchConsole:
         result = runner.invoke(
             app, ["searchconsole", "query", "s", "-s", "a", "-e", "b", "-o", "json"]
         )
-        assert json.loads(result.output) == [ROW]
+        assert json.loads(result.output) == [ROW_JSON]
 
     def test_query_all(self, sc):
         sc.query_all.return_value = [ROW]
@@ -92,7 +100,7 @@ class TestSearchConsole:
             app, ["searchconsole", "query", "s", "-s", "a", "-e", "b", "--all", "-o", "json"]
         )
 
-        assert json.loads(result.output) == [ROW]
+        assert json.loads(result.output) == [ROW_JSON]
         sc.query.assert_not_called()
         sc.query_all.assert_called_once_with(
             "s", "a", "b", dimensions=[], filters=[], search_type="web"
@@ -111,15 +119,25 @@ class TestSearchConsole:
         sc.query.assert_not_called()
 
     def test_inspect(self, sc):
-        sc.inspect_url.return_value = {
-            "indexStatusResult": {"verdict": "PASS", "coverageState": "Submitted and indexed"}
-        }
+        sc.inspect_url.return_value = UrlInspection(
+            "https://example.com/a",
+            verdict="PASS",
+            coverage_state="Submitted and indexed",
+            raw={"indexStatusResult": {"verdict": "PASS"}},
+        )
         result = runner.invoke(app, ["searchconsole", "inspect", "s", "https://example.com/a"])
         assert "Submitted and indexed" in result.output
         sc.inspect_url.assert_called_once_with("s", "https://example.com/a")
 
+        result = runner.invoke(
+            app, ["searchconsole", "inspect", "s", "https://example.com/a", "-o", "json"]
+        )
+        body = json.loads(result.output)
+        assert body["coverage_state"] == "Submitted and indexed"
+        assert body["raw"] == {"indexStatusResult": {"verdict": "PASS"}}
+
     def test_sitemaps(self, sc):
-        sc.list_sitemaps.return_value = [{"path": "https://example.com/sitemap.xml", "errors": 2}]
+        sc.list_sitemaps.return_value = [Sitemap("https://example.com/sitemap.xml", errors=2)]
         result = runner.invoke(app, ["searchconsole", "sitemaps", "s"])
         assert "sitemap.xml" in result.output
 

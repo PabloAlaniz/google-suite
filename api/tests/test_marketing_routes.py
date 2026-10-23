@@ -1,6 +1,10 @@
 """Search Console, Analytics and Tag Manager REST routes (read-only) with mocked clients."""
 
+from datetime import UTC, datetime
+
 import pytest
+
+from gsuite_searchconsole import SearchAnalyticsRow, Site, Sitemap, UrlInspection
 
 
 @pytest.fixture
@@ -20,14 +24,29 @@ def gtm(services):
 
 class TestSearchConsole:
     def test_sites_and_sitemaps(self, client, sc):
-        sc.list_sites.return_value = [{"siteUrl": "sc-domain:a.com"}]
-        assert client.get("/searchconsole/sites").json()["count"] == 1
-        sc.list_sitemaps.return_value = []
-        assert client.get("/searchconsole/sitemaps", params={"site_url": "s"}).json()["count"] == 0
+        sc.list_sites.return_value = [Site("sc-domain:a.com", "siteOwner")]
+        body = client.get("/searchconsole/sites").json()
+        assert body == {
+            "sites": [{"site_url": "sc-domain:a.com", "permission_level": "siteOwner"}],
+            "count": 1,
+        }
+        sc.list_sitemaps.return_value = [
+            Sitemap(
+                "https://a.com/sitemap.xml",
+                last_downloaded=datetime(2026, 9, 1, tzinfo=UTC),
+                errors=2,
+            )
+        ]
+        sitemap = client.get("/searchconsole/sitemaps", params={"site_url": "s"}).json()[
+            "sitemaps"
+        ][0]
+        assert sitemap["path"] == "https://a.com/sitemap.xml"
+        assert sitemap["last_downloaded"].startswith("2026-09-01T00:00:00")
+        assert sitemap["errors"] == 2
         assert client.get("/searchconsole/sitemaps").status_code == 422
 
     def test_query(self, client, sc):
-        sc.query.return_value = [{"query": "x", "clicks": 1}]
+        sc.query.return_value = [SearchAnalyticsRow({"query": "x", "page": "/"}, clicks=1)]
         response = client.post(
             "/searchconsole/searchanalytics/query",
             json={
@@ -40,6 +59,13 @@ class TestSearchConsole:
         )
         assert response.status_code == 200
         assert response.json()["count"] == 1
+        assert response.json()["rows"][0] == {
+            "keys": {"query": "x", "page": "/"},
+            "clicks": 1,
+            "impressions": 0,
+            "ctr": 0.0,
+            "position": 0.0,
+        }
         kwargs = sc.query.call_args.kwargs
         assert kwargs["filters"] == [
             {"dimension": "country", "operator": "equals", "expression": "arg"}
@@ -57,11 +83,13 @@ class TestSearchConsole:
         assert client.post("/searchconsole/searchanalytics/query", json=bad).status_code == 422
 
     def test_inspect(self, client, sc):
-        sc.inspect_url.return_value = {"indexStatusResult": {"verdict": "PASS"}}
+        raw = {"indexStatusResult": {"verdict": "PASS"}, "mobileUsabilityResult": {}}
+        sc.inspect_url.return_value = UrlInspection("u", verdict="PASS", raw=raw)
         body = client.post(
             "/searchconsole/urlInspection", json={"site_url": "s", "url": "u"}
         ).json()
-        assert body["indexStatusResult"]["verdict"] == "PASS"
+        assert body["verdict"] == "PASS"
+        assert body["result"] == raw
 
 
 class TestAnalytics:

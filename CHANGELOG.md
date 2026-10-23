@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0](https://github.com/PabloAlaniz/google-suite/compare/v0.8.0...v0.9.0) (2026-10-23)
+
+
+### ⚠ BREAKING CHANGES
+
+* **tagmanager:** return typed models instead of dicts ([#71](https://github.com/PabloAlaniz/google-suite/issues/71))
+* **analytics:** return typed models instead of dicts ([#70](https://github.com/PabloAlaniz/google-suite/issues/70))
+* **searchconsole:** return typed models instead of dicts ([#68](https://github.com/PabloAlaniz/google-suite/issues/68))
+
+### Features
+
+* **analytics:** return typed models instead of dicts ([#70](https://github.com/PabloAlaniz/google-suite/issues/70)) ([7593d68](https://github.com/PabloAlaniz/google-suite/commit/7593d689220671df5293c5a14bf35bc9003f0521))
+* **searchconsole:** return typed models instead of dicts ([#68](https://github.com/PabloAlaniz/google-suite/issues/68)) ([9d9741c](https://github.com/PabloAlaniz/google-suite/commit/9d9741c0b1ec6de2a61ce729873bed552c86e852))
+* **tagmanager:** return typed models instead of dicts ([#71](https://github.com/PabloAlaniz/google-suite/issues/71)) ([3f5210b](https://github.com/PabloAlaniz/google-suite/commit/3f5210b127a4d2a78bf3edfc538bdb1e0b4f0dbb))
+
 ## [0.8.0](https://github.com/PabloAlaniz/google-suite/compare/v0.7.0...v0.8.0) (2026-10-22)
 
 

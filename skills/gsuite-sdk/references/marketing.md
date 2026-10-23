@@ -50,7 +50,7 @@ auth = GoogleAuth()
 sc = SearchConsole(auth)
 
 for site in sc.list_sites():
-    print(site["siteUrl"], site["permissionLevel"])
+    print(site.site_url, site.permission_level)
 
 rows = sc.query(
     "sc-domain:example.com",
@@ -61,12 +61,17 @@ rows = sc.query(
     row_limit=1000,
 )
 for row in rows:
-    print(row["query"], row["page"], row["clicks"], row["impressions"], row["ctr"], row["position"])
+    print(row.keys["query"], row.keys["page"], row.clicks, row.impressions, row.ctr, row.position)
 
 result = sc.inspect_url("sc-domain:example.com", "https://example.com/pricing")
-print(result["indexStatusResult"]["coverageState"])
-sc.list_sitemaps("sc-domain:example.com")
+print(result.verdict, result.coverage_state, result.last_crawl_time)  # result.raw: full result
+for sitemap in sc.list_sitemaps("sc-domain:example.com"):
+    print(sitemap.path, sitemap.last_downloaded, sitemap.errors, sitemap.warnings)
 ```
+
+Results are dataclasses (`Site`, `SearchAnalyticsRow`, `UrlInspection`,
+`Sitemap`); each keeps the API resource in `.raw`. A row's `keys` maps each
+requested dimension to its value.
 
 `query` returns at most `row_limit` rows (up to 25000); page with `start_row`,
 or call `sc.query_all(site, start, end, dimensions=[...], max_rows=None)` (CLI:
@@ -83,8 +88,8 @@ from gsuite_analytics import Analytics
 ga = Analytics(auth)
 
 for account in ga.account_summaries():
-    for prop in account.get("propertySummaries", []):
-        print(account["displayName"], prop["displayName"], prop["property"])
+    for prop in account.properties:
+        print(account.display_name, prop.display_name, prop.property_id)
 
 report = ga.run_report(
     "123456",
@@ -95,11 +100,15 @@ report = ga.run_report(
     order_by="date",
     descending=False,
 )
-for row in report["rows"]:            # values are strings, as GA4 sends them
-    print(row["date"], row["activeUsers"], row["sessions"])
+for day in report.rows:  # metrics are numbers (int or float; None if unparseable)
+    print(day.dimensions["date"], day.metrics["activeUsers"], day.metrics["sessions"])
 
-ga.run_realtime_report("123456", ["country"], ["activeUsers"])
+ga.run_realtime_report("123456", ["country"], ["activeUsers"])  # also a Report
 ```
+
+`account_summaries` returns `AccountSummary` (with `PropertySummary` items),
+`list_properties`/`get_property` return `Property`, and both reports return a
+`Report` (`dimensions`, `metrics`, `rows`, `row_count`, `totals`).
 
 Filters: `{"field": f, "value": v}` (exact), `{"field": f, "operator":
 "CONTAINS", "value": v}`, `{"field": f, "values": [..]}` (in list), numeric
@@ -118,14 +127,22 @@ from gsuite_tagmanager import TagManager
 gtm = TagManager(auth)
 
 for account in gtm.list_accounts():
-    for container in gtm.list_containers(account["path"]):
-        print(container["publicId"], container["name"], container["path"])
+    for container in gtm.list_containers(account.path):
+        print(container.public_id, container.name, container.path)
 
 workspace = "accounts/1/containers/2/workspaces/3"
-gtm.list_tags(workspace)
+for tag in gtm.list_tags(workspace):
+    print(tag.name, tag.type, tag.firing_trigger_ids, tag.paused)
 gtm.list_triggers(workspace)
 gtm.list_variables(workspace)
 
-gtm.list_versions("accounts/1/containers/2")
-live = gtm.get_live_version("accounts/1/containers/2")   # the published version
+for version in gtm.list_versions("accounts/1/containers/2"):
+    print(version.container_version_id, version.name, version.num_tags)
+live = gtm.get_live_version("accounts/1/containers/2")  # the published version
+print(len(live.tags), len(live.triggers), len(live.variables))
 ```
+
+Results are dataclasses (`Account`, `Container`, `Workspace`, `Tag`, `Trigger`,
+`Variable`, `VersionHeader`, `ContainerVersion`), each with its API resource in
+`.raw`. Tags and variables carry the API's `parameter` list as `parameters`;
+trigger conditions are in `trigger.raw`.

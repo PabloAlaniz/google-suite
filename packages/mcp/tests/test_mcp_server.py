@@ -16,6 +16,7 @@ from gsuite_gmail import Message
 from gsuite_mcp import Services, build_server
 from gsuite_mcp.serialize import to_json
 from gsuite_searchconsole import SearchAnalyticsRow, Site, UrlInspection
+from gsuite_tagmanager import Account
 from gsuite_tasks import Task
 
 DOC = "application/vnd.google-apps.document"
@@ -491,7 +492,10 @@ class TestMarketingTools:
         ],
     )
     async def test_tagmanager_tools(self, server, services, tool, method, arg):
-        getattr(services.tagmanager, method).return_value = [{"path": "p"}]
+        getattr(services.tagmanager, method).return_value = [Account("p", "1", raw={"x": 1})]
         status, body = await call(server, tool, **arg)
         assert status == "ok"
-        assert body == {"count": 1, "results": [{"path": "p"}]}
+        assert body == {
+            "count": 1,
+            "results": [{"path": "p", "account_id": "1", "name": "", "tag_manager_url": None}],
+        }

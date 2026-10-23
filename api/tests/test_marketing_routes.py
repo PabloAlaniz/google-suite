@@ -6,6 +6,7 @@ import pytest
 
 from gsuite_analytics import AccountSummary, Property, PropertySummary, Report, ReportRow
 from gsuite_searchconsole import SearchAnalyticsRow, Site, Sitemap, UrlInspection
+from gsuite_tagmanager import Account, Tag
 
 
 @pytest.fixture
@@ -143,13 +144,26 @@ class TestAnalytics:
         assert ga.run_realtime_report.call_args.args[2] == ["activeUsers"]
 
 
+WS = "accounts/1/containers/2/workspaces/3"
+
+
 class TestTagManager:
     def test_accounts(self, client, gtm):
-        gtm.list_accounts.return_value = [{"path": "accounts/1"}]
+        gtm.list_accounts.return_value = [Account("accounts/1", "1", "Acme", raw={"x": 1})]
         assert client.get("/tagmanager/accounts").json() == {
-            "accounts": [{"path": "accounts/1"}],
+            "accounts": [
+                {"path": "accounts/1", "name": "Acme", "tag_manager_url": None, "account_id": "1"}
+            ],
             "count": 1,
         }
+
+    def test_tags(self, client, gtm):
+        gtm.list_tags.return_value = [
+            Tag(f"{WS}/tags/1", "1", "GA4", "gaawc", firing_trigger_ids=["5"], paused=True)
+        ]
+        (tag,) = client.get("/tagmanager/tags", params={"parent": WS}).json()["tags"]
+        assert (tag["tag_id"], tag["type"], tag["paused"]) == ("1", "gaawc", True)
+        assert tag["firing_trigger_ids"] == ["5"]
 
     @pytest.mark.parametrize(
         ("path", "method", "parent"),

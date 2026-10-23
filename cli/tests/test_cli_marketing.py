@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 from gsuite_analytics import AccountSummary, Property, PropertySummary, Report, ReportRow
 from gsuite_cli.main import app
 from gsuite_searchconsole import SearchAnalyticsRow, Site, Sitemap, UrlInspection
+from gsuite_tagmanager import Account, Container, Tag, Trigger, Variable, Workspace
 
 runner = CliRunner()
 
@@ -211,20 +212,41 @@ class TestAnalytics:
 
 class TestTagManager:
     def test_accounts(self, gtm):
-        gtm.list_accounts.return_value = [{"path": "accounts/1", "name": "Acme"}]
+        gtm.list_accounts.return_value = [Account("accounts/1", "1", "Acme")]
         result = runner.invoke(app, ["tagmanager", "accounts"])
         assert "accounts/1" in result.output
 
     def test_containers_json(self, gtm):
-        containers = [{"path": "accounts/1/containers/2", "publicId": "GTM-ABC"}]
-        gtm.list_containers.return_value = containers
+        gtm.list_containers.return_value = [
+            Container("accounts/1/containers/2", "1", "2", "Site", "GTM-ABC", raw={"x": 1})
+        ]
         result = runner.invoke(app, ["tagmanager", "containers", "accounts/1", "-o", "json"])
-        assert json.loads(result.output) == containers
+        assert json.loads(result.output) == [
+            {
+                "path": "accounts/1/containers/2",
+                "account_id": "1",
+                "container_id": "2",
+                "name": "Site",
+                "public_id": "GTM-ABC",
+                "usage_context": [],
+                "domain_names": [],
+                "notes": None,
+                "tag_manager_url": None,
+            }
+        ]
         gtm.list_containers.assert_called_once_with("accounts/1")
 
-    @pytest.mark.parametrize("command", ["workspaces", "tags", "triggers", "variables"])
-    def test_workspace_lists(self, gtm, command):
-        getattr(gtm, f"list_{command}").return_value = [{"name": "GA4 config", "type": "gaawc"}]
+    @pytest.mark.parametrize(
+        ("command", "item"),
+        [
+            ("workspaces", Workspace("w", "3", "GA4 config")),
+            ("tags", Tag("t", "1", "GA4 config", "gaawc")),
+            ("triggers", Trigger("t", "5", "GA4 config", "pageview")),
+            ("variables", Variable("v", "9", "GA4 config", "c")),
+        ],
+    )
+    def test_workspace_lists(self, gtm, command, item):
+        getattr(gtm, f"list_{command}").return_value = [item]
         result = runner.invoke(app, ["tagmanager", command, "accounts/1/containers/2/workspaces/3"])
         assert "GA4 config" in result.output
 

@@ -170,10 +170,11 @@ def test_tagmanager_read_only(auth, need_scopes):
     if not accounts:
         pytest.skip("the account has no Tag Manager accounts")
 
-    containers = gtm.list_containers(accounts[0]["path"])
-    assert all(c["path"].startswith(accounts[0]["path"]) for c in containers)
+    containers = gtm.list_containers(accounts[0].path)
+    assert all(c.path.startswith(accounts[0].path) for c in containers)
+    assert all(c.public_id.startswith("GTM-") for c in containers)
     if containers:
-        assert isinstance(gtm.list_versions(containers[0]["path"]), list)
+        assert isinstance(gtm.list_versions(containers[0].path), list)
 
 
 @pytest.mark.parametrize("missing", ["nonexistent-id-0000"])

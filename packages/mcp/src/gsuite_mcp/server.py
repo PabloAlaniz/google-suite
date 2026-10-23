@@ -535,37 +535,37 @@ def build_server(services: Services | None = None) -> MCPServer:
     @tool(READ)
     def tagmanager_list_accounts() -> dict[str, Any]:
         """Tag Manager accounts (path like "accounts/123")."""
-        return results(svc.tagmanager.list_accounts())
+        return results(to_json(svc.tagmanager.list_accounts()))
 
     @tool(READ)
     def tagmanager_list_containers(account_path: str) -> dict[str, Any]:
         """Containers of an account ("accounts/123"), with their public GTM-XXXX id."""
-        return results(svc.tagmanager.list_containers(account_path))
+        return results(to_json(svc.tagmanager.list_containers(account_path)))
 
     @tool(READ)
     def tagmanager_list_workspaces(container_path: str) -> dict[str, Any]:
         """Workspaces of a container ("accounts/123/containers/456")."""
-        return results(svc.tagmanager.list_workspaces(container_path))
+        return results(to_json(svc.tagmanager.list_workspaces(container_path)))
 
     @tool(READ)
     def tagmanager_list_tags(workspace_path: str) -> dict[str, Any]:
         """Tags of a workspace ("accounts/1/containers/2/workspaces/3")."""
-        return results(svc.tagmanager.list_tags(workspace_path))
+        return results(to_json(svc.tagmanager.list_tags(workspace_path)))
 
     @tool(READ)
     def tagmanager_list_triggers(workspace_path: str) -> dict[str, Any]:
         """Triggers of a workspace ("accounts/1/containers/2/workspaces/3")."""
-        return results(svc.tagmanager.list_triggers(workspace_path))
+        return results(to_json(svc.tagmanager.list_triggers(workspace_path)))
 
     @tool(READ)
     def tagmanager_list_variables(workspace_path: str) -> dict[str, Any]:
         """Variables of a workspace ("accounts/1/containers/2/workspaces/3")."""
-        return results(svc.tagmanager.list_variables(workspace_path))
+        return results(to_json(svc.tagmanager.list_variables(workspace_path)))
 
     @tool(READ)
     def tagmanager_list_versions(container_path: str) -> dict[str, Any]:
         """Version headers of a container ("accounts/123/containers/456")."""
-        return results(svc.tagmanager.list_versions(container_path))
+        return results(to_json(svc.tagmanager.list_versions(container_path)))
 
     return server
 

@@ -25,20 +25,35 @@ def test_list_accounts_follows_page_tokens(gtm):
         {"account": [{"path": "accounts/1"}], "nextPageToken": "t"},
         {"account": [{"path": "accounts/2"}]},
     ]
-    assert [a["path"] for a in gtm.list_accounts()] == ["accounts/1", "accounts/2"]
+    assert [a.path for a in gtm.list_accounts()] == ["accounts/1", "accounts/2"]
     assert method.call_args.kwargs == {"pageToken": "t"}
 
 
 def test_list_containers_and_workspaces(gtm):
     containers = gtm.service.accounts().containers()
-    containers.list.return_value.execute.return_value = {"container": [{"publicId": "GTM-X"}]}
-    assert gtm.list_containers("accounts/1")[0]["publicId"] == "GTM-X"
+    containers.list.return_value.execute.return_value = {
+        "container": [
+            {
+                "path": "accounts/1/containers/2",
+                "accountId": "1",
+                "containerId": "2",
+                "name": "Site",
+                "publicId": "GTM-X",
+                "usageContext": ["web"],
+            }
+        ]
+    }
+    (container,) = gtm.list_containers("accounts/1")
+    assert (container.container_id, container.public_id) == ("2", "GTM-X")
+    assert container.usage_context == ["web"]
+    assert container.domain_names == []
     assert containers.list.call_args.kwargs == {"parent": "accounts/1"}
 
     containers.workspaces().list.return_value.execute.return_value = {
-        "workspace": [{"name": "Default"}]
+        "workspace": [{"name": "Default", "workspaceId": "3"}]
     }
-    assert gtm.list_workspaces("accounts/1/containers/2") == [{"name": "Default"}]
+    (workspace,) = gtm.list_workspaces("accounts/1/containers/2")
+    assert (workspace.name, workspace.workspace_id) == ("Default", "3")
 
 
 @pytest.mark.parametrize(
@@ -51,8 +66,9 @@ def test_list_containers_and_workspaces(gtm):
 )
 def test_workspace_lists(gtm, method, resource, key):
     res = getattr(gtm.service.accounts().containers().workspaces(), resource)()
-    res.list.return_value.execute.return_value = {key: [{"name": "x"}]}
-    assert getattr(gtm, method)(WS) == [{"name": "x"}]
+    res.list.return_value.execute.return_value = {key: [{"name": "x", "type": "html"}]}
+    (item,) = getattr(gtm, method)(WS)
+    assert (item.name, item.type, item.raw) == ("x", "html", {"name": "x", "type": "html"})
     assert res.list.call_args.kwargs == {"parent": WS}
 
 
@@ -65,11 +81,32 @@ def test_empty_list(gtm):
 def test_versions(gtm):
     containers = gtm.service.accounts().containers()
     containers.version_headers().list.return_value.execute.return_value = {
-        "containerVersionHeader": [{"containerVersionId": "7"}]
+        "containerVersionHeader": [{"containerVersionId": "7", "numTags": "4", "deleted": True}]
     }
-    assert gtm.list_versions("accounts/1/containers/2")[0]["containerVersionId"] == "7"
-    containers.versions().live.return_value.execute.return_value = {"containerVersionId": "7"}
-    assert gtm.get_live_version("accounts/1/containers/2")["containerVersionId"] == "7"
+    (header,) = gtm.list_versions("accounts/1/containers/2")
+    assert (header.container_version_id, header.num_tags, header.num_triggers) == ("7", 4, 0)
+    assert header.deleted
+    containers.versions().live.return_value.execute.return_value = {
+        "containerVersionId": "7",
+        "tag": [
+            {
+                "tagId": "1",
+                "name": "GA4",
+                "type": "gaawc",
+                "firingTriggerId": ["2147479553"],
+                "parameter": [{"type": "template", "key": "measurementId", "value": "G-X"}],
+            }
+        ],
+        "trigger": [{"triggerId": "5", "type": "pageview"}],
+        "variable": [{"variableId": "9", "type": "c"}],
+    }
+    live = gtm.get_live_version("accounts/1/containers/2")
+    assert live.container_version_id == "7"
+    (tag,) = live.tags
+    assert (tag.tag_id, tag.firing_trigger_ids, tag.paused) == ("1", ["2147479553"], False)
+    assert tag.parameters == [{"type": "template", "key": "measurementId", "value": "G-X"}]
+    assert [t.trigger_id for t in live.triggers] == ["5"]
+    assert [v.variable_id for v in live.variables] == ["9"]
 
 
 def test_not_found_names_the_parent(gtm):

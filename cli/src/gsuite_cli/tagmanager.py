@@ -1,13 +1,13 @@
 """Tag Manager CLI commands (read-only)."""
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from gsuite_cli.output import print_json
+from gsuite_cli.output import print_json, to_data
 from gsuite_core import GoogleAuth
 from gsuite_tagmanager import TagManager
 
@@ -39,13 +39,13 @@ def get_tagmanager() -> TagManager:
 
 
 def _show(
-    items: list[dict[str, Any]],
+    items: Sequence[Any],
     output: str,
     title: str,
-    columns: list[tuple[str, Callable[[dict[str, Any]], Any]]],
+    columns: list[tuple[str, Callable[[Any], Any]]],
 ) -> None:
     if output == "json":
-        print_json(items)
+        print_json(to_data(items))
         return
 
     if not items:
@@ -57,16 +57,16 @@ def _show(
         table.add_column(name, style="cyan" if i == 0 else None)
     table.add_column("Path", style="dim")
     for item in items:
-        table.add_row(*(str(get(item) or "") for _, get in columns), item.get("path", ""))
+        table.add_row(*(str(get(item) or "") for _, get in columns), item.path)
     console.print(table)
 
 
-def _name(item: dict[str, Any]) -> Any:
-    return item.get("name")
+def _name(item: Any) -> Any:
+    return item.name
 
 
-def _type(item: dict[str, Any]) -> Any:
-    return item.get("type")
+def _type(item: Any) -> Any:
+    return item.type
 
 
 @app.command("accounts")
@@ -82,7 +82,7 @@ def containers(account_path: str = ACCOUNT_ARG, output: str = OUTPUT_OPTION) -> 
         get_tagmanager().list_containers(account_path),
         output,
         "Containers",
-        [("Name", _name), ("Public ID", lambda c: c.get("publicId"))],
+        [("Name", _name), ("Public ID", lambda c: c.public_id)],
     )
 
 
@@ -133,8 +133,8 @@ def versions(container_path: str = CONTAINER_ARG, output: str = OUTPUT_OPTION) -
         output,
         "Versions",
         [
-            ("ID", lambda v: v.get("containerVersionId")),
+            ("ID", lambda v: v.container_version_id),
             ("Name", _name),
-            ("Tags", lambda v: v.get("numTags")),
+            ("Tags", lambda v: v.num_tags),
         ],
     )

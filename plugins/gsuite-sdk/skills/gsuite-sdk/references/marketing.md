@@ -127,14 +127,22 @@ from gsuite_tagmanager import TagManager
 gtm = TagManager(auth)
 
 for account in gtm.list_accounts():
-    for container in gtm.list_containers(account["path"]):
-        print(container["publicId"], container["name"], container["path"])
+    for container in gtm.list_containers(account.path):
+        print(container.public_id, container.name, container.path)
 
 workspace = "accounts/1/containers/2/workspaces/3"
-gtm.list_tags(workspace)
+for tag in gtm.list_tags(workspace):
+    print(tag.name, tag.type, tag.firing_trigger_ids, tag.paused)
 gtm.list_triggers(workspace)
 gtm.list_variables(workspace)
 
-gtm.list_versions("accounts/1/containers/2")
-live = gtm.get_live_version("accounts/1/containers/2")   # the published version
+for version in gtm.list_versions("accounts/1/containers/2"):
+    print(version.container_version_id, version.name, version.num_tags)
+live = gtm.get_live_version("accounts/1/containers/2")  # the published version
+print(len(live.tags), len(live.triggers), len(live.variables))
 ```
+
+Results are dataclasses (`Account`, `Container`, `Workspace`, `Tag`, `Trigger`,
+`Variable`, `VersionHeader`, `ContainerVersion`), each with its API resource in
+`.raw`. Tags and variables carry the API's `parameter` list as `parameters`;
+trigger conditions are in `trigger.raw`.

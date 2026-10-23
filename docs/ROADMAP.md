@@ -60,7 +60,7 @@ imagen Docker más chica. 0.6.0 sumó las APIs de marketing en solo lectura
   - [x] Comandos de CLI (`gsuite searchconsole|analytics|tagmanager`) y referencia en el skill
   - [x] Tests de propiedades, fuzzing y tests de integración (opt-in, solo lectura)
   - [x] `SearchConsole.query_all` (pagina más allá de las 25000 filas; CLI `--all`)
-  - [ ] Modelos tipados (hoy devuelven `dict`), antes del freeze de v1.0
+  - [x] Modelos tipados (dataclasses con `raw`, en lugar de `dict`)
 
 - [ ] **Google Meet**
   - [ ] Crear y listar reuniones

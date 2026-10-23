@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, Mock, patch
 import pytest
 from typer.testing import CliRunner
 
+from gsuite_analytics import AccountSummary, Property, PropertySummary, Report, ReportRow
 from gsuite_cli.main import app
 from gsuite_searchconsole import SearchAnalyticsRow, Site, Sitemap, UrlInspection
 
@@ -44,11 +45,19 @@ ROW_JSON = {
     "position": 4.27,
 }
 
-REPORT = {
+REPORT = Report(
+    ["country"],
+    ["activeUsers"],
+    [ReportRow({"country": "Argentina"}, {"activeUsers": 42})],
+    row_count=1,
+    raw={"rowCount": 1},
+)
+REPORT_JSON = {
     "dimensions": ["country"],
     "metrics": ["activeUsers"],
+    "rows": [{"dimensions": {"country": "Argentina"}, "metrics": {"activeUsers": 42}}],
     "row_count": 1,
-    "rows": [{"country": "Argentina", "activeUsers": "42"}],
+    "totals": [],
 }
 
 
@@ -145,11 +154,13 @@ class TestSearchConsole:
 class TestAnalytics:
     def test_accounts(self, ga):
         ga.account_summaries.return_value = [
-            {
-                "displayName": "Acme",
-                "propertySummaries": [{"property": "properties/123", "displayName": "Web"}],
-            },
-            {"displayName": "Empty"},
+            AccountSummary(
+                "accountSummaries/1",
+                "accounts/1",
+                "Acme",
+                [PropertySummary("properties/123", "Web")],
+            ),
+            AccountSummary("accountSummaries/2", "accounts/2", "Empty"),
         ]
         result = runner.invoke(app, ["analytics", "accounts"])
         assert result.exit_code == 0, result.output
@@ -157,7 +168,7 @@ class TestAnalytics:
         assert "Empty" in result.output
 
     def test_properties(self, ga):
-        ga.list_properties.return_value = [{"name": "properties/123", "displayName": "Web"}]
+        ga.list_properties.return_value = [Property("properties/123", "Web", time_zone="UTC")]
         result = runner.invoke(app, ["analytics", "properties", "accounts/9", "--deleted"])
         assert "Web" in result.output
         ga.list_properties.assert_called_once_with("accounts/9", show_deleted=True)
@@ -188,11 +199,11 @@ class TestAnalytics:
     def test_report_json(self, ga):
         ga.run_report.return_value = REPORT
         result = runner.invoke(app, ["analytics", "report", "123", "-o", "json"])
-        assert json.loads(result.output) == REPORT
+        assert json.loads(result.output) == REPORT_JSON
         assert ga.run_report.call_args.args[2] == ["activeUsers"]
 
     def test_realtime_empty(self, ga):
-        ga.run_realtime_report.return_value = {**REPORT, "row_count": 0, "rows": []}
+        ga.run_realtime_report.return_value = Report([], ["activeUsers"], [], row_count=0)
         result = runner.invoke(app, ["analytics", "realtime", "123"])
         assert "No rows" in result.output
         ga.run_realtime_report.assert_called_once_with("123", [], ["activeUsers"], limit=100)

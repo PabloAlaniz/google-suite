@@ -1,13 +1,10 @@
 """Search Console CLI commands (read-only)."""
 
-import dataclasses
-from typing import Any
-
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from gsuite_cli.output import print_json
+from gsuite_cli.output import print_json, to_data
 from gsuite_core import GoogleAuth
 from gsuite_searchconsole import SearchConsole
 
@@ -34,14 +31,6 @@ def get_searchconsole() -> SearchConsole:
     return SearchConsole(auth)
 
 
-def _as_dict(item: Any, keep_raw: bool = False) -> dict[str, Any]:
-    """A Search Console entity as JSON-ready fields (``raw`` only when asked)."""
-    data = dataclasses.asdict(item)
-    if not keep_raw:
-        data.pop("raw", None)
-    return data
-
-
 def _filter(value: str) -> dict[str, str]:
     """dimension:operator:expression, e.g. query:contains:shoes."""
     parts = value.split(":", 2)
@@ -57,7 +46,7 @@ def sites(output: str = OUTPUT_OPTION) -> None:
     result = get_searchconsole().list_sites()
 
     if output == "json":
-        print_json([_as_dict(s) for s in result])
+        print_json(to_data(result))
         return
 
     table = Table(title=f"Sites ({len(result)})")
@@ -110,7 +99,7 @@ def query(
         )
 
     if output == "json":
-        print_json([_as_dict(r) for r in rows])
+        print_json(to_data(rows))
         return
 
     if not rows:
@@ -143,7 +132,7 @@ def inspect(
     result = get_searchconsole().inspect_url(site_url, url)
 
     if output == "json":
-        print_json(_as_dict(result, keep_raw=True))
+        print_json(to_data(result, keep_raw=True))
         return
 
     table = Table(title=url, show_header=False)
@@ -172,7 +161,7 @@ def sitemaps(
     result = get_searchconsole().list_sitemaps(site_url)
 
     if output == "json":
-        print_json([_as_dict(s) for s in result])
+        print_json(to_data(result))
         return
 
     if not result:

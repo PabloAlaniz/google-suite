@@ -88,8 +88,8 @@ from gsuite_analytics import Analytics
 ga = Analytics(auth)
 
 for account in ga.account_summaries():
-    for prop in account.get("propertySummaries", []):
-        print(account["displayName"], prop["displayName"], prop["property"])
+    for prop in account.properties:
+        print(account.display_name, prop.display_name, prop.property_id)
 
 report = ga.run_report(
     "123456",
@@ -100,11 +100,15 @@ report = ga.run_report(
     order_by="date",
     descending=False,
 )
-for row in report["rows"]:            # values are strings, as GA4 sends them
-    print(row["date"], row["activeUsers"], row["sessions"])
+for day in report.rows:  # metrics are numbers (int or float; None if unparseable)
+    print(day.dimensions["date"], day.metrics["activeUsers"], day.metrics["sessions"])
 
-ga.run_realtime_report("123456", ["country"], ["activeUsers"])
+ga.run_realtime_report("123456", ["country"], ["activeUsers"])  # also a Report
 ```
+
+`account_summaries` returns `AccountSummary` (with `PropertySummary` items),
+`list_properties`/`get_property` return `Property`, and both reports return a
+`Report` (`dimensions`, `metrics`, `rows`, `row_count`, `totals`).
 
 Filters: `{"field": f, "value": v}` (exact), `{"field": f, "operator":
 "CONTAINS", "value": v}`, `{"field": f, "values": [..]}` (in list), numeric

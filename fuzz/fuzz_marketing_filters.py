@@ -66,7 +66,7 @@ def TestOneInput(data: bytes) -> None:
             [_text(fdp) for _ in range(fdp.ConsumeIntInRange(0, 6))]
             for _ in range(fdp.ConsumeIntInRange(0, 3))
         ]
-        analytics.check_rows_to_dicts(dims, mets, rows)
+        analytics.check_parse_report(dims, mets, rows)
 
 
 def main() -> None:

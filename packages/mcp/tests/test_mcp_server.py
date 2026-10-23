@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from mcp.client import Client
 
+from gsuite_analytics import Property, Report, ReportRow
 from gsuite_calendar import Event
 from gsuite_contacts import Contact
 from gsuite_core.exceptions import NotFoundError, PermissionDeniedError
@@ -426,8 +427,10 @@ class TestMarketingTools:
         assert body["raw"] == raw
 
     async def test_analytics_run_report(self, server, services):
-        services.analytics.run_report.return_value = {"rows": [], "row_count": 0}
-        status, _ = await call(
+        services.analytics.run_report.return_value = Report(
+            ["date"], ["activeUsers"], [ReportRow({"date": "20260901"}, {"activeUsers": 7})], 1
+        )
+        status, body = await call(
             server,
             "analytics_run_report",
             property_id="123",
@@ -436,6 +439,8 @@ class TestMarketingTools:
             date_ranges=[["2026-09-01", "2026-09-30"], ["2025-09-01", "2025-09-30"]],
         )
         assert status == "ok"
+        assert body["rows"] == [{"dimensions": {"date": "20260901"}, "metrics": {"activeUsers": 7}}]
+        assert "raw" not in body
         args = services.analytics.run_report.call_args
         assert args.args == ("123", ["date"], ["activeUsers"])
         assert args.kwargs["date_ranges"] == [
@@ -459,8 +464,8 @@ class TestMarketingTools:
         assert "marketing" in text
 
     async def test_analytics_realtime_defaults(self, server, services):
-        services.analytics.run_realtime_report.return_value = {"rows": []}
-        services.analytics.list_properties.return_value = [{"name": "properties/1"}]
+        services.analytics.run_realtime_report.return_value = Report([], ["activeUsers"], [], 0)
+        services.analytics.list_properties.return_value = [Property("properties/1")]
         await call(server, "analytics_run_realtime_report", property_id="1")
         assert services.analytics.run_realtime_report.call_args.args[2] == ["activeUsers"]
         assert (await call(server, "analytics_list_properties", account_id="1"))[1]["count"] == 1

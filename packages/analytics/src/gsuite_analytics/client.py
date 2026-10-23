@@ -7,6 +7,8 @@ from typing import Any
 
 from googleapiclient.discovery import build
 
+from gsuite_analytics.models import AccountSummary, Property, Report
+from gsuite_analytics.parser import parse_account_summary, parse_property, parse_report
 from gsuite_core import GoogleAuth, authorized_http, execute, paginate
 from gsuite_core.exceptions import ValidationError
 
@@ -94,30 +96,6 @@ def build_filter(filters: list[dict[str, Any]] | None) -> dict[str, Any] | None:
     return exprs[0] if len(exprs) == 1 else {"andGroup": {"expressions": exprs}}
 
 
-def rows_to_dicts(data: dict[str, Any]) -> dict[str, Any]:
-    """A runReport response as {"rows": [{dim: v, metric: v}], "row_count", ...}."""
-    dims = [h["name"] for h in data.get("dimensionHeaders", [])]
-    mets = [h["name"] for h in data.get("metricHeaders", [])]
-    rows = []
-    for row in data.get("rows", []):
-        item = {
-            n: v.get("value") for n, v in zip(dims, row.get("dimensionValues", []), strict=False)
-        }
-        item.update(
-            {n: v.get("value") for n, v in zip(mets, row.get("metricValues", []), strict=False)}
-        )
-        rows.append(item)
-    out: dict[str, Any] = {
-        "dimensions": dims,
-        "metrics": mets,
-        "row_count": data.get("rowCount", len(rows)),
-        "rows": rows,
-    }
-    if data.get("totals"):
-        out["totals"] = data["totals"]
-    return out
-
-
 class Analytics:
     """
     Read-only Google Analytics 4 client.
@@ -160,10 +138,11 @@ class Analytics:
 
     # ---------- Admin
 
-    def account_summaries(self, max_results: int | None = None) -> list[dict[str, Any]]:
+    def account_summaries(self, max_results: int | None = None) -> list[AccountSummary]:
         """Accounts with their properties (the quickest way to find property IDs)."""
-        return list(
-            paginate(
+        return [
+            parse_account_summary(s)
+            for s in paginate(
                 self.admin.accountSummaries().list,
                 "accountSummaries",
                 "analytics",
@@ -171,15 +150,16 @@ class Analytics:
                 page_size_param="pageSize",
                 max_page_size=200,
             )
-        )
+        ]
 
     def list_properties(
         self, account_id: str, show_deleted: bool = False, max_results: int | None = None
-    ) -> list[dict[str, Any]]:
+    ) -> list[Property]:
         """Properties of an account ("123" or "accounts/123")."""
         account = account_id if account_id.startswith("accounts/") else f"accounts/{account_id}"
-        return list(
-            paginate(
+        return [
+            parse_property(p)
+            for p in paginate(
                 self.admin.properties().list,
                 "properties",
                 "analytics",
@@ -189,12 +169,13 @@ class Analytics:
                 filter=f"parent:{account}",
                 showDeleted=show_deleted,
             )
-        )
+        ]
 
-    def get_property(self, property_id: str | int) -> dict[str, Any]:
+    def get_property(self, property_id: str | int) -> Property:
         """One GA4 property by id (``123`` or ``properties/123``)."""
         name = property_name(property_id)
-        return dict(execute(self.admin.properties().get(name=name), "analytics", "property", name))
+        data = execute(self.admin.properties().get(name=name), "analytics", "property", name)
+        return parse_property(dict(data))
 
     # ---------- Data
 
@@ -210,7 +191,7 @@ class Analytics:
         offset: int = 0,
         order_by: str | None = None,
         descending: bool = True,
-    ) -> dict[str, Any]:
+    ) -> Report:
         """runReport. Dates are ISO days or "today"/"yesterday"/"NdaysAgo"."""
         if not metrics:
             raise ValidationError("metrics", "At least one metric is needed")
@@ -237,7 +218,7 @@ class Analytics:
         data = execute(
             self.data.properties().runReport(property=name, body=body), "analytics", "report", name
         )
-        return rows_to_dicts(data)
+        return parse_report(data)
 
     def run_realtime_report(
         self,
@@ -246,7 +227,7 @@ class Analytics:
         metrics: list[str],
         dimension_filters: list[dict[str, Any]] | None = None,
         limit: int = 100,
-    ) -> dict[str, Any]:
+    ) -> Report:
         """runRealtimeReport (last 30 minutes)."""
         if not metrics:
             raise ValidationError("metrics", "At least one metric is needed")
@@ -265,4 +246,4 @@ class Analytics:
             "realtime",
             name,
         )
-        return rows_to_dicts(data)
+        return parse_report(data)

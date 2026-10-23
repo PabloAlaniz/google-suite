@@ -463,12 +463,13 @@ def build_server(services: Services | None = None) -> MCPServer:
     @tool(READ)
     def analytics_account_summaries() -> dict[str, Any]:
         """GA4 accounts with their properties (use it to find property IDs)."""
-        return results(svc.analytics.account_summaries())
+        return results(to_json(svc.analytics.account_summaries()))
 
     @tool(READ)
     def analytics_list_properties(account_id: str, show_deleted: bool = False) -> dict[str, Any]:
         """GA4 properties of an account ("123" or "accounts/123")."""
-        return results(svc.analytics.list_properties(account_id, show_deleted=show_deleted))
+        properties = svc.analytics.list_properties(account_id, show_deleted=show_deleted)
+        return results(to_json(properties))
 
     @tool(READ)
     def analytics_run_report(
@@ -491,11 +492,12 @@ def build_server(services: Services | None = None) -> MCPServer:
         ([[start, end], ...]) overrides start/end. Filters are ANDed:
         {"field": "country", "value": "Argentina"}, {"field": .., "operator":
         "CONTAINS", "value": ..}, {"field": .., "values": [..]}, numeric
-        {"field": "sessions", "operator": "GREATER_THAN", "value": 10}; "not": true negates."""
+        {"field": "sessions", "operator": "GREATER_THAN", "value": 10}; "not": true negates.
+        Each row has `dimensions` (name -> value) and numeric `metrics`."""
         if any(len(r) != 2 for r in date_ranges or []):
             raise ToolError("Each date range is [start, end]")
         ranges = [(r[0], r[1]) for r in date_ranges] if date_ranges else [(start_date, end_date)]
-        return svc.analytics.run_report(
+        report = svc.analytics.run_report(
             property_id,
             dimensions,
             metrics,
@@ -507,6 +509,7 @@ def build_server(services: Services | None = None) -> MCPServer:
             order_by=order_by,
             descending=descending,
         )
+        return to_json(report)  # type: ignore[no-any-return]
 
     @tool(READ)
     def analytics_run_realtime_report(
@@ -518,13 +521,14 @@ def build_server(services: Services | None = None) -> MCPServer:
     ) -> dict[str, Any]:
         """GA4 realtime report (last 30 minutes). Default metric activeUsers;
         dimensions e.g. country, unifiedScreenName, deviceCategory."""
-        return svc.analytics.run_realtime_report(
+        report = svc.analytics.run_realtime_report(
             property_id,
             dimensions,
             metrics or ["activeUsers"],
             dimension_filters=dimension_filters,
             limit=limit,
         )
+        return to_json(report)  # type: ignore[no-any-return]
 
     # ----------------------------------------------- tag manager (read-only)
 

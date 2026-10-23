@@ -1,13 +1,11 @@
 """Google Analytics 4 CLI commands (read-only)."""
 
-from typing import Any
-
 import typer
 from rich.console import Console
 from rich.table import Table
 
-from gsuite_analytics import Analytics
-from gsuite_cli.output import print_json
+from gsuite_analytics import Analytics, Report
+from gsuite_cli.output import print_json, to_data
 from gsuite_core import GoogleAuth
 
 console = Console()
@@ -34,18 +32,21 @@ def get_analytics() -> Analytics:
     return Analytics(auth)
 
 
-def _print_report(report: dict[str, Any], title: str) -> None:
-    if not report["rows"]:
+def _print_report(report: Report, title: str) -> None:
+    if not report.rows:
         console.print("[yellow]No rows[/yellow]")
         return
 
-    table = Table(title=f"{title} ({report['row_count']} rows)")
-    for d in report["dimensions"]:
+    table = Table(title=f"{title} ({report.row_count} rows)")
+    for d in report.dimensions:
         table.add_column(d, style="cyan")
-    for m in report["metrics"]:
+    for m in report.metrics:
         table.add_column(m, justify="right")
-    for r in report["rows"]:
-        table.add_row(*(str(r.get(c, "")) for c in report["dimensions"] + report["metrics"]))
+    for r in report.rows:
+        table.add_row(
+            *(r.dimensions.get(d, "") for d in report.dimensions),
+            *("" if (v := r.metrics.get(m)) is None else str(v) for m in report.metrics),
+        )
     console.print(table)
 
 
@@ -55,7 +56,7 @@ def accounts(output: str = OUTPUT_OPTION) -> None:
     summaries = get_analytics().account_summaries()
 
     if output == "json":
-        print_json(summaries)
+        print_json(to_data(summaries))
         return
 
     table = Table(title=f"Accounts ({len(summaries)})")
@@ -63,13 +64,10 @@ def accounts(output: str = OUTPUT_OPTION) -> None:
     table.add_column("Property")
     table.add_column("Property ID", style="dim")
     for a in summaries:
-        props = a.get("propertySummaries") or [{}]
-        for p in props:
-            table.add_row(
-                a.get("displayName", ""),
-                p.get("displayName", ""),
-                p.get("property", "").removeprefix("properties/"),
-            )
+        if not a.properties:
+            table.add_row(a.display_name, "", "")
+        for p in a.properties:
+            table.add_row(a.display_name, p.display_name, p.property_id)
     console.print(table)
 
 
@@ -83,7 +81,7 @@ def properties(
     result = get_analytics().list_properties(account_id, show_deleted=show_deleted)
 
     if output == "json":
-        print_json(result)
+        print_json(to_data(result))
         return
 
     table = Table(title=f"Properties ({len(result)})")
@@ -92,12 +90,7 @@ def properties(
     table.add_column("Time zone")
     table.add_column("Currency")
     for p in result:
-        table.add_row(
-            p.get("displayName", ""),
-            p.get("name", "").removeprefix("properties/"),
-            p.get("timeZone", ""),
-            p.get("currencyCode", ""),
-        )
+        table.add_row(p.display_name, p.property_id, p.time_zone or "", p.currency_code or "")
     console.print(table)
 
 
@@ -129,7 +122,7 @@ def report(
     )
 
     if output == "json":
-        print_json(result)
+        print_json(to_data(result))
         return
 
     _print_report(result, f"{start} → {end}")
@@ -147,7 +140,7 @@ def realtime(
     result = get_analytics().run_realtime_report(property_id, dimension, metric, limit=limit)
 
     if output == "json":
-        print_json(result)
+        print_json(to_data(result))
         return
 
     _print_report(result, "Last 30 minutes")

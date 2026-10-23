@@ -5,8 +5,9 @@ from hypothesis import strategies as st
 
 from gsuite_analytics._testing.properties import (
     check_build_filter,
+    check_parse_metric,
+    check_parse_report,
     check_property_name,
-    check_rows_to_dicts,
 )
 from gsuite_analytics.client import MATCH_TYPES, NUMERIC_OPS
 
@@ -56,5 +57,24 @@ names = st.lists(st.text(min_size=1, max_size=6), max_size=3)
 
 
 @given(names, names, st.lists(st.lists(st.text(max_size=4), max_size=6), max_size=4))
-def test_rows_to_dicts(dims, mets, rows):
-    check_rows_to_dicts(dims, mets, rows)
+def test_parse_report(dims, mets, rows):
+    check_parse_report(dims, mets, rows)
+
+
+metric_texts = (
+    st.integers().map(str)
+    | st.floats().map(str)
+    | st.from_regex(r"-?[0-9]*\.?[0-9]*(e[-+]?[0-9]+)?", fullmatch=True)
+    | st.text(max_size=8)
+)
+
+
+@given(metric_texts)
+@example("1e999")
+@example("nan")
+@example("٤٢")
+@example("1_000")
+@example(" 42 ")
+@example(".")
+def test_parse_metric(value):
+    check_parse_metric(value)

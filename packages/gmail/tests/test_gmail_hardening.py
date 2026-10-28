@@ -52,6 +52,13 @@ def test_html_to_text_keeps_unclosed_script_text():
     assert _html_to_text("x < y and y > z") == "x  z"
 
 
+def test_html_to_text_handles_decimal_references_of_any_length():
+    # html.unescape alone raises ValueError past 4300 digits (found by ClusterFuzzLite)
+    assert _html_to_text("&#" + "0" * 5000 + "60;") == "<"
+    assert _html_to_text("&#" + "9" * 5000 + ";") == "\ufffd"
+    assert _html_to_text("&#000000065;&#1114112;") == "A\ufffd"
+
+
 # ------------------------------------------------------------------------ query
 
 

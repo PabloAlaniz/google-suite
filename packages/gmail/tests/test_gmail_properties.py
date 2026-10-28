@@ -76,6 +76,7 @@ def test_html_to_text_linear_time_b1():
 @example("<style")
 @example("<a")
 @example("<!--")
+@example("&#" + "0" * 5000 + "60;")  # found by ClusterFuzzLite
 def test_html_to_text_scales(fragment):
     check_html_to_text_scales(fragment)
 
@@ -321,5 +322,6 @@ addresses = st.builds(
 @example(["a@b.com"], "hi", [], ["f\r\nX-Evil: 1.txt"])
 @example(["a@b.com"], "hi", [], ['"' * 40])  # found by ClusterFuzzLite
 @example(["a@b.com"], "hi", [], ['"a\\"b"'])
+@example(["a@b.com"], "hi", [], ["//[x.pdf"])  # found by ClusterFuzzLite
 def test_compose_roundtrip(to, subject, cc, attachment_names):
     check_compose_roundtrip(to, subject, cc, attachment_names)

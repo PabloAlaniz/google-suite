@@ -48,6 +48,7 @@ _RAW_TEXT_CLOSE = {
 _LINE_BREAK = re.compile(r"(?i)<br\s*/?>|</p>|</div>|</h\d>|</li>")
 _TAG = re.compile(r"<[^>]+>")
 _BLANK_LINES = re.compile(r"\n{3,}")
+_DECIMAL_CHARREF = re.compile(r"&#(\d+)")
 
 
 def _strip_raw_text_elements(markup: str) -> str:
@@ -88,6 +89,22 @@ def _strip_tags(text: str) -> str:
     return _TAG.sub("", text[: last + 1]) + text[last + 1 :]
 
 
+def _shorten_charref(match: re.Match[str]) -> str:
+    digits = match.group(1).lstrip("0") or "0"
+    # Anything past 7 digits is above U+10FFFF, which unescape turns into U+FFFD
+    return f"&#{digits if len(digits) <= 7 else 65533}"
+
+
+def _unescape(text: str) -> str:
+    """``html.unescape`` that accepts decimal references of any length.
+
+    The stdlib converts the digits with ``int()``, which raises ValueError past
+    4300 digits (``sys.int_info.str_digits_check_threshold``), even for
+    ``&#000...060;``. Shortening them first gives the same result.
+    """
+    return html_lib.unescape(_DECIMAL_CHARREF.sub(_shorten_charref, text))
+
+
 def _html_to_text(markup: str) -> str:
     """Rough plain-text version of HTML, for the text/plain alternative.
 
@@ -97,7 +114,7 @@ def _html_to_text(markup: str) -> str:
     text = _strip_raw_text_elements(markup)
     text = _LINE_BREAK.sub("\n", text)
     text = _strip_tags(text)
-    return html_lib.unescape(_BLANK_LINES.sub("\n\n", text)).strip()
+    return _unescape(_BLANK_LINES.sub("\n\n", text)).strip()
 
 
 def _prefixed(subject: str, prefix: str) -> str:
@@ -631,7 +648,12 @@ class Gmail:
             else:
                 path = Path(item)
                 filename, content = path.name, path.read_bytes()
-            mime_type = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+            try:
+                guessed = mimetypes.guess_type(filename)[0]
+            except ValueError:
+                # guess_type parses the name as a URL: "//[x.pdf" is a bad IPv6 host
+                guessed = None
+            mime_type = guessed or "application/octet-stream"
             maintype, subtype = mime_type.split("/", 1)
             message.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename)
 

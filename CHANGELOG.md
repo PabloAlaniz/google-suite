@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.0](https://github.com/PabloAlaniz/google-suite/compare/v0.9.0...v0.10.0) (2026-11-04)
+
+
+### Features
+
+* **mcp:** thread, label, forward, draft and trash tools for Gmail ([#83](https://github.com/PabloAlaniz/google-suite/issues/83)) ([27698f8](https://github.com/PabloAlaniz/google-suite/commit/27698f8714f4c59f6b88743dc6d4b572de917eeb))
+
+
+### Bug Fixes
+
+* **deps:** bump pyasn1 to 0.6.5 (CVE-2026-119194..119197) ([#79](https://github.com/PabloAlaniz/google-suite/issues/79)) ([6bb5329](https://github.com/PabloAlaniz/google-suite/commit/6bb53297ef50f054c9eb1dc505c79c925564497d))
+* **deps:** bump pyasn1 to 0.6.5 in the fuzz build and audit its requirements ([#82](https://github.com/PabloAlaniz/google-suite/issues/82)) ([8d378ba](https://github.com/PabloAlaniz/google-suite/commit/8d378bac43cd1e9f6d1295f948e19b79497673a6))
+* **gmail:** handle long decimal charrefs and URL-like attachment names ([#75](https://github.com/PabloAlaniz/google-suite/issues/75)) ([411e8a1](https://github.com/PabloAlaniz/google-suite/commit/411e8a17dd7466fc31d5239929cafafc85581745))
+
 ## [0.9.0](https://github.com/PabloAlaniz/google-suite/compare/v0.8.0...v0.9.0) (2026-10-23)
 
 

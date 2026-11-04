@@ -41,3 +41,5 @@ jobs:
         run: |
           uv export --locked --all-extras --no-emit-project -o requirements.txt
           uvx pip-audit -r requirements.txt --disable-pip --strict --progress-spinner off
+      - name: Audit the fuzz build requirements
+        run: uvx pip-audit -r .clusterfuzzlite/requirements.txt --disable-pip --strict --progress-spinner off

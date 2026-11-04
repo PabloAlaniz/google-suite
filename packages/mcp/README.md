@@ -49,7 +49,7 @@ and uses your own Google login.
 | Area | Tools |
 |---|---|
 | Account | `auth_status` |
-| Gmail | `gmail_search`, `gmail_read`, `gmail_send`, `gmail_reply`, `gmail_create_draft` |
+| Gmail | `gmail_search`, `gmail_read`, `gmail_read_thread`, `gmail_list_labels`, `gmail_list_drafts`, `gmail_send`, `gmail_reply`, `gmail_forward`, `gmail_create_draft`, `gmail_send_draft`, `gmail_delete_draft`, `gmail_modify_labels` (archive, read/unread, star, file), `gmail_create_label`, `gmail_trash` |
 | Calendar | `calendar_list_events`, `calendar_create_event`, `calendar_delete_event`, `calendar_free_busy` |
 | Drive | `drive_search`, `drive_read_file`, `drive_upload`, `drive_share` |
 | Sheets | `sheets_read`, `sheets_append`, `sheets_update`, `sheets_upsert` |

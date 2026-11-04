@@ -10,9 +10,9 @@ from mcp.client import Client
 from gsuite_analytics import Property, Report, ReportRow
 from gsuite_calendar import Event
 from gsuite_contacts import Contact
-from gsuite_core.exceptions import NotFoundError, PermissionDeniedError
+from gsuite_core.exceptions import NotFoundError, PermissionDeniedError, ValidationError
 from gsuite_drive import File, Permission
-from gsuite_gmail import Message
+from gsuite_gmail import Draft, Label, Message, Thread
 from gsuite_mcp import Services, build_server
 from gsuite_mcp.serialize import to_json
 from gsuite_searchconsole import SearchAnalyticsRow, Site, UrlInspection
@@ -85,7 +85,12 @@ class TestTools:
         async with Client(server) as client:
             tools = {t.name: t for t in (await client.list_tools()).tools}
 
-        assert len(tools) == 38
+        assert len(tools) == 47
+        for name in ("gmail_read_thread", "gmail_list_labels", "gmail_list_drafts"):
+            assert tools[name].annotations.read_only_hint is True
+        for name in ("gmail_trash", "gmail_delete_draft"):
+            assert tools[name].annotations.destructive_hint is True
+        assert tools["gmail_modify_labels"].annotations.destructive_hint is False
         assert tools["gmail_search"].annotations.read_only_hint is True
         assert tools["gmail_send"].annotations.read_only_hint is False
         assert tools["gmail_send"].annotations.destructive_hint is False
@@ -182,6 +187,107 @@ class TestGmail:
         status, body = await call(server, "gmail_create_draft", to=["a@b.c"], subject="S", body="B")
         assert status == "ok"
         assert body == {"draft_id": "d1"}
+        assert services.gmail.create_draft.call_args.kwargs["html"] is False
+
+    async def test_read_thread(self, services, server):
+        services.gmail.get_thread.return_value = Thread(
+            id="t1",
+            messages=[_message(), _message(id="m2", sender="me@example.com")],
+        )
+        status, body = await call(server, "gmail_read_thread", thread_id="t1")
+        assert status == "ok"
+        assert body["subject"] == "Invoice"
+        assert body["message_count"] == 2
+        assert [m["id"] for m in body["messages"]] == ["m1", "m2"]
+        assert body["messages"][0]["body"] == "Body text"
+        assert body["participants"] == ["billing@example.com", "me@example.com"]
+
+    async def test_read_thread_missing(self, services, server):
+        services.gmail.get_thread.return_value = None
+        assert (await call(server, "gmail_read_thread", thread_id="x"))[0] == "error"
+
+    async def test_list_labels(self, services, server):
+        services.gmail.get_labels.return_value = [
+            Label(id="Label_1", name="Work", messages_unread=3)
+        ]
+        status, body = await call(server, "gmail_list_labels")
+        assert status == "ok"
+        assert body["count"] == 1
+        assert body["results"][0]["name"] == "Work"
+        assert body["results"][0]["type"] == "user"
+        assert body["results"][0]["messages_unread"] == 3
+
+    async def test_list_drafts(self, services, server):
+        services.gmail.list_drafts.return_value = [Draft(id="d1", message=_message())]
+        status, body = await call(server, "gmail_list_drafts", max_results=5)
+        assert status == "ok"
+        assert body["results"][0]["draft_id"] == "d1"
+        assert body["results"][0]["subject"] == "Invoice"
+        services.gmail.list_drafts.assert_called_once_with(max_results=5)
+
+    async def test_modify_labels(self, services, server):
+        services.gmail.batch_modify.return_value = 2
+        status, body = await call(
+            server, "gmail_modify_labels", message_ids=["m1", "m2"], remove=["INBOX", "UNREAD"]
+        )
+        assert (status, body) == ("ok", {"modified": 2})
+        services.gmail.batch_modify.assert_called_once_with(
+            ["m1", "m2"], add_labels=None, remove_labels=["INBOX", "UNREAD"]
+        )
+
+    async def test_modify_labels_needs_labels(self, services, server):
+        assert (await call(server, "gmail_modify_labels", message_ids=["m1"]))[0] == "error"
+        services.gmail.batch_modify.assert_not_called()
+
+    async def test_modify_labels_unknown_label(self, services, server):
+        services.gmail.batch_modify.side_effect = ValidationError("labels", "unknown label 'Nope'")
+        status, text = await call(server, "gmail_modify_labels", message_ids=["m1"], add=["Nope"])
+        assert status == "error"
+        assert "Nope" in text
+
+    async def test_forward(self, services, server):
+        services.gmail.get_message.return_value = _message()
+        services.gmail.forward.return_value = _message(id="f1", thread_id="t2")
+        status, body = await call(
+            server, "gmail_forward", message_id="m1", to=["x@y.z"], body="FYI"
+        )
+        assert (status, body) == ("ok", {"id": "f1", "thread_id": "t2"})
+        services.gmail.forward.assert_called_once_with(
+            services.gmail.get_message.return_value,
+            to=["x@y.z"],
+            body="FYI",
+            include_attachments=True,
+        )
+
+    async def test_forward_missing(self, services, server):
+        services.gmail.get_message.return_value = None
+        assert (await call(server, "gmail_forward", message_id="x", to=["a@b.c"]))[0] == "error"
+        services.gmail.forward.assert_not_called()
+
+    async def test_send_and_delete_draft(self, services, server):
+        services.gmail.send_draft.return_value = _message(id="s1")
+        assert (await call(server, "gmail_send_draft", draft_id="d1"))[1] == {
+            "id": "s1",
+            "thread_id": "t1",
+        }
+        services.gmail.delete_draft.return_value = True
+        assert (await call(server, "gmail_delete_draft", draft_id="d1"))[1] == {"deleted": "d1"}
+        services.gmail.delete_draft.return_value = False
+        assert (await call(server, "gmail_delete_draft", draft_id="d2"))[0] == "error"
+
+    async def test_create_label(self, services, server):
+        services.gmail.create_label.return_value = Label(id="Label_9", name="Clients/Acme")
+        status, body = await call(server, "gmail_create_label", name="Clients/Acme")
+        assert status == "ok"
+        assert body["id"] == "Label_9"
+        services.gmail.create_label.assert_called_once_with("Clients/Acme")
+
+    async def test_trash(self, services, server):
+        found = MagicMock()
+        services.gmail.get_message.side_effect = lambda mid: found if mid == "m1" else None
+        status, body = await call(server, "gmail_trash", message_ids=["m1", "gone"])
+        assert (status, body) == ("ok", {"trashed": ["m1"], "missing": ["gone"]})
+        found.trash.assert_called_once_with()
 
 
 class TestCalendar:

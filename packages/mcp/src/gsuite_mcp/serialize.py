@@ -53,3 +53,19 @@ def message_full(message: Any) -> dict[str, Any]:
             for a in message.attachments
         ],
     }
+
+
+def thread_full(thread: Any) -> dict[str, Any]:
+    """A Gmail thread with every message's text body, oldest first."""
+    return {
+        "id": thread.id,
+        "subject": thread.subject,
+        "participants": sorted(thread.participants),
+        "message_count": thread.message_count,
+        "messages": [message_full(m) for m in thread.messages],
+    }
+
+
+def draft_summary(draft: Any) -> dict[str, Any]:
+    """A Gmail draft: its ID plus the summary of the message it holds."""
+    return {"draft_id": draft.id, **message_summary(draft.message)}

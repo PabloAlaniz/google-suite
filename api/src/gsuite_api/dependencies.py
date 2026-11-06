@@ -2,6 +2,7 @@
 
 import math
 import secrets
+from collections.abc import AsyncIterator
 from functools import lru_cache
 from typing import Annotated
 
@@ -9,7 +10,7 @@ from fastapi import Depends, HTTPException, Request, Security, status
 from fastapi.security import APIKeyHeader
 
 from gsuite_analytics import Analytics
-from gsuite_calendar import Calendar
+from gsuite_calendar import AsyncCalendar
 from gsuite_contacts import Contacts
 from gsuite_core import GoogleAuth, Settings, SQLiteTokenStore, TokenStore, get_settings
 from gsuite_core.exceptions import NotAuthenticatedError
@@ -128,8 +129,10 @@ def get_gmail(auth: AuthenticatedDep) -> Gmail:
     return Gmail(auth)
 
 
-def get_calendar(auth: AuthenticatedDep) -> Calendar:
-    return Calendar(auth)
+async def get_calendar(auth: AuthenticatedDep) -> AsyncIterator[AsyncCalendar]:
+    """An AsyncCalendar for the request, closed (connection pool and all) after it."""
+    async with AsyncCalendar(auth) as calendar:
+        yield calendar
 
 
 def get_drive(auth: AuthenticatedDep) -> Drive:
@@ -161,7 +164,7 @@ def get_tagmanager(auth: AuthenticatedDep) -> TagManager:
 
 
 GmailDep = Annotated[Gmail, Depends(get_gmail)]
-CalendarDep = Annotated[Calendar, Depends(get_calendar)]
+CalendarDep = Annotated[AsyncCalendar, Depends(get_calendar)]
 DriveDep = Annotated[Drive, Depends(get_drive)]
 SheetsDep = Annotated[Sheets, Depends(get_sheets)]
 TasksDep = Annotated[Tasks, Depends(get_tasks)]

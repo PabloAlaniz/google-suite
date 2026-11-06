@@ -79,45 +79,45 @@ def _event(e: Event) -> EventResponse:
 
 
 @router.get("/events")
-def list_events(
+async def list_events(
     calendar: CalendarDep,
     days: int = Query(7, le=365),
     calendar_id: str | None = None,
     limit: int = Query(100, le=500),
 ) -> dict[str, Any]:
     """Get upcoming events."""
-    events = calendar.get_upcoming(days=days, calendar_id=calendar_id, max_results=limit)
+    events = await calendar.get_upcoming(days=days, calendar_id=calendar_id, max_results=limit)
     return {"events": [_event(e) for e in events], "count": len(events)}
 
 
 @router.get("/events/today")
-def list_today(calendar: CalendarDep, calendar_id: str | None = None) -> dict[str, Any]:
+async def list_today(calendar: CalendarDep, calendar_id: str | None = None) -> dict[str, Any]:
     """Get today's events (in GSUITE_DEFAULT_TIMEZONE)."""
-    events = calendar.get_today(calendar_id=calendar_id)
+    events = await calendar.get_today(calendar_id=calendar_id)
     return {"events": [_event(e) for e in events], "count": len(events)}
 
 
 @router.post("/events:quickAdd")
-def quick_add(
+async def quick_add(
     request: QuickAddRequest, calendar: CalendarDep, calendar_id: str | None = None
 ) -> EventResponse:
     """Create an event from natural language."""
-    return _event(calendar.quick_add(request.text, calendar_id=calendar_id))
+    return _event(await calendar.quick_add(request.text, calendar_id=calendar_id))
 
 
 @router.get("/events/{event_id}")
-def get_event(
+async def get_event(
     event_id: str, calendar: CalendarDep, calendar_id: str | None = None
 ) -> EventResponse:
     """Get a specific event."""
-    event = calendar.get_event(event_id, calendar_id=calendar_id)
+    event = await calendar.get_event(event_id, calendar_id=calendar_id)
     if not event:
         raise HTTPException(status_code=404, detail="Event not found")
     return _event(event)
 
 
 @router.get("/events/{event_id}/instances")
-def list_instances(
+async def list_instances(
     event_id: str,
     calendar: CalendarDep,
     time_min: datetime | None = None,
@@ -126,18 +126,18 @@ def list_instances(
     limit: int = Query(100, ge=1, le=2500),
 ) -> dict[str, Any]:
     """Occurrences of a recurring event."""
-    events = calendar.get_instances(
+    events = await calendar.get_instances(
         event_id, time_min=time_min, time_max=time_max, max_results=limit, calendar_id=calendar_id
     )
     return {"events": [_event(e) for e in events], "count": len(events)}
 
 
 @router.post("/events")
-def create_event(
+async def create_event(
     request: CreateEventRequest, calendar: CalendarDep, calendar_id: str | None = None
 ) -> EventResponse:
     """Create a new event."""
-    event = calendar.create_event(
+    event = await calendar.create_event(
         summary=request.summary,
         start=request.start,
         end=request.end,
@@ -154,14 +154,14 @@ def create_event(
 
 
 @router.patch("/events/{event_id}")
-def update_event(
+async def update_event(
     event_id: str,
     request: UpdateEventRequest,
     calendar: CalendarDep,
     calendar_id: str | None = None,
 ) -> EventResponse:
     """Change an event; only the fields you send are updated."""
-    event = calendar.update_event(
+    event = await calendar.update_event(
         event_id,
         summary=request.summary,
         start=request.start,
@@ -177,7 +177,7 @@ def update_event(
 
 
 @router.delete("/events/{event_id}")
-def delete_event(
+async def delete_event(
     event_id: str,
     calendar: CalendarDep,
     calendar_id: str | None = None,
@@ -185,15 +185,17 @@ def delete_event(
 ) -> dict[str, Any]:
     """Delete an event."""
     # Used to answer 200 {"status": "failed"} for a missing event
-    if not calendar.delete_event(event_id, calendar_id=calendar_id, send_updates=send_updates):
+    if not await calendar.delete_event(
+        event_id, calendar_id=calendar_id, send_updates=send_updates
+    ):
         raise HTTPException(status_code=404, detail="Event not found")
     return {"id": event_id, "status": "deleted"}
 
 
 @router.post("/freebusy")
-def free_busy(request: FreeBusyRequest, calendar: CalendarDep) -> dict[str, Any]:
+async def free_busy(request: FreeBusyRequest, calendar: CalendarDep) -> dict[str, Any]:
     """Busy intervals per calendar."""
-    busy = calendar.get_free_busy(request.time_min, request.time_max, request.calendars)
+    busy = await calendar.get_free_busy(request.time_min, request.time_max, request.calendars)
     return {
         "calendars": {
             cal: [
@@ -209,9 +211,9 @@ def free_busy(request: FreeBusyRequest, calendar: CalendarDep) -> dict[str, Any]
 
 
 @router.get("/calendars")
-def list_calendars(calendar: CalendarDep) -> dict[str, Any]:
+async def list_calendars(calendar: CalendarDep) -> dict[str, Any]:
     """List all accessible calendars."""
-    calendars = calendar.get_calendars()
+    calendars = await calendar.get_calendars()
     return {
         "calendars": [
             {

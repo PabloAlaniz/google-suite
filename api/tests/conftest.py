@@ -1,12 +1,13 @@
 """Fixtures for REST API tests: an app with its own settings and mocked Google clients."""
 
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, create_autospec
 
 import pytest
 from fastapi.testclient import TestClient
 
 from gsuite_api import dependencies
 from gsuite_api.main import create_app
+from gsuite_calendar import AsyncCalendar
 from gsuite_core import Settings
 
 API_KEY = "test-api-key"
@@ -22,7 +23,9 @@ def services():
     """Mocked Google clients, one per service, injected into the routes."""
     return {
         "gmail": MagicMock(name="gmail"),
-        "calendar": MagicMock(name="calendar"),
+        # Async clients: autospec makes their methods awaitable and checks the
+        # arguments routes pass against the real signatures
+        "calendar": create_autospec(AsyncCalendar, instance=True, name="calendar"),
         "drive": MagicMock(name="drive"),
         "sheets": MagicMock(name="sheets"),
         "tasks": MagicMock(name="tasks"),

@@ -691,7 +691,7 @@ class Sheets:
                 spreadsheet_id,
             )
         except NotFoundError:
-            logger.error("Spreadsheet not found: %s", spreadsheet_id)
+            logger.warning("Spreadsheet not found: %s", spreadsheet_id)
             return False
         logger.info("Shared spreadsheet %s with %s (%s)", spreadsheet_id, email, role)
         return True

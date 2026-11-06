@@ -94,23 +94,39 @@ select = [
     "E", "W", "F", "I", "B", "C4", "UP", "S", "RUF", "SIM", "PT", "RET", "PIE",
     "ARG", "BLE", "DTZ", "FLY", "FURB", "G", "ISC", "LOG", "N", "PERF", "PGH", "PLE", "PLW",
     "PTH", "T20", "TID",
+    "A", "C90", "PLR0911", "PLR0912", "PLR0915", "PLR2004", "RSE", "TRY",
 ]
 # Not enabled: TC (FastAPI, Typer and pydantic read annotations at runtime) and
 # ERA (flags the "# ---- section" comments as commented-out code).
+# TRY003 asks for an exception class per message; GSuiteError(message) is the
+# SDK's style. EM is off for a related reason: ValidationError(field, message)
+# takes the field first, and its autofix would bind the field to `msg`.
+ignore = ["TRY003"]
 # Pylint code used in existing noqa comments; keeps RUF100 from stripping them
 external = ["PLC0415"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests use bare asserts and dummy credentials/paths
 # Tests also mock call signatures (ARG), build naive datetimes on purpose (DTZ),
-# mirror camelCase Google API methods (N802/N803) and use plain os/open (PTH)
-"**/tests/**" = ["S101", "S105", "S106", "S108", "ARG", "DTZ", "N802", "N803", "PTH", "PLW0108"]
-"conftest.py" = ["S101", "S105", "S106", "S108", "ARG", "DTZ", "N802", "N803", "PTH", "PLW0108"]
-# Fakes and property strategies shipped for tests: same reasons
-"**/testing/**" = ["ARG", "DTZ", "N802", "N803"]
-"**/_testing/**" = ["ARG", "BLE001", "DTZ", "N818"]
+# mirror camelCase Google API methods (N802/N803), use plain os/open (PTH) and
+# compare against literal expected values (PLR2004); fakes take `id` (A002)
+# and tests raise inside try blocks on purpose (TRY301)
+"**/tests/**" = ["S101", "S105", "S106", "S108", "ARG", "DTZ", "N802", "N803", "PTH", "PLW0108", "PLR2004", "A002", "TRY301"]
+"conftest.py" = ["S101", "S105", "S106", "S108", "ARG", "DTZ", "N802", "N803", "PTH", "PLW0108", "PLR2004", "A002", "TRY301"]
+# Fakes and property strategies shipped for tests: same reasons, and the REST
+# fake dispatches every endpoint from one function
+"**/testing/**" = ["ARG", "DTZ", "N802", "N803", "PLR2004", "C901", "PLR0911", "PLR0912"]
+"**/_testing/**" = ["ARG", "BLE001", "DTZ", "N818", "PLR2004"]
 # Command-line scripts report through stdout
 "scripts/**" = ["T20"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.flake8-builtins]
+# Public keyword arguments (worksheet.get(range=...), export(format=...),
+# share(type=...), larger(bytes=...)); renaming them would break callers
+builtins-ignorelist = ["bytes", "format", "range", "type"]
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI/Typer declare parameters through calls in defaults

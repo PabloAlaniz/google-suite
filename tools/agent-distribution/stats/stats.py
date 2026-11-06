@@ -17,6 +17,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any
 
@@ -32,7 +33,7 @@ def fetch(url: str, headers: dict[str, str] | None = None) -> Any:
             with urllib.request.urlopen(request, timeout=TIMEOUT) as response:
                 return json.load(response)
         except urllib.error.HTTPError as exc:
-            if exc.code == 404:
+            if exc.code == HTTPStatus.NOT_FOUND:
                 return None
         except (urllib.error.URLError, TimeoutError, ValueError):
             pass

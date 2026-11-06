@@ -189,6 +189,15 @@ def raw(query_string: str) -> Query:
     return Query(query_string)
 
 
+_UNITS = {"day": "d", "days": "d", "d": "d", "month": "m", "months": "m", "m": "m"}
+
+
+def _relative(operator: str, spec: tuple[int, str]) -> str:
+    """("newer_than", (2, "day")) -> "newer_than:2d"; unknown units pass through."""
+    amount, unit = spec
+    return f"{operator}:{amount}{_UNITS.get(unit, unit)}"
+
+
 # Convenience function to build query from dict (like simplegmail)
 def construct_query(
     from_: str | None = None,
@@ -223,30 +232,15 @@ def construct_query(
     Returns:
         Query object
     """
-    parts = []
-
-    if from_:
-        parts.append(_term("from", from_))
-    if to:
-        parts.append(_term("to", to))
-    if subject:
-        parts.append(_term("subject", subject))
-    if unread:
-        parts.append("is:unread")
-    if starred:
-        parts.append("is:starred")
-    if exclude_starred:
-        parts.append("-is:starred")
+    terms = (("from", from_), ("to", to), ("subject", subject))
+    parts = [_term(operator, value) for operator, value in terms if value]
+    flags = ((unread, "is:unread"), (starred, "is:starred"), (exclude_starred, "-is:starred"))
+    parts.extend(flag for enabled, flag in flags if enabled)
     if newer_than:
-        amount, unit = newer_than
-        unit_map = {"day": "d", "days": "d", "d": "d", "month": "m", "months": "m", "m": "m"}
-        parts.append(f"newer_than:{amount}{unit_map.get(unit, unit)}")
+        parts.append(_relative("newer_than", newer_than))
     if older_than:
-        amount, unit = older_than
-        unit_map = {"day": "d", "days": "d", "d": "d", "month": "m", "months": "m", "m": "m"}
-        parts.append(f"older_than:{amount}{unit_map.get(unit, unit)}")
-    if labels:
-        parts.extend(_term("label", lbl) for lbl in labels)
+        parts.append(_relative("older_than", older_than))
+    parts.extend(_term("label", lbl) for lbl in labels or [])
     if has_attachment:
         parts.append("has:attachment")
 

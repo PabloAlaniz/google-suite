@@ -77,10 +77,14 @@ def results(items: list[Any]) -> dict[str, Any]:
     return {"count": len(items), "results": items}
 
 
+# Longer than this is taken as a spreadsheet ID (IDs are 44 characters), not a title
+_ID_HINT_LENGTH = 30
+
+
 def parse_when(value: str) -> datetime | date:
     """ "2026-03-01" -> date; "2026-03-01T10:00" / "2026-03-01 10:00" -> datetime."""
     try:
-        if len(value) == 10:
+        if len(value) == len("YYYY-MM-DD"):
             return date.fromisoformat(value)
         return datetime.fromisoformat(value)
     except ValueError as exc:
@@ -94,7 +98,8 @@ def parse_day(value: str | None) -> date | None:
     return when.date() if isinstance(when, datetime) else when
 
 
-def build_server(services: Services | None = None) -> MCPServer:
+# Each tool is a closure over `svc`, so every registration lives in this function
+def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, PLR0915
     """The MCP server; tests pass Services built on mocked clients."""
     svc = services or Services()
     server = MCPServer(
@@ -395,7 +400,7 @@ def build_server(services: Services | None = None) -> MCPServer:
         """By URL, ID or exact title."""
         if spreadsheet.startswith("http"):
             return svc.sheets.open_by_url(spreadsheet)
-        if len(spreadsheet) > 30:
+        if len(spreadsheet) > _ID_HINT_LENGTH:
             return svc.sheets.open_by_key(spreadsheet)
         return svc.sheets.open(spreadsheet)
 
@@ -584,9 +589,14 @@ def build_server(services: Services | None = None) -> MCPServer:
         "CONTAINS", "value": ..}, {"field": .., "values": [..]}, numeric
         {"field": "sessions", "operator": "GREATER_THAN", "value": 10}; "not": true negates.
         Each row has `dimensions` (name -> value) and numeric `metrics`."""
-        if any(len(r) != 2 for r in date_ranges or []):
-            raise ToolError("Each date range is [start, end]")
-        ranges = [(r[0], r[1]) for r in date_ranges] if date_ranges else [(start_date, end_date)]
+        try:
+            ranges = (
+                [(start, end) for start, end in date_ranges]
+                if date_ranges
+                else [(start_date, end_date)]
+            )
+        except ValueError:
+            raise ToolError("Each date range is [start, end]") from None
         report = svc.analytics.run_report(
             property_id,
             dimensions,

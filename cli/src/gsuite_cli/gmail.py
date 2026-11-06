@@ -92,8 +92,8 @@ def list_messages(
                 status += "★"
 
             date_str = msg.date.strftime("%Y-%m-%d %H:%M") if msg.date else ""
-            sender = msg.sender[:25] if len(msg.sender) > 25 else msg.sender
-            subject = msg.subject[:50] if len(msg.subject) > 50 else msg.subject
+            sender = msg.sender[:25]
+            subject = msg.subject[:50]
 
             style = "bold" if msg.is_unread else ""
             table.add_row(status, date_str, sender, subject, style=style)

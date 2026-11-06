@@ -56,31 +56,39 @@ def problem(
     return JSONResponse(body, status_code=status, headers=headers, media_type=PROBLEM_JSON)
 
 
-def _gsuite_error(request: Request, exc: Exception) -> JSONResponse:
-    if not isinstance(exc, GSuiteError):  # registered only for GSuiteError
-        raise exc
+# APIError subclasses answered with their own message and service
+_API_ERROR_STATUS: tuple[tuple[type[APIError], int], ...] = (
+    (QuotaExceededError, 429),
+    (NotFoundError, 404),
+    (PermissionDeniedError, 403),
+)
 
+
+def _api_error(request: Request, exc: APIError) -> JSONResponse:
     # Order matters: the specific APIError subclasses come before APIError.
     if isinstance(exc, RateLimitError):
         headers = {"Retry-After": str(exc.retry_after)} if exc.retry_after else None
         return problem(request, 429, exc.message, headers=headers, service=exc.service)
-    if isinstance(exc, QuotaExceededError):
-        return problem(request, 429, exc.message, service=exc.service)
-    if isinstance(exc, NotFoundError):
-        return problem(request, 404, exc.message, service=exc.service)
-    if isinstance(exc, PermissionDeniedError):
-        return problem(request, 403, exc.message, service=exc.service)
+    for error_type, status in _API_ERROR_STATUS:
+        if isinstance(exc, error_type):
+            return problem(request, status, exc.message, service=exc.service)
+    # Google failed in a way we don't map; the message can carry request
+    # URLs and IDs from upstream, so log it and return a generic detail.
+    logger.error("Upstream %s API error: %s", exc.service, exc.message)
+    return problem(
+        request,
+        502,
+        f"Google {exc.service} API error",
+        service=exc.service,
+        upstream_status=exc.status_code,
+    )
+
+
+def _gsuite_error(request: Request, exc: Exception) -> JSONResponse:
+    if not isinstance(exc, GSuiteError):  # registered only for GSuiteError
+        raise exc
     if isinstance(exc, APIError):
-        # Google failed in a way we don't map; the message can carry request
-        # URLs and IDs from upstream, so log it and return a generic detail.
-        logger.error("Upstream %s API error: %s", exc.service, exc.message)
-        return problem(
-            request,
-            502,
-            f"Google {exc.service} API error",
-            service=exc.service,
-            upstream_status=exc.status_code,
-        )
+        return _api_error(request, exc)
     if isinstance(exc, AuthenticationError):
         # The server has no usable Google token; the caller can't fix that
         # with their API key, but 401 is what clients of this API expect.

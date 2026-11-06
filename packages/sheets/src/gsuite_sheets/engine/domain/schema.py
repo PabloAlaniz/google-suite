@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import types
+from collections.abc import Callable
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from enum import Enum
@@ -60,6 +61,41 @@ def _parse_bool(value: str, field_name: str) -> bool:
     raise SchemaError(f"Valor booleano inválido para '{field_name}': {value!r}.")
 
 
+def _parse_number(value: str, kind: type, field_name: str) -> Any:
+    try:
+        return kind(value)
+    except ValueError as exc:
+        raise SchemaError(
+            f"No se pudo convertir {value!r} a {kind.__name__} en '{field_name}'."
+        ) from exc
+
+
+def _parse_decimal(value: str, _kind: type, field_name: str) -> Decimal:
+    try:
+        return Decimal(value)
+    except InvalidOperation as exc:
+        raise SchemaError(f"Decimal inválido en '{field_name}': {value!r}.") from exc
+
+
+def _parse_date(value: str, kind: type, field_name: str) -> date | datetime:
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise SchemaError(f"Fecha inválida en '{field_name}': {value!r}.") from exc
+    return parsed.date() if kind is date else parsed
+
+
+# Tipos exactos (un IntEnum no es int acá: lo resuelve _parse_enum)
+_SCALAR_PARSERS: dict[type, Callable[[str, type, str], Any]] = {
+    bool: lambda value, _kind, field_name: _parse_bool(value, field_name),
+    int: _parse_number,
+    float: _parse_number,
+    Decimal: _parse_decimal,
+    date: _parse_date,
+    datetime: _parse_date,
+}
+
+
 def _coerce(value: str, annotation: Any, field_name: str) -> Any:
     """Convierte el texto de una celda al tipo anotado del campo (un return por tipo)."""
     inner, optional = _unwrap_optional(annotation)
@@ -67,26 +103,9 @@ def _coerce(value: str, annotation: Any, field_name: str) -> Any:
         return None
     if inner is str:
         return value
-    if inner is bool:
-        return _parse_bool(value, field_name)
-    if inner in (int, float):
-        try:
-            return inner(value)
-        except ValueError as exc:
-            raise SchemaError(
-                f"No se pudo convertir {value!r} a {inner.__name__} en '{field_name}'."
-            ) from exc
-    if inner is Decimal:
-        try:
-            return Decimal(value)
-        except InvalidOperation as exc:
-            raise SchemaError(f"Decimal inválido en '{field_name}': {value!r}.") from exc
-    if inner in (date, datetime):
-        try:
-            parsed = datetime.fromisoformat(value)
-        except ValueError as exc:
-            raise SchemaError(f"Fecha inválida en '{field_name}': {value!r}.") from exc
-        return parsed.date() if inner is date else parsed
+    parser = _SCALAR_PARSERS.get(inner) if isinstance(inner, type) else None
+    if parser is not None:
+        return parser(value, inner, field_name)
     if isinstance(inner, type) and issubclass(inner, Enum):
         return _parse_enum(value, inner, field_name)
     if get_origin(inner) is Literal:

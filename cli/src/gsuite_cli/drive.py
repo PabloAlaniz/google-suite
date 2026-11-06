@@ -36,12 +36,15 @@ def _require(file: File | None, file_id: str) -> File:
     return file
 
 
+_KIB = 1024
+
+
 def _size(num: int) -> str:
     size = float(num)
     for unit in ("B", "KB", "MB", "GB"):
-        if size < 1024:
+        if size < _KIB:
             return f"{size:.0f} {unit}" if unit == "B" else f"{size:.1f} {unit}"
-        size /= 1024
+        size /= _KIB
     return f"{size:.1f} TB"
 
 

@@ -1,5 +1,7 @@
 """REST API rate limit (GSUITE_API_RATE_LIMIT): 429 with Retry-After past the budget."""
 
+import sys
+
 import pytest
 from pydantic import SecretStr, ValidationError
 
@@ -129,3 +131,16 @@ def test_redis_down_and_closed_answers_503(make_client, settings):
     assert response.headers["content-type"] == "application/problem+json"
     assert response.json()["detail"] == "API rate limiter unavailable"
     assert response.headers["Retry-After"] == "1"
+
+
+def test_redis_url_without_the_package_says_what_to_install(monkeypatch):
+    monkeypatch.setitem(sys.modules, "redis", None)
+    settings = Settings(
+        api_rate_limit=1,
+        api_rate_limit_redis_url=DOWN,
+        api_rate_limit_on_store_error="open",
+        _env_file=None,
+    )
+
+    with pytest.raises(RuntimeError, match="cloudrun"):
+        build_limiter(settings)

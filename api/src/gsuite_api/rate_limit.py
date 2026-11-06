@@ -6,8 +6,10 @@ shares the budget.
 """
 
 from fractions import Fraction
+from importlib import import_module
 
 from omnilimit import Limiter, MemoryStore, OnStoreError, Store
+from omnilimit.stores.redis import RedisStore
 
 from gsuite_core import Settings
 
@@ -26,16 +28,15 @@ def to_policy(rate: float, burst: float | None) -> tuple[int, int, int]:
 
 
 def _redis_store(url: str) -> Store:
+    # Imported here because redis is optional: only the cloudrun extra installs it.
     try:
-        from redis import Redis
+        redis = import_module("redis")
     except ImportError as exc:
         raise RuntimeError(
             "GSUITE_API_RATE_LIMIT_REDIS_URL needs the redis package: "
             'pip install "gsuite-sdk[api,cloudrun]"'
         ) from exc
-    from omnilimit.stores.redis import RedisStore
-
-    client = Redis.from_url(
+    client = redis.Redis.from_url(
         url, socket_timeout=_REDIS_TIMEOUT_S, socket_connect_timeout=_REDIS_TIMEOUT_S
     )
     return RedisStore(client)

@@ -125,6 +125,20 @@ Files from `AsyncDrive` have no sync client behind them: `file.trash()`,
 `file.download()` and `folder.list_files()` raise `TypeError`; await the
 `AsyncDrive` method instead.
 
+## Contacts
+
+`AsyncContacts` mirrors `Contacts`: listing, search (with the People API's
+cache warm-up), get and `get_many`, create/update/delete, incremental `sync`
+and contact groups, with the same arguments and results.
+
+```python
+from gsuite_contacts import AsyncContacts
+
+async with AsyncContacts(auth) as contacts:
+    delta = await contacts.sync(saved_token)
+    await contacts.modify_group("a1b2", add=[c.id for c in delta.changed])
+```
+
 ## REST API
 
 Routers backed by an async client run as `async def` routes on the event
@@ -139,6 +153,6 @@ have async clients.
 
 Each async client is a thin I/O layer: parsers, query strings, request
 bodies and MIME building are the sync client's own code (`gsuite_gmail._mime`,
-`gsuite_calendar._requests`, `gsuite_drive._requests`), the way the Sheets
+`gsuite_calendar._requests`, `gsuite_drive._requests`, `gsuite_contacts._requests`), the way the Sheets
 adapters share their request builders. A behavior fixed in one client is
 fixed in both.

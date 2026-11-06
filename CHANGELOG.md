@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.11.0](https://github.com/PabloAlaniz/google-suite/compare/v0.10.0...v0.11.0) (2026-11-06)
+
+
+### Features
+
+* **api:** async Calendar routes on AsyncCalendar ([#97](https://github.com/PabloAlaniz/google-suite/issues/97)) ([4226ce1](https://github.com/PabloAlaniz/google-suite/commit/4226ce1f0023be1e92f630c9c65655fce875c47b))
+* **api:** async Drive routes on AsyncDrive ([#98](https://github.com/PabloAlaniz/google-suite/issues/98)) ([800f11e](https://github.com/PabloAlaniz/google-suite/commit/800f11eb559fb8614b9c623eb9c07713f7ab3963))
+* **api:** async Gmail routes on AsyncGmail ([#99](https://github.com/PabloAlaniz/google-suite/issues/99)) ([edab2ee](https://github.com/PabloAlaniz/google-suite/commit/edab2ee359bcfcd1a9b87785b09293c064b7e619))
+* **api:** server-side rate limit with GSUITE_API_RATE_LIMIT ([#92](https://github.com/PabloAlaniz/google-suite/issues/92)) ([40f0054](https://github.com/PabloAlaniz/google-suite/commit/40f005462230109de4c7353329ea6c67fdc524d3))
+* **calendar:** AsyncCalendar ([#95](https://github.com/PabloAlaniz/google-suite/issues/95)) ([7395efd](https://github.com/PabloAlaniz/google-suite/commit/7395efd65463f41dea488a1028d4385f68fe38f8))
+* **calendar:** incremental sync and event identification fields ([#105](https://github.com/PabloAlaniz/google-suite/issues/105)) ([fb6cb95](https://github.com/PabloAlaniz/google-suite/commit/fb6cb958a2f58886502473013bdc196263764bee))
+* **contacts:** AsyncContacts ([#103](https://github.com/PabloAlaniz/google-suite/issues/103)) ([3215e49](https://github.com/PabloAlaniz/google-suite/commit/3215e497558e448a98125d3e0703ad6d1eef928e))
+* **contacts:** contact groups and sync in the REST API, CLI and MCP ([#102](https://github.com/PabloAlaniz/google-suite/issues/102)) ([b214908](https://github.com/PabloAlaniz/google-suite/commit/b214908a54c75cabb60020ac07aac44cd8715ccf))
+* **contacts:** incremental sync, batch get, raw fields and contact groups ([#101](https://github.com/PabloAlaniz/google-suite/issues/101)) ([47c95e6](https://github.com/PabloAlaniz/google-suite/commit/47c95e624bef5f826a0f5aba5d4f6ebdd3921b50))
+* **core:** login without a browser, client config without a file, InsufficientScopeError ([7986589](https://github.com/PabloAlaniz/google-suite/commit/7986589e693bf6f9476bafc82bac9e2f4b96c626))
+* **drive:** AsyncDrive with resumable chunked uploads ([#96](https://github.com/PabloAlaniz/google-suite/issues/96)) ([752f53c](https://github.com/PabloAlaniz/google-suite/commit/752f53cb120add526cba2e27bf6654f744664940))
+* **gmail:** AsyncGmail ([#93](https://github.com/PabloAlaniz/google-suite/issues/93)) ([fe7a1d4](https://github.com/PabloAlaniz/google-suite/commit/fe7a1d4ea9ef72c69bb07bd19632897d208ac01e))
+* **gmail:** incremental sync with history, ID-only listing, metadata format ([#104](https://github.com/PabloAlaniz/google-suite/issues/104)) ([9994fb5](https://github.com/PabloAlaniz/google-suite/commit/9994fb50deba823980a59208f67b454e4bf2475a))
+
 ## [0.10.0](https://github.com/PabloAlaniz/google-suite/compare/v0.9.0...v0.10.0) (2026-11-04)
 
 

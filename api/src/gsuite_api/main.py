@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from gsuite_api.dependencies import enforce_rate_limit, require_api_key
 from gsuite_api.errors import install_error_handlers
 from gsuite_api.observability import RequestContextMiddleware, configure_logging
+from gsuite_api.rate_limit import build_limiter
 from gsuite_api.routes import (
     analytics,
     calendar,
@@ -23,7 +24,6 @@ from gsuite_api.routes import (
     tasks,
 )
 from gsuite_core import Settings, __version__, get_settings
-from gsuite_core.rate_limit import TokenBucket
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             settings.api_rate_limit,
             settings.api_rate_limit_burst or max(1.0, settings.api_rate_limit),
         )
+        if settings.api_rate_limit_redis_url:
+            logger.info("API rate limit shared through Redis")
     logger.info("Google Suite API %s starting", __version__)
     yield
     logger.info("Google Suite API shutting down")
@@ -65,11 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = settings
-    app.state.rate_limiter = (
-        TokenBucket(settings.api_rate_limit, settings.api_rate_limit_burst)
-        if settings.api_rate_limit
-        else None
-    )
+    app.state.rate_limiter = build_limiter(settings)
 
     install_error_handlers(app)
 
@@ -83,7 +81,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_credentials=False,
             allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
             allow_headers=["X-API-Key", "Content-Type", "X-Request-ID"],
-            expose_headers=["X-Request-ID", "Retry-After"],
+            expose_headers=["X-Request-ID", "Retry-After", "RateLimit", "RateLimit-Policy"],
         )
     # Added last so it wraps everything, CORS preflights included.
     app.add_middleware(RequestContextMiddleware)

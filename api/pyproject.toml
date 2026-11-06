@@ -20,6 +20,7 @@ dependencies = [
     "email-validator>=2.1.0",
     "python-multipart>=0.0.6",
     "google-cloud-logging>=3.9.0",
+    "omnilimit>=0.1.1,<0.2",
 ]
 
 [project.scripts]

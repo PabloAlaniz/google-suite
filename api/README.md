@@ -280,13 +280,27 @@ export GSUITE_API_RATE_LIMIT_BURST=20
 ```
 
 Requests over the budget get `429` with a `Retry-After` header (seconds) and
-no call reaches Google. The budget is one token bucket shared by every client
-of the process: the API has a single key, and behind a proxy the client
-address is the proxy's. Requests rejected for a missing or wrong key don't
-spend it, and `/health` is never limited.
+no call reaches Google. The budget is one bucket shared by every client: the
+API has a single key, and behind a proxy the client address is the proxy's.
+Requests rejected for a missing or wrong key don't spend it, and `/health` is
+never limited. Other responses carry `RateLimit` and `RateLimit-Policy` headers,
+except those a route returns as its own response object, such as downloads.
 
-Each process has its own bucket: with several instances (Cloud Run scaling
-out, several workers) the total is the limit times the number of instances.
+By default each process has its own bucket: with several instances (Cloud Run
+scaling out, several workers) the total is the limit times the number of
+instances. To share one budget, point them at the same Redis or Valkey. This
+needs the `cloudrun` extra, which the Docker image includes:
+
+```bash
+export GSUITE_API_RATE_LIMIT_REDIS_URL=redis://10.0.0.5:6379/0
+export GSUITE_API_RATE_LIMIT_ON_STORE_ERROR=open
+```
+
+`GSUITE_API_RATE_LIMIT_ON_STORE_ERROR` has no default, and the API won't start
+without it when a Redis URL is set. If Redis fails or takes too long, `open`
+serves requests without the limit and `closed` answers `503` with `Retry-After`.
+The limit itself comes from [omnilimit](https://github.com/PabloAlaniz/omnilimit).
+
 `GSUITE_RATE_LIMIT` is a different setting: it paces this process's calls to
 Google instead of rejecting requests.
 
@@ -303,6 +317,8 @@ Environment variables:
 | `GSUITE_CORS_ORIGINS` | - | Comma-separated allowed origins |
 | `GSUITE_API_RATE_LIMIT` | - | Max API requests per second, all clients together (see above) |
 | `GSUITE_API_RATE_LIMIT_BURST` | max(1, rate) | Requests allowed at once |
+| `GSUITE_API_RATE_LIMIT_REDIS_URL` | - | Share the limit across instances (see above) |
+| `GSUITE_API_RATE_LIMIT_ON_STORE_ERROR` | - | `open` or `closed` when Redis fails; required with the URL |
 | `GSUITE_LOG_LEVEL` | INFO | Log level |
 | `GSUITE_LOG_FORMAT` | text | `json` for one JSON object per line (Cloud Logging) |
 | `GSUITE_CREDENTIALS_FILE` | credentials.json | OAuth credentials |

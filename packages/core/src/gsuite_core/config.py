@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import AliasChoices, Field
+from pydantic import AliasChoices, Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings
 
 from gsuite_core._version import __version__
@@ -97,12 +97,23 @@ class Settings(BaseSettings):
         default=None,
         gt=0,
         description=(
-            "Max REST API requests per second across all clients of this process "
-            "(token bucket; over it, 429 with Retry-After); off by default"
+            "Max REST API requests per second across all clients; per process unless "
+            "api_rate_limit_redis_url is set (over it, 429 with Retry-After); off by default"
         ),
     )
     api_rate_limit_burst: float | None = Field(
-        default=None, gt=0, description="REST API bucket size (default: max(1, api_rate_limit))"
+        default=None, gt=0, description="REST API burst size (default: max(1, api_rate_limit))"
+    )
+    api_rate_limit_redis_url: SecretStr | None = Field(
+        default=None,
+        description="Redis or Valkey URL to share the REST API limit across instances",
+    )
+    api_rate_limit_on_store_error: Literal["open", "closed"] | None = Field(
+        default=None,
+        description=(
+            "When Redis fails: 'open' serves requests unlimited, 'closed' answers 503. "
+            "Required with api_rate_limit_redis_url"
+        ),
     )
 
     model_config = {
@@ -112,6 +123,15 @@ class Settings(BaseSettings):
         "extra": "ignore",
         "populate_by_name": True,
     }
+
+    @model_validator(mode="after")
+    def _require_store_error_mode(self) -> "Settings":
+        if self.api_rate_limit_redis_url and not self.api_rate_limit_on_store_error:
+            raise ValueError(
+                "GSUITE_API_RATE_LIMIT_ON_STORE_ERROR ('open' or 'closed') is required "
+                "with GSUITE_API_RATE_LIMIT_REDIS_URL"
+            )
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:

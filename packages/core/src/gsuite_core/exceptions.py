@@ -109,6 +109,23 @@ class PermissionDeniedError(APIError):
         self.operation = operation
 
 
+class InsufficientScopeError(PermissionDeniedError):
+    """The login lacks an OAuth scope the call needs.
+
+    Unlike other permission errors, logging in again with the right scopes
+    fixes it (``gsuite auth login --force --scopes ...``).
+    """
+
+    def __init__(self, service: str):
+        APIError.__init__(
+            self,
+            f"The Google login is missing a scope {service} needs: log in again with it",
+            service=service,
+            status_code=403,
+        )
+        self.operation = "operation"
+
+
 class ValidationError(GSuiteError):
     """Input validation error."""
 

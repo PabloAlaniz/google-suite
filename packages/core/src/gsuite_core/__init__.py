@@ -11,7 +11,7 @@ from gsuite_core.api_utils import (
     map_http_error,
     paginate,
 )
-from gsuite_core.auth.oauth import GoogleAuth
+from gsuite_core.auth.oauth import AuthorizationRequest, GoogleAuth
 from gsuite_core.auth.scopes import Scopes
 from gsuite_core.config import Settings, get_settings
 from gsuite_core.exceptions import (
@@ -20,6 +20,7 @@ from gsuite_core.exceptions import (
     ConfigurationError,
     CredentialsNotFoundError,
     GSuiteError,
+    InsufficientScopeError,
     NotAuthenticatedError,
     NotFoundError,
     PermissionDeniedError,
@@ -36,6 +37,7 @@ __all__ = [  # noqa: RUF022 - grouped by area, not alphabetical
     "__version__",
     # Auth
     "GoogleAuth",
+    "AuthorizationRequest",
     "Scopes",
     # Config
     "Settings",
@@ -65,6 +67,7 @@ __all__ = [  # noqa: RUF022 - grouped by area, not alphabetical
     "QuotaExceededError",
     "NotFoundError",
     "PermissionDeniedError",
+    "InsufficientScopeError",
     "ValidationError",
     "ConfigurationError",
 ]

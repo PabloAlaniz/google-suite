@@ -51,6 +51,11 @@ class Settings(BaseSettings):
         ),
     )
 
+    # OAuth client without a file (a server configured from env or a UI);
+    # used instead of credentials_file when both are set
+    client_id: str | None = Field(default=None, description="OAuth client ID")
+    client_secret: str | None = Field(default=None, description="OAuth client secret")
+
     # Token storage backend
     token_storage: Literal["sqlite", "secretmanager"] = Field(
         default="sqlite", description="Token storage backend"

@@ -50,6 +50,7 @@ the same place, or set absolute paths. Set `GSUITE_DEFAULT_TIMEZONE` (e.g.
 gsuite auth login                                  # Gmail, Calendar, Drive, Sheets
 gsuite auth login --force --scopes default,tasks,contacts   # add Tasks and Contacts
 gsuite auth login --force --scopes default,marketing        # add Search Console, Analytics, Tag Manager
+gsuite auth login --no-browser                     # over SSH / on a server: paste back the redirect URL
 gsuite auth status
 ```
 
@@ -157,8 +158,9 @@ Per service, with everything else the SDK can do:
   deletes return `False`. Check for them instead of catching exceptions.
 - Every error is a `gsuite_core.GSuiteError`:
   - `NotFoundError`: HTTP 404 from Google.
-  - `PermissionDeniedError`: HTTP 403, usually a scope missing from the login
-    (log in again with `--force --scopes ...`) or no access to that item.
+  - `InsufficientScopeError` (a `PermissionDeniedError`): the login lacks a
+    scope; log in again with `--force --scopes ...`.
+  - `PermissionDeniedError`: any other HTTP 403, e.g. no access to that item.
   - `RateLimitError` / `QuotaExceededError`: already retried with backoff
     before being raised.
   - `ValidationError`: bad input (`.field` names it).

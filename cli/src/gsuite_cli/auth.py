@@ -1,6 +1,7 @@
 """Authentication CLI commands."""
 
 import typer
+from google.oauth2.credentials import Credentials
 from rich.console import Console
 from rich.panel import Panel
 
@@ -58,18 +59,30 @@ def login(
             "scopes, so list every set you still need."
         ),
     ),
+    no_browser: bool = typer.Option(
+        False,
+        "--no-browser",
+        help=(
+            "For a machine without a browser (SSH, a server): print the consent URL to open "
+            "elsewhere, then paste back the address the browser ends on (or its code)."
+        ),
+    ),
 ) -> None:
-    """Authenticate with Google (opens browser).
+    """Authenticate with Google.
 
-    This will open a browser window for OAuth consent.
+    Opens a browser window for OAuth consent, or with --no-browser prints the
+    URL and asks for what the browser lands on.
     """
     selected_scopes = _resolve_scopes(scopes)
 
     auth = GoogleAuth(scopes=selected_scopes)
 
     try:
-        with console.status("[bold green]Opening browser for authentication..."):
-            credentials = auth.authenticate(force=force)
+        if no_browser:
+            credentials = _login_without_browser(auth, force)
+        else:
+            with console.status("[bold green]Opening browser for authentication..."):
+                credentials = auth.authenticate(force=force)
 
         console.print(
             Panel.fit(
@@ -93,6 +106,28 @@ def login(
     except Exception as e:  # noqa: BLE001 - last resort: report any failure, exit 1
         console.print(f"[red]✗ Authentication failed: {e}[/red]")
         raise typer.Exit(1) from None
+
+
+def _login_without_browser(auth: GoogleAuth, force: bool) -> Credentials:
+    """The two-step login: show the URL, read back the code or redirect URL."""
+    credentials = auth.credentials
+    if not force and credentials is not None:
+        if auth.is_authenticated():
+            return credentials
+        if auth.needs_refresh() and auth.refresh():
+            return credentials
+    request = auth.start_authorization()
+    console.print(
+        Panel.fit(
+            "1. Open this URL in any browser and allow access:\n\n"
+            f"[link]{request.url}[/link]\n\n"
+            "2. The browser ends on a page that doesn't load (http://localhost/...).\n"
+            "   Copy that whole address and paste it below.",
+            title="Google Suite Auth",
+        )
+    )
+    pasted = typer.prompt("Address (or code)")
+    return auth.finish_authorization(request, pasted)
 
 
 @app.command()

@@ -20,12 +20,13 @@ from typing import Any, cast
 from gsuite_core import GoogleAuth
 from gsuite_core._testing import PropertyViolation, require
 from gsuite_gmail import query
-from gsuite_gmail.client import Gmail, _html_to_text
+from gsuite_gmail._html import html_to_text
+from gsuite_gmail.client import Gmail
 from gsuite_gmail.parser import GmailParser
 
 _TAG = re.compile(r"<[^>]+>")
 
-# ---------------------------------------------------------------- _html_to_text
+# ---------------------------------------------------------------- html_to_text
 
 
 def check_html_to_text_strips_tags(markup: str) -> None:
@@ -34,8 +35,8 @@ def check_html_to_text_strips_tags(markup: str) -> None:
     ``&lt;b&gt;`` legitimately becomes ``<b>`` (escaped text), so the check only
     applies to markup without entities.
     """
-    text = _html_to_text(markup)
-    require(isinstance(text, str), f"_html_to_text returned {type(text).__name__}")
+    text = html_to_text(markup)
+    require(isinstance(text, str), f"html_to_text returned {type(text).__name__}")
     if "&" not in markup:
         tag = _TAG.search(text)
         require(tag is None, f"tag {tag and tag.group()!r} survived in {text!r}")
@@ -46,16 +47,16 @@ def check_html_to_text_plain_passthrough(text: str) -> None:
     if "<" in text or "&" in text:
         return
     expected = re.sub(r"\n{3,}", "\n\n", text).strip()
-    once = _html_to_text(text)
+    once = html_to_text(text)
     require(once == expected, f"plain text {text!r} became {once!r}, expected {expected!r}")
-    twice = _html_to_text(once)
+    twice = html_to_text(once)
     require(twice == once, f"not idempotent on plain text: {once!r} -> {twice!r}")
 
 
 def _html_to_text_seconds(markup: str, size: int) -> float:
     big = markup * (size // len(markup) + 1)
     start = time.perf_counter()
-    _html_to_text(big)
+    html_to_text(big)
     return time.perf_counter() - start
 
 

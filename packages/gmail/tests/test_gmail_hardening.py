@@ -8,11 +8,11 @@ from typing import Any
 import pytest
 
 from gsuite_gmail import query as q
-from gsuite_gmail.client import _html_to_text
+from gsuite_gmail._html import html_to_text
 from gsuite_gmail.message import Message
 from gsuite_gmail.parser import GmailParser
 
-# ---------------------------------------------------------------- _html_to_text
+# ---------------------------------------------------------------- html_to_text
 
 # ~140 KB each. The regex-based version took seconds to minutes on these.
 PATHOLOGICAL_HTML = [
@@ -30,7 +30,7 @@ PATHOLOGICAL_HTML = [
 @pytest.mark.parametrize("markup", PATHOLOGICAL_HTML, ids=lambda m: repr(m[:8]))
 def test_html_to_text_is_linear_on_unclosed_markup(markup):
     start = time.perf_counter()
-    _html_to_text(markup)
+    html_to_text(markup)
     assert time.perf_counter() - start < 0.5
 
 
@@ -41,22 +41,22 @@ def test_html_to_text_output_unchanged_for_normal_html():
         "<div>Line<br>break<BR/>again</div><ul><li>one</li><li>two</li></ul>"
         "<p></p><p></p><p>end &lt;tag&gt;</p></body></html>"
     )
-    assert _html_to_text(markup) == (
+    assert html_to_text(markup) == (
         "Title\nHello\xa0world & you\nLine\nbreak\nagain\none\ntwo\n\nend <tag>"
     )
 
 
 def test_html_to_text_keeps_unclosed_script_text():
     # Unchanged rough behavior: only complete script/style elements are dropped
-    assert _html_to_text("a<script>b") == "ab"
-    assert _html_to_text("x < y and y > z") == "x  z"
+    assert html_to_text("a<script>b") == "ab"
+    assert html_to_text("x < y and y > z") == "x  z"
 
 
 def test_html_to_text_handles_decimal_references_of_any_length():
     # html.unescape alone raises ValueError past 4300 digits (found by ClusterFuzzLite)
-    assert _html_to_text("&#" + "0" * 5000 + "60;") == "<"
-    assert _html_to_text("&#" + "9" * 5000 + ";") == "\ufffd"
-    assert _html_to_text("&#000000065;&#1114112;") == "A\ufffd"
+    assert html_to_text("&#" + "0" * 5000 + "60;") == "<"
+    assert html_to_text("&#" + "9" * 5000 + ";") == "\ufffd"
+    assert html_to_text("&#000000065;&#1114112;") == "A\ufffd"
 
 
 # ------------------------------------------------------------------------ query

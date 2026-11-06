@@ -1,21 +1,25 @@
 """Gmail client - high-level interface."""
 
 import base64
-import html as html_lib
 import logging
-import mimetypes
-import os
-import re
 from collections.abc import Iterator, Sequence
-from email.message import EmailMessage
 from email.utils import parseaddr
 from itertools import islice
-from pathlib import Path
 from typing import Any
 
 from gsuite_core import GoogleAuth, execute, execute_batch, paginate
-from gsuite_core.exceptions import GSuiteError, NotFoundError, ValidationError
+from gsuite_core.exceptions import GSuiteError, NotFoundError
 from gsuite_core.service import GoogleService
+from gsuite_gmail._html import html_to_text
+from gsuite_gmail._labels import SYSTEM_LABELS, LabelResolver
+from gsuite_gmail._mime import (
+    MessageSpec,
+    OutgoingAttachment,
+    build_message,
+    encode_for_api,
+    prefixed,
+    with_signature,
+)
 from gsuite_gmail.draft import Draft
 from gsuite_gmail.label import Label
 from gsuite_gmail.message import Message
@@ -23,122 +27,14 @@ from gsuite_gmail.parser import GmailParser
 from gsuite_gmail.query import Query
 from gsuite_gmail.thread import Thread
 
-logger = logging.getLogger(__name__)
+__all__ = ["BATCH_MODIFY_LIMIT", "BATCH_SIZE", "SYSTEM_LABELS", "Gmail", "OutgoingAttachment"]
 
-# A file path, or (filename, content) for data already in memory
-OutgoingAttachment = str | os.PathLike[str] | tuple[str, bytes]
+logger = logging.getLogger(__name__)
 
 # Gmail recommends at most 50 requests per HTTP batch
 BATCH_SIZE = 50
 # users.messages.batchModify accepts up to 1000 IDs per call
 BATCH_MODIFY_LIMIT = 1000
-
-# Fixed IDs that work without looking them up
-SYSTEM_LABELS = frozenset(
-    {"INBOX", "UNREAD", "STARRED", "IMPORTANT", "SENT", "DRAFT", "SPAM", "TRASH", "CHAT"}
-)
-
-
-_RAW_TEXT_OPEN = re.compile(r"(?i)<(script|style)")
-_RAW_TEXT_CLOSE = {
-    "script": re.compile(r"(?i)</script>"),
-    "style": re.compile(r"(?i)</style>"),
-}
-_LINE_BREAK = re.compile(r"(?i)<br\s*/?>|</p>|</div>|</h\d>|</li>")
-_TAG = re.compile(r"<[^>]+>")
-_BLANK_LINES = re.compile(r"\n{3,}")
-_DECIMAL_CHARREF = re.compile(r"&#(\d+)")
-
-
-def _strip_raw_text_elements(markup: str) -> str:
-    """Drop ``<script ... </script>`` and ``<style ... </style>`` blocks in linear time.
-
-    Same result as ``re.sub(r"(?is)<(script|style).*?</\\1>", "", markup)``, which
-    rescans to the end of the input for every opener without a closer. A closer
-    missing after one opener is missing after every later one too, so each
-    element name is searched to the end at most once.
-    """
-    out: list[str] = []
-    pos = 0
-    unclosed: set[str] = set()
-    for opener in _RAW_TEXT_OPEN.finditer(markup):
-        # Index 1 tells them apart ("sc" / "st"); .lower() would not be safe
-        # for Unicode case-insensitive matches such as the long s.
-        name = "style" if opener.group(1)[1] in "tT" else "script"
-        if opener.start() < pos or name in unclosed:
-            continue
-        closer = _RAW_TEXT_CLOSE[name].search(markup, opener.end())
-        if closer is None:
-            unclosed.add(name)
-            continue
-        out.append(markup[pos : opener.start()])
-        pos = closer.end()
-    out.append(markup[pos:])
-    return "".join(out)
-
-
-def _strip_tags(text: str) -> str:
-    """``re.sub(r"<[^>]+>", "", text)`` in linear time.
-
-    The bare regex rescans to the end for every ``<`` with no ``>`` after it.
-    Nothing after the last ``>`` can match; before it, every attempt either
-    matches up to the next ``>`` (consuming the span) or fails at once on ``<>``.
-    """
-    last = text.rfind(">")
-    return _TAG.sub("", text[: last + 1]) + text[last + 1 :]
-
-
-# Anything past 7 digits is above U+10FFFF, which unescape turns into U+FFFD
-_MAX_CHARREF_DIGITS = 7
-
-
-def _attach(message: EmailMessage, item: OutgoingAttachment) -> None:
-    """Add a path or a (filename, bytes) pair as an attachment, typed by extension."""
-    if isinstance(item, tuple):
-        filename, content = item
-    else:
-        path = Path(item)
-        filename, content = path.name, path.read_bytes()
-    try:
-        guessed = mimetypes.guess_type(filename)[0]
-    except ValueError:
-        # guess_type parses the name as a URL: "//[x.pdf" is a bad IPv6 host
-        guessed = None
-    mime_type = guessed or "application/octet-stream"
-    maintype, subtype = mime_type.split("/", 1)
-    message.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename)
-
-
-def _shorten_charref(match: re.Match[str]) -> str:
-    digits = match.group(1).lstrip("0") or "0"
-    return f"&#{digits if len(digits) <= _MAX_CHARREF_DIGITS else 65533}"
-
-
-def _unescape(text: str) -> str:
-    """``html.unescape`` that accepts decimal references of any length.
-
-    The stdlib converts the digits with ``int()``, which raises ValueError past
-    4300 digits (``sys.int_info.str_digits_check_threshold``), even for
-    ``&#000...060;``. Shortening them first gives the same result.
-    """
-    return html_lib.unescape(_DECIMAL_CHARREF.sub(_shorten_charref, text))
-
-
-def _html_to_text(markup: str) -> str:
-    """Rough plain-text version of HTML, for the text/plain alternative.
-
-    Linear in the input size: the HTML comes from other people's messages when
-    replying or forwarding, so it must not be able to stall the caller.
-    """
-    text = _strip_raw_text_elements(markup)
-    text = _LINE_BREAK.sub("\n", text)
-    text = _strip_tags(text)
-    return _unescape(_BLANK_LINES.sub("\n\n", text)).strip()
-
-
-def _prefixed(subject: str, prefix: str) -> str:
-    """'Re: x' stays as is (any case); otherwise add the prefix."""
-    return subject if subject.lower().startswith(prefix.lower()) else f"{prefix} {subject}"
 
 
 class Gmail:
@@ -174,7 +70,7 @@ class Gmail:
         """
         self.auth = auth
         self.user_id = user_id
-        self._labels_cache: dict[str, str] | None = None
+        self._labels = LabelResolver(self._list_label_refs)
         self._email: str | None = None
 
     # ========== Message retrieval ==========
@@ -388,12 +284,10 @@ class Gmail:
 
     def get_labels(self) -> list[Label]:
         """Get all labels, with message and thread counts."""
-        response = execute(self.service.users().labels().list(userId=self.user_id), "gmail")
-
         # The list has no counts; fetch each label, batched into one request
         requests = [
             self.service.users().labels().get(userId=self.user_id, id=label["id"])
-            for label in response.get("labels", [])
+            for label in self._list_label_refs()
         ]
         labels = []
         for result in execute_batch(self.service, requests, "gmail", "label", BATCH_SIZE):
@@ -404,28 +298,14 @@ class Gmail:
             labels.append(GmailParser.parse_label(result))
         return labels
 
+    def _list_label_refs(self) -> list[dict[str, Any]]:
+        response = execute(self.service.users().labels().list(userId=self.user_id), "gmail")
+        refs: list[dict[str, Any]] = response.get("labels", [])
+        return refs
+
     def _get_label_id(self, label_name: str) -> str | None:
         """Get label ID by name (IDs are accepted too)."""
-        if label_name in SYSTEM_LABELS or label_name.startswith("CATEGORY_"):
-            return label_name
-        if self._labels_cache is None:
-            response = execute(self.service.users().labels().list(userId=self.user_id), "gmail")
-            self._labels_cache = {lbl["name"]: lbl["id"] for lbl in response.get("labels", [])}
-
-        # Check if it's already an ID
-        if label_name in self._labels_cache.values():
-            return label_name
-
-        return self._labels_cache.get(label_name)
-
-    def _require_label_ids(self, names: Sequence[str]) -> list[str]:
-        ids = []
-        for name in names:
-            label_id = self._get_label_id(name)
-            if label_id is None:
-                raise ValidationError("labels", f"unknown label {name!r}")
-            ids.append(label_id)
-        return ids
+        return self._labels.resolve(label_name)
 
     def create_label(
         self,
@@ -452,12 +332,12 @@ class Gmail:
             "gmail",
             "label",
         )
-        self._labels_cache = None
+        self._labels.invalidate()
         return GmailParser.parse_label(created)
 
     def rename_label(self, label: str, new_name: str) -> Label:
         """Rename a label (by name or ID)."""
-        (label_id,) = self._require_label_ids([label])
+        (label_id,) = self._labels.require([label])
         updated = execute(
             self.service.users()
             .labels()
@@ -466,7 +346,7 @@ class Gmail:
             "label",
             label_id,
         )
-        self._labels_cache = None
+        self._labels.invalidate()
         return GmailParser.parse_label(updated)
 
     def delete_label(self, label: str) -> bool:
@@ -488,7 +368,7 @@ class Gmail:
         except NotFoundError:
             return False
         finally:
-            self._labels_cache = None
+            self._labels.invalidate()
         return True
 
     def batch_modify(
@@ -505,8 +385,8 @@ class Gmail:
         Returns:
             Number of message IDs sent
         """
-        add_ids = self._require_label_ids(add_labels or [])
-        remove_ids = self._require_label_ids(remove_labels or [])
+        add_ids = self._labels.require(add_labels or [])
+        remove_ids = self._labels.require(remove_labels or [])
         if not add_ids and not remove_ids:
             return 0
 
@@ -547,7 +427,7 @@ class Gmail:
         action = dict(action)
         for key in ("addLabelIds", "removeLabelIds"):
             if key in action:
-                action[key] = self._require_label_ids(action[key])
+                action[key] = self._labels.require(action[key])
 
         created: dict[str, Any] = execute(
             self.service.users()
@@ -614,52 +494,27 @@ class Gmail:
         thread_id: str | None = None,
     ) -> dict[str, Any]:
         """Build the API message body ({"raw", "threadId"})."""
-        if signature:
-            sig = self.get_signature()
-            if sig:
-                body = f"{body}<br><br>{sig}" if html else f"{body}\n\n{_html_to_text(sig)}"
+        if signature and (sig := self.get_signature()):
+            body = with_signature(body, sig, html)
 
-        message = EmailMessage()
-        message["To"] = ", ".join(to)
-        if cc:
-            message["Cc"] = ", ".join(cc)
-        if bcc:
-            message["Bcc"] = ", ".join(bcc)
-
+        in_reply_to = references = None
         if reply_to:
-            thread_id = self._add_reply_headers(message, reply_to, thread_id)
-        message["Subject"] = subject
+            original = self._get_message_by_id(reply_to, include_body=False)
+            in_reply_to, references = original.rfc822_message_id, original.references
+            thread_id = thread_id or original.thread_id
 
-        if html:
-            message.set_content(_html_to_text(body))
-            message.add_alternative(body, subtype="html")
-        else:
-            message.set_content(body)
-
-        for item in attachments or []:
-            _attach(message, item)
-
-        api_body: dict[str, Any] = {
-            "raw": base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
-        }
-        if thread_id:
-            api_body["threadId"] = thread_id
-        return api_body
-
-    def _add_reply_headers(
-        self, message: EmailMessage, reply_to: str, thread_id: str | None
-    ) -> str | None:
-        """Set In-Reply-To/References from the original; return the thread to send in.
-
-        Without these headers the recipient sees a new conversation even though
-        it's in the sender's thread.
-        """
-        original = self._get_message_by_id(reply_to, include_body=False)
-        if original.rfc822_message_id:
-            message["In-Reply-To"] = original.rfc822_message_id
-            refs = f"{original.references or ''} {original.rfc822_message_id}".strip()
-            message["References"] = refs
-        return thread_id or original.thread_id
+        spec = MessageSpec(
+            to=to,
+            subject=subject,
+            body=body,
+            cc=cc,
+            bcc=bcc,
+            html=html,
+            attachments=attachments,
+            in_reply_to=in_reply_to,
+            references=references,
+        )
+        return encode_for_api(build_message(spec), thread_id)
 
     def _send_composed(self, api_body: dict[str, Any]) -> Message:
         sent = execute(
@@ -745,7 +600,7 @@ class Gmail:
         return self._send_composed(
             self._compose(
                 to,
-                _prefixed(message.subject, "Re:"),
+                prefixed(message.subject, "Re:"),
                 body,
                 cc=cc or None,
                 html=html,
@@ -772,7 +627,7 @@ class Gmail:
             The sent message
         """
         date = message.date.strftime("%a, %d %b %Y %H:%M") if message.date else ""
-        original = message.plain or _html_to_text(message.html or "")
+        original = message.plain or html_to_text(message.html or "")
         quoted = (
             f"{body}\n\n---------- Forwarded message ---------\n"
             f"From: {message.sender}\nDate: {date}\nSubject: {message.subject}\n"
@@ -785,7 +640,7 @@ class Gmail:
 
         return self.send(
             to=to,
-            subject=_prefixed(message.subject, "Fwd:"),
+            subject=prefixed(message.subject, "Fwd:"),
             body=quoted,
             attachments=attachments or None,
         )

@@ -28,7 +28,7 @@ imagen Docker más chica. 0.6.0 sumó las APIs de marketing en solo lectura
   - [x] Request logging con X-Request-ID
   - [x] Errores RFC 9457 (problem+json)
   - [x] API key obligatoria por router (fail closed)
-  - [ ] Rate limiting de la API (hoy solo hay token bucket del lado cliente: `GSUITE_RATE_LIMIT`)
+  - [x] Rate limiting de la API (`GSUITE_API_RATE_LIMIT`: 429 con `Retry-After`)
 - [x] **Sitio de documentación** - MkDocs + referencia de la API generada de los docstrings
 - [x] **Tests de integración** - opt-in contra una cuenta real (`tests/integration`)
 - [ ] **Documentación de deploy**

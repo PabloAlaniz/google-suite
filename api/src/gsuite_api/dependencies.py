@@ -1,5 +1,6 @@
 """FastAPI dependencies."""
 
+import math
 import secrets
 from functools import lru_cache
 from typing import Annotated
@@ -12,6 +13,7 @@ from gsuite_calendar import Calendar
 from gsuite_contacts import Contacts
 from gsuite_core import GoogleAuth, Settings, SQLiteTokenStore, TokenStore, get_settings
 from gsuite_core.exceptions import NotAuthenticatedError
+from gsuite_core.rate_limit import TokenBucket
 from gsuite_drive import Drive
 from gsuite_gmail import Gmail
 from gsuite_searchconsole import SearchConsole
@@ -55,6 +57,27 @@ def require_api_key(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or missing API key",
+        )
+
+
+def enforce_rate_limit(request: Request) -> None:
+    """Reject the request with 429 once the API's request budget is spent.
+
+    One token bucket per app (GSUITE_API_RATE_LIMIT requests per second,
+    GSUITE_API_RATE_LIMIT_BURST at once), shared by every client: the API has
+    a single key, and behind a proxy the client address is the proxy's. Off
+    when the rate is unset. Runs after require_api_key, so rejected requests
+    don't spend the budget.
+    """
+    bucket: TokenBucket | None = request.app.state.rate_limiter
+    if bucket is None:
+        return
+    wait = bucket.try_acquire()
+    if wait > 0:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="API rate limit exceeded",
+            headers={"Retry-After": str(math.ceil(wait))},
         )
 
 

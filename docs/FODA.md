@@ -28,7 +28,8 @@ señalaba:
 | **Docker** | 355 MB multi-stage (antes 525 MB) |
 
 Nuevas debilidades:
-- Las rutas de la API son síncronas y el rate limiting es solo del lado cliente.
+- Las rutas de la API son síncronas. (El rate limiting ya no es solo del lado
+  cliente: `GSUITE_API_RATE_LIMIT` limita la API REST.)
 - Los tests de integración dependen de un token OAuth que, con la app en modo
   "Testing", vence cada 7 días.
 

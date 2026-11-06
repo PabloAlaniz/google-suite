@@ -23,6 +23,15 @@ class TokenBucket:
         self._updated = time.monotonic()
         self._lock = threading.Lock()
 
+    def try_acquire(self) -> float:
+        """Take a token without waiting.
+
+        Returns:
+            0.0 if a token was taken; otherwise the seconds until one is
+            available (nothing is taken, so the caller can reject the request).
+        """
+        return self._take()
+
     def _take(self) -> float:
         """Take a token if available; otherwise return the seconds to wait for one."""
         with self._lock:

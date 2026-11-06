@@ -88,6 +88,17 @@ class Settings(BaseSettings):
     rate_limit_burst: float | None = Field(
         default=None, gt=0, description="Bucket size (default: max(1, rate_limit))"
     )
+    api_rate_limit: float | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Max REST API requests per second across all clients of this process "
+            "(token bucket; over it, 429 with Retry-After); off by default"
+        ),
+    )
+    api_rate_limit_burst: float | None = Field(
+        default=None, gt=0, description="REST API bucket size (default: max(1, api_rate_limit))"
+    )
 
     model_config = {
         "env_prefix": "GSUITE_",

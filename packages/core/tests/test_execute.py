@@ -314,6 +314,22 @@ class TestRateLimit:
         assert bucket._take() == 0
         assert 0 < bucket._take() <= 0.5
 
+    def test_try_acquire_never_waits_and_takes_nothing_when_empty(self, monkeypatch):
+        from types import SimpleNamespace
+
+        from gsuite_core import rate_limit
+
+        now = [100.0]
+        monkeypatch.setattr(rate_limit, "time", SimpleNamespace(monotonic=lambda: now[0]))
+        bucket = rate_limit.TokenBucket(rate=0.5, burst=1)
+
+        assert bucket.try_acquire() == 0
+        assert bucket.try_acquire() == pytest.approx(2.0)
+        now[0] += 1  # half a token back; the refused call above took nothing
+        assert bucket.try_acquire() == pytest.approx(1.0)
+        now[0] += 1
+        assert bucket.try_acquire() == 0
+
     def test_invalid_rate(self):
         from gsuite_core.rate_limit import TokenBucket
 

@@ -23,7 +23,7 @@ TASK = {
 
 @pytest.fixture
 def service():
-    with patch("gsuite_tasks.client.build") as build:
+    with patch("gsuite_core.service.build") as build:
         svc = MagicMock()
         build.return_value = svc
         yield svc
@@ -37,7 +37,7 @@ def tasks(service):
 class TestService:
     def test_lazy_build(self):
         auth = Mock()
-        with patch("gsuite_tasks.client.build") as build:
+        with patch("gsuite_core.service.build") as build:
             client = Tasks(auth)
             build.assert_not_called()
             assert client.service is build.return_value

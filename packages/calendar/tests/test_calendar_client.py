@@ -18,7 +18,7 @@ class TestCalendarInit:
 
         assert cal.auth is mock_auth
         assert cal.calendar_id == "primary"
-        assert cal._service is None
+        assert "_service" not in vars(cal)
 
     def test_init_with_custom_calendar(self):
         """Test Calendar with custom calendar_id."""
@@ -31,7 +31,7 @@ class TestCalendarInit:
 class TestCalendarService:
     """Tests for Calendar service property."""
 
-    @patch("gsuite_calendar.client.build")
+    @patch("gsuite_core.service.build")
     def test_lazy_service_creation(self, mock_build):
         """Test service is created lazily."""
         mock_auth = Mock()
@@ -58,7 +58,7 @@ class TestCalendarService:
 class TestGetEvents:
     """Tests for get_events method."""
 
-    @patch("gsuite_calendar.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_events_empty(self, mock_build):
         """Test get_events with no results."""
         mock_auth = Mock()
@@ -73,7 +73,7 @@ class TestGetEvents:
 
         assert events == []
 
-    @patch("gsuite_calendar.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_events_with_time_range(self, mock_build):
         """Test get_events with time range."""
         mock_auth = Mock()
@@ -94,7 +94,7 @@ class TestGetEvents:
         assert "timeMin" in call_kwargs
         assert "timeMax" in call_kwargs
 
-    @patch("gsuite_calendar.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_events_parses_correctly(self, mock_build):
         """Test get_events returns Event objects."""
         mock_auth = Mock()
@@ -190,7 +190,7 @@ class TestGetToday:
 class TestGetCalendars:
     """Tests for get_calendars method."""
 
-    @patch("gsuite_calendar.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_calendars(self, mock_build):
         """Test get_calendars returns CalendarEntity objects."""
         mock_auth = Mock()
@@ -227,7 +227,7 @@ class TestGetCalendars:
 class TestCreateEvent:
     """Tests for create_event method."""
 
-    @patch("gsuite_calendar.client.build")
+    @patch("gsuite_core.service.build")
     def test_create_event_simple(self, mock_build):
         """Test creating a simple event."""
         mock_auth = Mock()
@@ -258,7 +258,7 @@ class TestCreateEvent:
         body = call_args[1]["body"]
         assert body["summary"] == "New Meeting"
 
-    @patch("gsuite_calendar.client.build")
+    @patch("gsuite_core.service.build")
     def test_create_event_all_day(self, mock_build):
         """Test creating an all-day event."""
         mock_auth = Mock()
@@ -288,7 +288,7 @@ class TestCreateEvent:
         assert "date" in body["start"]
         assert "dateTime" not in body["start"]
 
-    @patch("gsuite_calendar.client.build")
+    @patch("gsuite_core.service.build")
     def test_create_event_with_attendees(self, mock_build):
         """Test creating event with attendees."""
         mock_auth = Mock()
@@ -323,7 +323,7 @@ class TestCreateEvent:
 class TestDeleteEvent:
     """Tests for delete_event method."""
 
-    @patch("gsuite_calendar.client.build")
+    @patch("gsuite_core.service.build")
     def test_delete_event_success(self, mock_build):
         """Test successful event deletion."""
         mock_auth = Mock()
@@ -338,7 +338,7 @@ class TestDeleteEvent:
         assert result is True
         mock_service.events().delete.assert_called()
 
-    @patch("gsuite_calendar.client.build")
+    @patch("gsuite_core.service.build")
     def test_delete_event_not_found(self, mock_build, http_error):
         """Test deletion of non-existent event."""
         mock_auth = Mock()

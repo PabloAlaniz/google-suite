@@ -29,6 +29,7 @@ from gsuite_core.exceptions import (
     TokenRefreshError,
     ValidationError,
 )
+from gsuite_core.service import GoogleService
 from gsuite_core.storage import SQLiteTokenStore, TokenStore
 
 __all__ = [  # noqa: RUF022 - grouped by area, not alphabetical
@@ -48,6 +49,7 @@ __all__ = [  # noqa: RUF022 - grouped by area, not alphabetical
     "paginate",
     "authorized_http",
     "drive_query_literal",
+    "GoogleService",
     # Storage
     "TokenStore",
     "SQLiteTokenStore",

@@ -20,8 +20,8 @@ REPORT = {
 @pytest.fixture
 def ga():
     client = Analytics(MagicMock(name="auth"))
-    client._admin = MagicMock(name="admin")
-    client._data = MagicMock(name="data")
+    client.admin = MagicMock(name="admin")
+    client.data = MagicMock(name="data")
     return client
 
 

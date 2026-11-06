@@ -17,54 +17,27 @@
    - `GSuiteError` → `AuthenticationError` → `TokenRefreshError`
    - Each exception carries relevant context (service, status_code, etc.)
 
-4. **Lazy Service Loading**
-   - Services are created on first use, not at init
-   - Reduces startup time and unnecessary API calls
+4. **Lazy, Injectable Services**
+   - Every client declares its API with the `GoogleService` descriptor
+     (`gsuite_core.service`): built on first use, with a r#### 1. Hard Coupling to Google API Client (resolved)
 
-### Areas for Improvement 🔧
-
-#### 1. Hard Coupling to Google API Client
-
-**Problem:** Clients directly call `build()` from `googleapiclient`:
+Clients used to call `build()` from `googleapiclient` in a hand-written lazy
+property, so tests had to patch each client module's `build`. They now
+declare the service once and accept an injected one:
 
 ```python
+from gsuite_core import GoogleService
+
 class Gmail:
-    @property
-    def service(self):
-        if self._service is None:
-            self._service = build("gmail", "v1", credentials=self.auth.credentials)
-        return self._service
+    service = GoogleService("gmail", "v1")
+
+gmail = Gmail(auth)
+gmail.service = fake_service  # no build() call
 ```
 
-**Impact:**
-- Can't test without mocking Google's library
-- Can't swap implementations (e.g., for offline mode)
-- Violates Dependency Inversion Principle
+Tests that exercise the real build path patch `gsuite_core.service.build`.
 
-**Solution:** Inject a service factory:
-
-```python
-from typing import Protocol, Callable
-
-class GmailService(Protocol):
-    """Protocol for Gmail API service."""
-    def users(self): ...
-
-ServiceFactory = Callable[[], GmailService]
-
-class Gmail:
-    def __init__(
-        self,
-        auth: GoogleAuth,
-        service_factory: ServiceFactory | None = None
-    ):
-        self.auth = auth
-        self._service_factory = service_factory or self._default_factory
-        self._service = None
-
-    def _default_factory(self):
-        from googleapiclient.discovery import build
-        return build("gmail", "v1", credentials=self.auth.credentials)
+ credentials=self.auth.credentials)
 
     @property
     def service(self):

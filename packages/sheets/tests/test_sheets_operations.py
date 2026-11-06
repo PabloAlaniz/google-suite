@@ -13,7 +13,7 @@ from gsuite_sheets.worksheet import Worksheet
 
 @pytest.fixture
 def service():
-    with patch("gsuite_sheets.client.build") as build:
+    with patch("gsuite_core.service.build") as build:
         svc = MagicMock()
         svc.spreadsheets().batchUpdate().execute.return_value = {"replies": [{}]}
         build.return_value = svc

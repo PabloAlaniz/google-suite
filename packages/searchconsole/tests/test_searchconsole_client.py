@@ -12,7 +12,7 @@ from gsuite_searchconsole import SearchAnalyticsRow, SearchConsole, Site
 @pytest.fixture
 def sc():
     client = SearchConsole(MagicMock(name="auth"))
-    client._service = MagicMock(name="service")
+    client.service = MagicMock(name="service")
     return client
 
 

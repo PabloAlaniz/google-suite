@@ -19,7 +19,7 @@ class TestGmailInit:
 
         assert gmail.auth is mock_auth
         assert gmail.user_id == "me"
-        assert gmail._service is None
+        assert "_service" not in vars(gmail)
 
     def test_init_with_custom_user_id(self):
         """Test Gmail with custom user_id."""
@@ -32,7 +32,7 @@ class TestGmailInit:
 class TestGmailService:
     """Tests for Gmail service property."""
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_lazy_service_creation(self, mock_build):
         """Test service is created lazily."""
         mock_auth = Mock()
@@ -57,7 +57,7 @@ class TestGmailService:
         assert http.http.timeout is not None
         assert service is mock_service
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_service_cached(self, mock_build):
         """Test service is cached after first access."""
         mock_auth = Mock()
@@ -78,7 +78,7 @@ class TestGmailService:
 class TestGetMessages:
     """Tests for get_messages method."""
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_messages_empty(self, mock_build):
         """Test get_messages with no results."""
         mock_auth = Mock()
@@ -93,7 +93,7 @@ class TestGetMessages:
 
         assert messages == []
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_messages_with_query(self, mock_build):
         """Test get_messages with search query."""
         mock_auth = Mock()
@@ -111,7 +111,7 @@ class TestGetMessages:
         call_kwargs = mock_list.call_args[1]
         assert call_kwargs.get("q") == "is:unread"
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_messages_with_labels(self, mock_build):
         """Test get_messages with label filter."""
         mock_auth = Mock()
@@ -186,7 +186,7 @@ class TestConvenienceMethods:
 class TestGetLabels:
     """Tests for label methods."""
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_labels(self, mock_build, batching):
         """Test get_labels returns Label objects."""
         mock_auth = Mock()
@@ -236,7 +236,7 @@ class TestGetLabels:
 class TestSend:
     """Tests for send method."""
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_send_simple(self, mock_build):
         """Test sending a simple email."""
         mock_auth = Mock()
@@ -275,7 +275,7 @@ class TestSend:
 class TestModifyLabels:
     """Tests for label modification methods."""
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_modify_labels_add(self, mock_build):
         """Test adding labels."""
         mock_auth = Mock()
@@ -290,7 +290,7 @@ class TestModifyLabels:
         call_args = mock_service.users().messages().modify.call_args
         assert call_args[1]["body"]["addLabelIds"] == ["STARRED"]
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_modify_labels_remove(self, mock_build):
         """Test removing labels."""
         mock_auth = Mock()
@@ -346,7 +346,7 @@ class TestParseMessage:
 class TestAdditionalConvenienceMethods:
     """Tests for additional convenience methods."""
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_important(self, mock_build):
         """Test get_important method."""
         mock_auth = Mock()
@@ -363,7 +363,7 @@ class TestAdditionalConvenienceMethods:
         call_args = mock_service.users().messages().list.call_args
         assert "is:important" in call_args[1]["q"]
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_drafts(self, mock_build):
         """Test get_drafts method."""
         mock_auth = Mock()
@@ -384,7 +384,7 @@ class TestAdditionalConvenienceMethods:
 class TestThreadOperations:
     """Tests for thread operations."""
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_thread(self, mock_build):
         """Test get_thread method."""
         mock_auth = Mock()
@@ -423,7 +423,7 @@ class TestThreadOperations:
 class TestSignatureOperations:
     """Tests for email signature operations."""
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_signature_success(self, mock_build):
         """Test getting email signature successfully."""
         mock_auth = Mock()
@@ -446,7 +446,7 @@ class TestSignatureOperations:
         call_args = mock_service.users().settings().sendAs().get.call_args
         assert call_args[1]["sendAsEmail"] == "test@example.com"
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_signature_http_error(self, mock_build):
         """Test get_signature with HTTP error."""
         from googleapiclient.errors import HttpError
@@ -469,7 +469,7 @@ class TestSignatureOperations:
 
         assert signature is None
 
-    @patch("gsuite_gmail.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_signature_unexpected_error_propagates(self, mock_build):
         """Only API errors are tolerated; a bug must not be silently swallowed."""
         mock_auth = Mock()

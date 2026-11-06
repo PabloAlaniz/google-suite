@@ -6,13 +6,11 @@ from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any, BinaryIO
 
-from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload, MediaIoBaseUpload
 
 from gsuite_core import (
     GoogleAuth,
-    authorized_http,
     drive_query_literal,
     execute,
     get_settings,
@@ -20,6 +18,7 @@ from gsuite_core import (
     paginate,
 )
 from gsuite_core.exceptions import NotFoundError, ValidationError
+from gsuite_core.service import GoogleService
 from gsuite_drive.file import File, Folder
 from gsuite_drive.parser import DriveParser
 from gsuite_drive.permission import Permission
@@ -92,6 +91,8 @@ class Drive:
         file.download("local_copy.pdf")
     """
 
+    service = GoogleService("drive", "v3")
+
     def __init__(self, auth: GoogleAuth):
         """Initialize Drive client.
 
@@ -99,16 +100,6 @@ class Drive:
             auth: GoogleAuth instance with valid credentials
         """
         self.auth = auth
-        self._service: Any = None
-
-    @property
-    def service(self) -> Any:
-        """Lazy-load Drive API service."""
-        if self._service is None:
-            self._service = build(
-                "drive", "v3", http=authorized_http(self.auth.credentials), cache_discovery=False
-            )
-        return self._service
 
     # ========== File listing ==========
 

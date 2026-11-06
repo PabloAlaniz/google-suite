@@ -19,13 +19,13 @@ class TestDriveInit:
         drive = Drive(mock_auth)
 
         assert drive.auth is mock_auth
-        assert drive._service is None
+        assert "_service" not in vars(drive)
 
 
 class TestDriveService:
     """Tests for Drive service property."""
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_lazy_service_creation(self, mock_build):
         """Test service is created lazily."""
         mock_auth = Mock()
@@ -50,7 +50,7 @@ class TestDriveService:
 class TestListFiles:
     """Tests for list_files method."""
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_list_files_empty(self, mock_build):
         """Test list_files with no results."""
         mock_auth = Mock()
@@ -65,7 +65,7 @@ class TestListFiles:
 
         assert files == []
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_list_files_with_parent(self, mock_build):
         """Test list_files with parent filter."""
         mock_auth = Mock()
@@ -82,7 +82,7 @@ class TestListFiles:
         call_kwargs = mock_list.call_args[1]
         assert "'folder123' in parents" in call_kwargs.get("q", "")
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_list_files_with_mime_type(self, mock_build):
         """Test list_files with mime type filter."""
         mock_auth = Mock()
@@ -99,7 +99,7 @@ class TestListFiles:
         call_kwargs = mock_list.call_args[1]
         assert "mimeType='application/pdf'" in call_kwargs.get("q", "")
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_list_files_excludes_trashed(self, mock_build):
         """Test list_files excludes trashed files."""
         mock_auth = Mock()
@@ -116,7 +116,7 @@ class TestListFiles:
         call_kwargs = mock_list.call_args[1]
         assert "trashed=false" in call_kwargs.get("q", "")
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_list_files_returns_file_objects(self, mock_build):
         """Test list_files returns File objects."""
         mock_auth = Mock()
@@ -200,7 +200,7 @@ class TestSearch:
 class TestGetFile:
     """Tests for get method."""
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_file(self, mock_build):
         """Test getting a file by ID."""
         mock_auth = Mock()
@@ -222,7 +222,7 @@ class TestGetFile:
         assert file.id == "file123"
         assert file.name == "test.txt"
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_file_not_found(self, mock_build, http_error):
         """Test getting non-existent file."""
         mock_auth = Mock()
@@ -241,7 +241,7 @@ class TestGetFile:
 class TestUpload:
     """Tests for upload methods."""
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     @patch("gsuite_drive.client.MediaFileUpload")
     def test_upload_file(self, mock_media, mock_build):
         """Test uploading a file."""
@@ -262,7 +262,7 @@ class TestUpload:
         assert file.id == "new_file"
         mock_media.assert_called_once()
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     @patch("gsuite_drive.client.MediaFileUpload")
     def test_upload_with_parent(self, mock_media, mock_build):
         """Test uploading to specific folder."""
@@ -287,7 +287,7 @@ class TestUpload:
 class TestCreateFolder:
     """Tests for create_folder method."""
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_create_folder(self, mock_build):
         """Test creating a folder."""
         mock_auth = Mock()
@@ -315,7 +315,7 @@ class TestCreateFolder:
 class TestTrashAndDelete:
     """Tests for trash and delete methods."""
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_trash(self, mock_build):
         """Test moving file to trash."""
         mock_auth = Mock()
@@ -332,7 +332,7 @@ class TestTrashAndDelete:
         call_kwargs = mock_service.files().update.call_args[1]
         assert call_kwargs["body"]["trashed"] is True
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_delete(self, mock_build):
         """Test permanent deletion."""
         mock_auth = Mock()
@@ -347,7 +347,7 @@ class TestTrashAndDelete:
         assert result is True
         mock_service.files().delete.assert_called()
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_delete_not_found(self, mock_build, http_error):
         """Test delete failure."""
         mock_auth = Mock()
@@ -362,7 +362,7 @@ class TestTrashAndDelete:
 
         assert result is False
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_delete_other_errors_raise(self, mock_build, http_error):
         """Auth/permission failures must not look like "file not found"."""
         mock_service = Mock()
@@ -378,7 +378,7 @@ class TestTrashAndDelete:
 class TestShare:
     """Tests for share method."""
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_share_file(self, mock_build):
         """Test sharing a file."""
         mock_auth = Mock()
@@ -401,7 +401,7 @@ class TestShare:
         assert call_kwargs["body"]["emailAddress"] == "user@example.com"
         assert call_kwargs["body"]["role"] == "writer"
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_share_not_found(self, mock_build, http_error):
         """Test share failure."""
         mock_auth = Mock()
@@ -416,7 +416,7 @@ class TestShare:
 
         assert result is False
 
-    @patch("gsuite_drive.client.build")
+    @patch("gsuite_core.service.build")
     def test_share_unexpected_error_propagates(self, mock_build):
         mock_service = Mock()
         mock_service.permissions().create().execute.side_effect = RuntimeError("bug")

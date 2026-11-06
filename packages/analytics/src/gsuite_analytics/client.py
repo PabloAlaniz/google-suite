@@ -5,12 +5,11 @@ from __future__ import annotations
 import math
 from typing import Any
 
-from googleapiclient.discovery import build
-
 from gsuite_analytics.models import AccountSummary, Property, Report
 from gsuite_analytics.parser import parse_account_summary, parse_property, parse_report
-from gsuite_core import GoogleAuth, authorized_http, execute, paginate
+from gsuite_core import GoogleAuth, execute, paginate
 from gsuite_core.exceptions import ValidationError
+from gsuite_core.service import GoogleService
 
 MATCH_TYPES = {
     "EXACT",
@@ -108,32 +107,11 @@ class Analytics:
         ga.run_report("123456", ["date"], ["activeUsers"], [("7daysAgo", "today")])
     """
 
+    admin = GoogleService("analyticsadmin", "v1beta")
+    data = GoogleService("analyticsdata", "v1beta")
+
     def __init__(self, auth: GoogleAuth):
         self.auth = auth
-        self._admin: Any = None
-        self._data: Any = None
-
-    @property
-    def admin(self) -> Any:
-        if self._admin is None:
-            self._admin = build(
-                "analyticsadmin",
-                "v1beta",
-                http=authorized_http(self.auth.credentials),
-                cache_discovery=False,
-            )
-        return self._admin
-
-    @property
-    def data(self) -> Any:
-        if self._data is None:
-            self._data = build(
-                "analyticsdata",
-                "v1beta",
-                http=authorized_http(self.auth.credentials),
-                cache_discovery=False,
-            )
-        return self._data
 
     # ---------- Admin
 

@@ -18,14 +18,14 @@ class TestSheetsInit:
         sheets = Sheets(mock_auth)
 
         assert sheets.auth is mock_auth
-        assert sheets._sheets_service is None
-        assert sheets._drive_service is None
+        assert "_sheets_service" not in vars(sheets)
+        assert "_drive_service" not in vars(sheets)
 
 
 class TestSheetsService:
     """Tests for Sheets service properties."""
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_lazy_sheets_service(self, mock_build):
         """Test Sheets service is created lazily."""
         mock_auth = Mock()
@@ -43,7 +43,7 @@ class TestSheetsService:
         assert mock_build.call_args.kwargs["http"].credentials is mock_auth.credentials
         assert service is mock_service
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_lazy_drive_service(self, mock_build):
         """Test Drive service is created lazily."""
         mock_auth = Mock()
@@ -63,7 +63,7 @@ class TestSheetsService:
 class TestOpen:
     """Tests for open methods."""
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_open_by_title(self, mock_build):
         """Test opening spreadsheet by title."""
         mock_auth = Mock()
@@ -90,7 +90,7 @@ class TestOpen:
         assert isinstance(spreadsheet, Spreadsheet)
         assert spreadsheet.title == "Test Sheet"
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_open_not_found(self, mock_build):
         """Test opening non-existent spreadsheet."""
         mock_auth = Mock()
@@ -105,7 +105,7 @@ class TestOpen:
         with pytest.raises(ValueError, match="not found"):
             sheets.open("Nonexistent")
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_open_by_key(self, mock_build):
         """Test opening spreadsheet by key."""
         mock_auth = Mock()
@@ -148,7 +148,7 @@ class TestOpen:
 class TestCreate:
     """Tests for create method."""
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_create_spreadsheet(self, mock_build):
         """Test creating a new spreadsheet."""
         mock_auth = Mock()
@@ -173,7 +173,7 @@ class TestCreate:
 class TestListSpreadsheets:
     """Tests for list_spreadsheets method."""
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_list_spreadsheets(self, mock_build):
         """Test listing spreadsheets."""
         mock_auth = Mock()
@@ -198,7 +198,7 @@ class TestListSpreadsheets:
 class TestValueOperations:
     """Tests for value operations."""
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_values(self, mock_build):
         """Test getting values from a range."""
         mock_auth = Mock()
@@ -215,7 +215,7 @@ class TestValueOperations:
 
         assert values == [["A1", "B1"], ["A2", "B2"]]
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_get_values_empty(self, mock_build):
         """Test getting values from empty range."""
         mock_auth = Mock()
@@ -230,7 +230,7 @@ class TestValueOperations:
 
         assert values == []
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_update_values(self, mock_build):
         """Test updating values."""
         mock_auth = Mock()
@@ -245,7 +245,7 @@ class TestValueOperations:
         call_args = mock_service.spreadsheets().values().update.call_args
         assert call_args[1]["valueInputOption"] == "USER_ENTERED"
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_append_values(self, mock_build):
         """Test appending values."""
         mock_auth = Mock()
@@ -260,7 +260,7 @@ class TestValueOperations:
         call_args = mock_service.spreadsheets().values().append.call_args
         assert call_args[1]["insertDataOption"] == "INSERT_ROWS"
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_clear_values(self, mock_build):
         """Test clearing values."""
         mock_auth = Mock()
@@ -278,7 +278,7 @@ class TestValueOperations:
 class TestWorksheetOperations:
     """Tests for worksheet operations."""
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_add_worksheet(self, mock_build):
         """Test adding a worksheet."""
         mock_auth = Mock()
@@ -311,7 +311,7 @@ class TestWorksheetOperations:
         assert ws.title == "New Sheet"
         assert ws.id == 123
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_delete_worksheet(self, mock_build):
         """Test deleting a worksheet."""
         mock_auth = Mock()
@@ -325,7 +325,7 @@ class TestWorksheetOperations:
 
         assert result is True
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_delete_worksheet_not_found(self, mock_build, http_error):
         """Test worksheet deletion failure."""
         mock_auth = Mock()
@@ -344,7 +344,7 @@ class TestWorksheetOperations:
 class TestShare:
     """Tests for share method."""
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_share_success(self, mock_build):
         """Test successful sharing."""
         mock_auth = Mock()
@@ -362,7 +362,7 @@ class TestShare:
         assert call_args[1]["body"]["emailAddress"] == "user@example.com"
         assert call_args[1]["body"]["role"] == "writer"
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_share_not_found(self, mock_build, http_error):
         """Test share failure."""
         mock_auth = Mock()
@@ -430,7 +430,7 @@ class TestParseSpreadsheet:
 
 
 class TestErrorSemantics:
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_deleting_last_sheet_raises(self, mock_build, http_error):
         """A 400 (e.g. deleting the only sheet) is an error, not "not found"."""
         from gsuite_core.exceptions import APIError
@@ -443,7 +443,7 @@ class TestErrorSemantics:
             Sheets(Mock()).delete_worksheet("sheet123", 0)
         assert exc_info.value.status_code == 400
 
-    @patch("gsuite_sheets.client.build")
+    @patch("gsuite_core.service.build")
     def test_open_by_title_escapes_quotes(self, mock_build):
         mock_service = Mock()
         mock_service.files().list().execute.return_value = {"files": [{"id": "s1"}]}

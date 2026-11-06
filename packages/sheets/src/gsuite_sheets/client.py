@@ -3,10 +3,9 @@
 import logging
 from typing import Any, Literal
 
-from googleapiclient.discovery import build
-
-from gsuite_core import GoogleAuth, authorized_http, drive_query_literal, execute, paginate
+from gsuite_core import GoogleAuth, drive_query_literal, execute, paginate
 from gsuite_core.exceptions import NotFoundError, ValidationError
+from gsuite_core.service import GoogleService
 from gsuite_sheets.a1 import grid_range
 from gsuite_sheets.parser import SheetsParser
 from gsuite_sheets.spreadsheet import Spreadsheet
@@ -42,6 +41,10 @@ class Sheets:
         ws.update("A1", [["Hello", "World"]])
     """
 
+    service = GoogleService("sheets", "v4", attr="_sheets_service")
+    # Drive API, for listing and sharing spreadsheets
+    drive = GoogleService("drive", "v3", attr="_drive_service")
+
     def __init__(
         self,
         auth: GoogleAuth,
@@ -66,8 +69,6 @@ class Sheets:
                 many cells (None disables chunking)
         """
         self.auth = auth
-        self._sheets_service: Any = None
-        self._drive_service: Any = None
         self._cache_enabled = cache or cache_ttl is not None or cache_max_entries is not None
         self._cache_ttl = cache_ttl
         self._cache_max_entries = cache_max_entries
@@ -131,24 +132,6 @@ class Sheets:
 
         if isinstance(self._port_client, CachingClient):
             self._port_client.clear()
-
-    @property
-    def service(self) -> Any:
-        """Lazy-load Sheets API service."""
-        if self._sheets_service is None:
-            self._sheets_service = build(
-                "sheets", "v4", http=authorized_http(self.auth.credentials), cache_discovery=False
-            )
-        return self._sheets_service
-
-    @property
-    def drive(self) -> Any:
-        """Lazy-load Drive API service (for listing/sharing)."""
-        if self._drive_service is None:
-            self._drive_service = build(
-                "drive", "v3", http=authorized_http(self.auth.credentials), cache_discovery=False
-            )
-        return self._drive_service
 
     # ========== Opening spreadsheets (gspread-style) ==========
 

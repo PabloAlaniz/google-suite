@@ -7,13 +7,12 @@ from datetime import MINYEAR, UTC, date, datetime, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
-from googleapiclient.discovery import build
-
 from gsuite_calendar.calendar_entity import CalendarEntity
 from gsuite_calendar.event import Event
 from gsuite_calendar.parser import CalendarParser
-from gsuite_core import GoogleAuth, authorized_http, execute, get_settings, paginate
+from gsuite_core import GoogleAuth, execute, get_settings, paginate
 from gsuite_core.exceptions import NotFoundError, ValidationError
+from gsuite_core.service import GoogleService
 
 SendUpdates = Literal["all", "externalOnly", "none"]
 
@@ -66,6 +65,8 @@ class Calendar:
         )
     """
 
+    service = GoogleService("calendar", "v3")
+
     def __init__(self, auth: GoogleAuth, calendar_id: str = "primary"):
         """Initialize Calendar client.
 
@@ -75,16 +76,6 @@ class Calendar:
         """
         self.auth = auth
         self.calendar_id = calendar_id
-        self._service = None
-
-    @property
-    def service(self) -> Any:
-        """Lazy-load Calendar API service."""
-        if self._service is None:
-            self._service = build(
-                "calendar", "v3", http=authorized_http(self.auth.credentials), cache_discovery=False
-            )
-        return self._service
 
     # ========== Event retrieval ==========
 

@@ -5,10 +5,9 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from googleapiclient.discovery import build
-
-from gsuite_core import GoogleAuth, authorized_http, execute
+from gsuite_core import GoogleAuth, execute
 from gsuite_core.exceptions import ValidationError
+from gsuite_core.service import GoogleService
 from gsuite_searchconsole.models import SearchAnalyticsRow, Site, Sitemap, UrlInspection
 from gsuite_searchconsole.parser import parse_inspection, parse_row, parse_site, parse_sitemap
 
@@ -54,20 +53,10 @@ class SearchConsole:
         sc.query("sc-domain:example.com", "2026-09-01", "2026-09-30", dimensions=["query"])
     """
 
+    service = GoogleService("searchconsole", "v1")
+
     def __init__(self, auth: GoogleAuth):
         self.auth = auth
-        self._service: Any = None
-
-    @property
-    def service(self) -> Any:
-        if self._service is None:
-            self._service = build(
-                "searchconsole",
-                "v1",
-                http=authorized_http(self.auth.credentials),
-                cache_discovery=False,
-            )
-        return self._service
 
     def list_sites(self) -> list[Site]:
         """Properties the user can see."""

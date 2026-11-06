@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.0](https://github.com/PabloAlaniz/google-suite/compare/v0.11.0...v0.12.0) (2026-11-06)
+
+
+### Features
+
+* raw API resources, a page of Gmail IDs, history labels, raw contact writes ([#106](https://github.com/PabloAlaniz/google-suite/issues/106)) ([f3d7084](https://github.com/PabloAlaniz/google-suite/commit/f3d708405e2d18a4747a6cf862773aec251c3ded))
+
+
+### Bug Fixes
+
+* **core:** finishing a login no longer fails when Google grants other scopes ([#107](https://github.com/PabloAlaniz/google-suite/issues/107)) ([6646cb7](https://github.com/PabloAlaniz/google-suite/commit/6646cb7d065a4d7a83e43fec935e69fbcc09c351))
+
 ## [0.11.0](https://github.com/PabloAlaniz/google-suite/compare/v0.10.0...v0.11.0) (2026-11-06)
 
 

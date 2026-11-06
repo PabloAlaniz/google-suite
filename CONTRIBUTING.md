@@ -112,10 +112,17 @@ uv run ruff check packages/ api/ cli/ scripts/
 uv run ruff check --fix packages/ api/ cli/ scripts/
 uv run ruff format packages/ api/ cli/ scripts/
 
-# mypy error counts may only go down (see mypy-baseline.json)
+# mypy runs in strict mode; error counts may only go down (mypy-baseline.json)
 uv run python scripts/mypy_ratchet.py
 # after fixing type errors:
 uv run python scripts/mypy_ratchet.py --update
+
+# Docstrings (D), imports inside functions (PLC0415), argument counts (PLR0913)
+# and private access (SLF001) aren't enforced yet; their counts may only go
+# down (lint-baseline.json)
+uv run python scripts/lint_ratchet.py
+# after fixing findings:
+uv run python scripts/lint_ratchet.py --update
 ```
 
 ### CI

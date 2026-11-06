@@ -1,6 +1,7 @@
 """Drive CLI commands."""
 
 from pathlib import Path
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -48,7 +49,7 @@ def _size(num: int) -> str:
     return f"{size:.1f} TB"
 
 
-def _as_dict(f: File) -> dict:
+def _as_dict(f: File) -> dict[str, Any]:
     return {
         "id": f.id,
         "name": f.name,

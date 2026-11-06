@@ -1,8 +1,8 @@
 """Run mypy per package and fail if any error count goes above the baseline.
 
-The codebase is not mypy-clean yet, so CI cannot require zero errors. This
-ratchet blocks regressions instead: counts may only go down. When you fix
-errors, run with --update and commit the new mypy-baseline.json.
+mypy runs in strict mode (pyproject.toml) and every package is at zero; the
+baseline keeps it there, since counts may only go down. If you fix errors in a
+package with a nonzero count, run with --update and commit mypy-baseline.json.
 
 Usage:
     python scripts/mypy_ratchet.py            # check

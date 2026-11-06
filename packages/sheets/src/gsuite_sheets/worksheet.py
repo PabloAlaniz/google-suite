@@ -22,8 +22,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class Worksheet:
-    """
-    A worksheet (tab) within a spreadsheet.
+    """A worksheet (tab) within a spreadsheet.
 
     Provides methods for reading and writing cell data. Ranges are A1
     notation without the sheet title ("A1:C10"); the title is added and
@@ -64,8 +63,7 @@ class Worksheet:
     def get(
         self, range: str = "A1", value_render: "ValueRender" = "FORMATTED_VALUE"
     ) -> list[list[Any]]:
-        """
-        Get values from a range.
+        """Get values from a range.
 
         Args:
             range: A1 notation (e.g., "A1:B10", "A:C", "1:5")
@@ -89,9 +87,8 @@ class Worksheet:
         # silently dropped columns after ZZ.
         return sheets.get_values(spreadsheet_id, self._range())
 
-    def get_all_records(self, head: int = 1) -> list[dict]:
-        """
-        Get all rows as list of dicts using row as headers.
+    def get_all_records(self, head: int = 1) -> list[dict[str, Any]]:
+        """Get all rows as list of dicts using row as headers.
 
         Args:
             head: Row number to use as headers (1-indexed)
@@ -137,9 +134,8 @@ class Worksheet:
 
     def update(
         self, range: str, values: list[list[Any]], value_input: "ValueInput" = "USER_ENTERED"
-    ) -> dict:
-        """
-        Update a range with values.
+    ) -> dict[str, Any]:
+        """Update a range with values.
 
         Args:
             range: A1 notation (a single cell writes from there down/right)
@@ -155,7 +151,7 @@ class Worksheet:
 
     def batch_update(
         self, data: list[dict[str, Any]], value_input: "ValueInput" = "USER_ENTERED"
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Write several ranges of this sheet in one request.
 
         ``data``: [{"range": "A1:B2", "values": [...]}].
@@ -164,25 +160,26 @@ class Worksheet:
         qualified = [{"range": self._range(d["range"]), "values": d["values"]} for d in data]
         return sheets.batch_update(spreadsheet_id, qualified, value_input)
 
-    def update_cell(self, row: int, col: int, value: Any) -> dict:
+    def update_cell(self, row: int, col: int, value: Any) -> dict[str, Any]:
         """Update a single cell (1-indexed)."""
         col_letter = self._col_to_letter(col)
         return self.update(f"{col_letter}{row}", [[value]])
 
-    def append_row(self, values: list[Any], value_input: "ValueInput" = "USER_ENTERED") -> dict:
+    def append_row(
+        self, values: list[Any], value_input: "ValueInput" = "USER_ENTERED"
+    ) -> dict[str, Any]:
         """Append a row to the end of the worksheet."""
         return self.append_rows([values], value_input)
 
     def append_rows(
         self, rows: list[list[Any]], value_input: "ValueInput" = "USER_ENTERED"
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Append multiple rows."""
         sheets, spreadsheet_id = self._client()
         return sheets.append_values(spreadsheet_id, self._range("A1"), rows, value_input)
 
-    def clear(self, range: str | None = None) -> dict:
-        """
-        Clear values from a range or entire worksheet.
+    def clear(self, range: str | None = None) -> dict[str, Any]:
+        """Clear values from a range or entire worksheet.
 
         Args:
             range: A1 notation (default: entire sheet)
@@ -192,9 +189,8 @@ class Worksheet:
 
     # ========== Formatting and structure ==========
 
-    def format(self, range: str | list[str], cell_format: "dict | CellFormat") -> None:
-        """
-        Format one or more ranges with a CellFormat object or a raw API dict.
+    def format(self, range: str | list[str], cell_format: "dict[str, Any] | CellFormat") -> None:
+        """Format one or more ranges with a CellFormat object or a raw API dict.
 
         Example:
             ws.format("A1:Z1", CellFormat(text_format=TextFormat(bold=True)))
@@ -240,8 +236,7 @@ class Worksheet:
         match_entire_cell: bool = False,
         regex: bool = False,
     ) -> int:
-        """
-        Find and replace in this worksheet (server-side).
+        """Find and replace in this worksheet (server-side).
 
         Returns:
             Number of occurrences changed
@@ -266,8 +261,7 @@ class Worksheet:
         return str(cell) == query
 
     def find(self, query: "str | re.Pattern[str]") -> tuple[int, int] | None:
-        """
-        Find the first cell equal to `query`, or matching it if it's a regex.
+        """Find the first cell equal to `query`, or matching it if it's a regex.
 
         Example:
             ws.find("Total")
@@ -315,8 +309,7 @@ class Worksheet:
         row: int | None = None,
         value_input: "ValueInput" = "USER_ENTERED",
     ) -> Any:
-        """
-        Insert rows at ``row`` (1-based), shifting the existing ones down; append when None.
+        """Insert rows at ``row`` (1-based), shifting the existing ones down; append when None.
 
         GSpreadManager's insert(fila=...) appended after the table instead: it
         sent values.append with a range starting at that row, which the API
@@ -332,8 +325,7 @@ class Worksheet:
         return self._ctx.import_csv(source, clear=clear, delimiter=delimiter)
 
     def upsert(self, rows: list[dict[str, Any]] | list[list[Any]], key: str) -> dict[str, int]:
-        """
-        Update rows whose ``key`` column matches and append the rest.
+        """Update rows whose ``key`` column matches and append the rest.
 
         Returns:
             {"updated": n, "appended": m}
@@ -633,8 +625,7 @@ class Worksheet:
         drop_empty_cols: bool = False,
         index_col: str | None = None,
     ) -> Any:
-        """
-        The sheet as a DataFrame of the client's backend (Sheets(dataframe_backend=...)).
+        """The sheet as a DataFrame of the client's backend (Sheets(dataframe_backend=...)).
 
         Needs gsuite-sdk[pandas] or gsuite-sdk[polars].
         """
@@ -662,8 +653,7 @@ class Worksheet:
     # ========== pandas ==========
 
     def to_dataframe(self, header_row: int = 1) -> "pd.DataFrame":
-        """
-        Read the worksheet into a pandas DataFrame (needs gsuite-sdk[pandas]).
+        """Read the worksheet into a pandas DataFrame (needs gsuite-sdk[pandas]).
 
         Args:
             header_row: Row with column names (1-indexed); rows above it are skipped
@@ -689,9 +679,8 @@ class Worksheet:
         include_index: bool = False,
         clear: bool = False,
         value_input: "ValueInput" = "USER_ENTERED",
-    ) -> dict:
-        """
-        Write a pandas DataFrame starting at `start`.
+    ) -> dict[str, Any]:
+        """Write a pandas DataFrame starting at `start`.
 
         NaN/None become empty cells and dates are written as ISO strings.
 

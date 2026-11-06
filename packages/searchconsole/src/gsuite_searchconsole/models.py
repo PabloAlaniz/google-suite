@@ -31,7 +31,8 @@ class SearchAnalyticsRow:
 @dataclass
 class UrlInspection:
     """The index status of one URL. Mobile usability, AMP and rich results stay in ``raw``
-    (the whole ``inspectionResult``)."""
+    (the whole ``inspectionResult``).
+    """
 
     url: str
     verdict: str = "VERDICT_UNSPECIFIED"

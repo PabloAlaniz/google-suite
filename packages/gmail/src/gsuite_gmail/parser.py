@@ -6,6 +6,7 @@ import re
 from datetime import UTC, datetime
 from email.message import Message as EmailHeaders
 from email.utils import formataddr, getaddresses, parsedate_to_datetime
+from typing import Any
 
 from gsuite_gmail.label import Label, LabelType
 from gsuite_gmail.message import Attachment, Message
@@ -58,11 +59,10 @@ class GmailParser:
 
     @staticmethod
     def parse_message(
-        data: dict,
+        data: dict[str, Any],
         include_body: bool = True,
     ) -> Message:
-        """
-        Parse Gmail API response to Message entity.
+        """Parse Gmail API response to Message entity.
 
         Args:
             data: Raw API response dict
@@ -105,9 +105,8 @@ class GmailParser:
         )
 
     @staticmethod
-    def parse_label(data: dict) -> Label:
-        """
-        Parse Gmail API response to Label entity.
+    def parse_label(data: dict[str, Any]) -> Label:
+        """Parse Gmail API response to Label entity.
 
         Args:
             data: Raw API response dict
@@ -126,7 +125,7 @@ class GmailParser:
         )
 
     @staticmethod
-    def _headers(part: dict) -> dict[str, str]:
+    def _headers(part: dict[str, Any]) -> dict[str, str]:
         """Headers of a part, keyed by lowercase name (first occurrence wins)."""
         result: dict[str, str] = {}
         for header in part.get("headers", []):
@@ -186,11 +185,10 @@ class GmailParser:
 
     @staticmethod
     def _parse_payload(
-        payload: dict,
+        payload: dict[str, Any],
         message_id: str,
     ) -> tuple[str | None, str | None, list[Attachment]]:
-        """
-        Parse message payload for body content and attachments.
+        """Parse message payload for body content and attachments.
 
         Args:
             payload: Message payload dict

@@ -2,8 +2,7 @@
 
 
 class Scopes:
-    """
-    Google API OAuth scopes.
+    """Google API OAuth scopes.
 
     Use these constants to request specific permissions.
     """

@@ -17,8 +17,7 @@ class Attendee:
 
 @dataclass
 class Event:
-    """
-    Calendar event.
+    """Calendar event.
 
     Represents a single calendar event with all its metadata.
     """

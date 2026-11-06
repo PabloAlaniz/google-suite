@@ -154,8 +154,7 @@ def map_http_error(
     resource_type: str = "resource",
     resource_id: str = "unknown",
 ) -> APIError:
-    """
-    Map Google API HttpError to domain exception.
+    """Map Google API HttpError to domain exception.
 
     Args:
         error: The HttpError from Google API
@@ -206,8 +205,7 @@ def execute(
     resource_type: str = "resource",
     resource_id: str = "unknown",
 ) -> Any:
-    """
-    Execute a googleapiclient request with retries and mapped errors.
+    """Execute a googleapiclient request with retries and mapped errors.
 
     Retries rate limits (429, or 403 rateLimitExceeded) on any method, and
     server errors (5xx) and network failures only on idempotent methods: a
@@ -260,8 +258,7 @@ def execute_batch(
     resource_type: str = "resource",
     batch_size: int = 50,
 ) -> list[Any]:
-    """
-    Run many read requests as HTTP batches (one round trip per `batch_size`).
+    """Run many read requests as HTTP batches (one round trip per `batch_size`).
 
     Only for idempotent requests (gets): items that fail with a rate limit
     or a 5xx are retried one by one through execute(), with backoff.
@@ -323,8 +320,7 @@ def paginate(
     resource_id: str = "unknown",
     **params: Any,
 ) -> Iterator[dict[str, Any]]:
-    """
-    Yield items from a list endpoint, following nextPageToken.
+    """Yield items from a list endpoint, following nextPageToken.
 
     Args:
         list_method: The bound list method, e.g. service.users().messages().list
@@ -378,8 +374,7 @@ def drive_query_literal(value: str) -> str:
 
 
 def authorized_http(credentials: Any, timeout: float | None = None) -> Any:
-    """
-    HTTP transport for googleapiclient with a request timeout.
+    """HTTP transport for googleapiclient with a request timeout.
 
     googleapiclient's default transport has no timeout, so a stalled
     connection hangs forever. Pass the result as `build(..., http=...)`.
@@ -397,8 +392,7 @@ def api_call(
     max_retries: int | None = None,
     retry_delay: float | None = None,
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
-    """
-    Decorator for API calls with consistent error handling and retry logic.
+    """Decorator for API calls with consistent error handling and retry logic.
 
     Retries the whole decorated function. Prefer `execute()` around each
     request inside a function that makes several calls.
@@ -464,8 +458,7 @@ def api_call_optional(
     service: str,
     resource_type: str = "resource",
 ) -> Callable[[Callable[..., T | None]], Callable[..., T | None]]:
-    """
-    Decorator for API calls that return None on 404 instead of raising.
+    """Decorator for API calls that return None on 404 instead of raising.
 
     Use for get-by-id operations where not-found is expected.
 

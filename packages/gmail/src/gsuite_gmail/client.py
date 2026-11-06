@@ -143,8 +143,7 @@ def _prefixed(subject: str, prefix: str) -> str:
 
 
 class Gmail:
-    """
-    High-level Gmail client.
+    """High-level Gmail client.
 
     Example:
         auth = GoogleAuth()
@@ -166,8 +165,7 @@ class Gmail:
     """
 
     def __init__(self, auth: GoogleAuth, user_id: str = "me"):
-        """
-        Initialize Gmail client.
+        """Initialize Gmail client.
 
         Args:
             auth: GoogleAuth instance with valid credentials
@@ -197,8 +195,7 @@ class Gmail:
         max_results: int | None = 25,
         include_body: bool = True,
     ) -> Iterator[Message]:
-        """
-        Lazily yield messages matching criteria, following result pages.
+        """Lazily yield messages matching criteria, following result pages.
 
         Messages are fetched in HTTP batches of 50 rather than one request
         each. A message deleted while listing is skipped.
@@ -233,8 +230,7 @@ class Gmail:
         max_results: int | None = 25,
         include_body: bool = True,
     ) -> list[Message]:
-        """
-        Get messages matching criteria.
+        """Get messages matching criteria.
 
         Args:
             query: Gmail search query (str or Query object)
@@ -268,8 +264,7 @@ class Gmail:
         query: str | Query,
         max_results: int = 25,
     ) -> list[Message]:
-        """
-        Search messages with a query.
+        """Search messages with a query.
 
         Args:
             query: Gmail search query
@@ -387,7 +382,7 @@ class Gmail:
         """Get conversations matching criteria."""
         return list(self.iter_threads(query, labels, max_results))
 
-    def _parse_thread(self, thread_data: dict) -> Thread:
+    def _parse_thread(self, thread_data: dict[str, Any]) -> Thread:
         messages = [
             self._parse_message(msg_data, include_body=True)
             for msg_data in thread_data.get("messages", [])
@@ -447,8 +442,7 @@ class Gmail:
         show_in_label_list: bool = True,
         show_in_message_list: bool = True,
     ) -> Label:
-        """
-        Create a label. Use "Parent/Child" to nest it.
+        """Create a label. Use "Parent/Child" to nest it.
 
         Returns:
             The new Label
@@ -485,8 +479,7 @@ class Gmail:
         return GmailParser.parse_label(updated)
 
     def delete_label(self, label: str) -> bool:
-        """
-        Delete a label (by name or ID). Messages keep existing, unlabeled.
+        """Delete a label (by name or ID). Messages keep existing, unlabeled.
 
         Returns:
             True if deleted, False if no such label exists
@@ -513,8 +506,7 @@ class Gmail:
         add_labels: Sequence[str] | None = None,
         remove_labels: Sequence[str] | None = None,
     ) -> int:
-        """
-        Add/remove labels on many messages in a few calls (1000 per call).
+        """Add/remove labels on many messages in a few calls (1000 per call).
 
         Labels can be names or IDs ("UNREAD", "STARRED", "INBOX", "Work").
         Example: gmail.batch_modify(ids, remove_labels=["UNREAD"]) marks read.
@@ -542,17 +534,16 @@ class Gmail:
 
     # ========== Filters ==========
 
-    def list_filters(self) -> list[dict]:
+    def list_filters(self) -> list[dict[str, Any]]:
         """List filters ({id, criteria, action} dicts as the API returns them)."""
         response = execute(
             self.service.users().settings().filters().list(userId=self.user_id), "gmail"
         )
-        filters: list[dict] = response.get("filter", [])
+        filters: list[dict[str, Any]] = response.get("filter", [])
         return filters
 
-    def create_filter(self, criteria: dict, action: dict) -> dict:
-        """
-        Create a filter for incoming mail.
+    def create_filter(self, criteria: dict[str, Any], action: dict[str, Any]) -> dict[str, Any]:
+        """Create a filter for incoming mail.
 
         Args:
             criteria: e.g. {"from": "alerts@example.com", "hasAttachment": True}
@@ -567,7 +558,7 @@ class Gmail:
             if key in action:
                 action[key] = self._require_label_ids(action[key])
 
-        created: dict = execute(
+        created: dict[str, Any] = execute(
             self.service.users()
             .settings()
             .filters()
@@ -593,8 +584,7 @@ class Gmail:
     # ========== Send ==========
 
     def get_signature(self, send_as_email: str | None = None) -> str | None:
-        """
-        Get the account's email signature.
+        """Get the account's email signature.
 
         Args:
             send_as_email: Specific send-as email (default: primary)
@@ -700,8 +690,7 @@ class Gmail:
         thread_id: str | None = None,
         attachments: list[OutgoingAttachment] | None = None,
     ) -> Message:
-        """
-        Send an email.
+        """Send an email.
 
         Args:
             to: Recipient email addresses
@@ -737,8 +726,7 @@ class Gmail:
         reply_all: bool = False,
         attachments: list[OutgoingAttachment] | None = None,
     ) -> Message:
-        """
-        Reply to a message, in its thread for every participant.
+        """Reply to a message, in its thread for every participant.
 
         Goes to the Reply-To address (or the sender). Replying to a message
         you sent goes to its recipients instead of back to you.
@@ -784,8 +772,7 @@ class Gmail:
         body: str = "",
         include_attachments: bool = True,
     ) -> Message:
-        """
-        Forward a message, quoting it below `body`.
+        """Forward a message, quoting it below `body`.
 
         Args:
             include_attachments: Re-attach the original attachments
@@ -897,9 +884,11 @@ class Gmail:
 
     # ========== Profile ==========
 
-    def get_profile(self) -> dict:
+    def get_profile(self) -> dict[str, Any]:
         """Get authenticated user's profile."""
-        profile: dict = execute(self.service.users().getProfile(userId=self.user_id), "gmail")
+        profile: dict[str, Any] = execute(
+            self.service.users().getProfile(userId=self.user_id), "gmail"
+        )
         return profile
 
     @property
@@ -968,7 +957,7 @@ class Gmail:
 
     # ========== Parsing ==========
 
-    def _parse_message(self, data: dict, include_body: bool = True) -> Message:
+    def _parse_message(self, data: dict[str, Any], include_body: bool = True) -> Message:
         """Parse Gmail API response to Message object."""
         # Use centralized parser
         msg = GmailParser.parse_message(data, include_body)

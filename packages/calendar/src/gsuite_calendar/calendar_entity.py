@@ -5,8 +5,7 @@ from dataclasses import dataclass
 
 @dataclass
 class CalendarEntity:
-    """
-    A calendar.
+    """A calendar.
 
     Represents a single calendar (primary or shared).
     """

@@ -195,8 +195,7 @@ def list_messages(
     labels: list[str] | None = Query(None, description="Filter by label IDs"),
     limit: int = Query(25, ge=1, le=100),
 ) -> dict[str, Any]:
-    """
-    List messages with optional filters.
+    """List messages with optional filters.
 
     Uses Gmail search query syntax:
     - `is:unread` - unread messages
@@ -262,8 +261,7 @@ def get_message(message_id: str, gmail: GmailDep) -> MessageDetailResponse:
 
 @router.post("/messages/send")
 def send_message(request: SendRequest, gmail: GmailDep) -> dict[str, Any]:
-    """
-    Send an email.
+    """Send an email.
 
     Set `reply_to` to a message ID to reply to an existing message.
     Set `thread_id` to keep the reply in the same thread.

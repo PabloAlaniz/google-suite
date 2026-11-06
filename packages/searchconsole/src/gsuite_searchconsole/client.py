@@ -44,8 +44,7 @@ def build_filters(filters: list[dict[str, str]] | None) -> list[dict[str, Any]]:
 
 
 class SearchConsole:
-    """
-    Read-only Google Search Console client (``searchconsole`` v1).
+    """Read-only Google Search Console client (``searchconsole`` v1).
 
     Needs ``Scopes.searchconsole()`` (webmasters.readonly).
 
@@ -165,7 +164,8 @@ class SearchConsole:
         self, site_url: str, url: str, language_code: str | None = None
     ) -> UrlInspection:
         """URL Inspection result: index status; the full result (mobile usability, rich
-        results...) is in ``raw``."""
+        results...) is in ``raw``.
+        """
         body: dict[str, Any] = {"inspectionUrl": url, "siteUrl": site_url}
         if language_code:
             body["languageCode"] = language_code

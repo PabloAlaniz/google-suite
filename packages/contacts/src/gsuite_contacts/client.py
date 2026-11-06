@@ -33,8 +33,7 @@ def resource_name(contact_id: str) -> str:
 
 
 class Contacts:
-    """
-    High-level Google Contacts client (People API).
+    """High-level Google Contacts client (People API).
 
     Example:
         auth = GoogleAuth(scopes=Scopes.contacts())

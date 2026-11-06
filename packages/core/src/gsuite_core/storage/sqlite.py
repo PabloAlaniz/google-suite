@@ -11,15 +11,13 @@ from gsuite_core.storage.base import TokenStore
 
 
 class SQLiteTokenStore(TokenStore):
-    """
-    SQLite-based token storage for local development.
+    """SQLite-based token storage for local development.
 
     Stores OAuth tokens in a local SQLite database file.
     """
 
     def __init__(self, db_path: str = "tokens.db"):
-        """
-        Initialize SQLite token store.
+        """Initialize SQLite token store.
 
         Args:
             db_path: Path to SQLite database file

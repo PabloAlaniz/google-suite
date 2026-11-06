@@ -1,6 +1,7 @@
 """Calendar response parsers - converts API responses to domain entities."""
 
 from datetime import UTC, datetime, tzinfo
+from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from gsuite_calendar.calendar_entity import CalendarEntity
@@ -11,9 +12,8 @@ class CalendarParser:
     """Parser for Calendar API responses."""
 
     @staticmethod
-    def parse_event(data: dict, calendar_id: str) -> Event:
-        """
-        Parse Calendar API response to Event entity.
+    def parse_event(data: dict[str, Any], calendar_id: str) -> Event:
+        """Parse Calendar API response to Event entity.
 
         Args:
             data: Raw API response dict
@@ -66,7 +66,7 @@ class CalendarParser:
         )
 
     @staticmethod
-    def _meet_link(data: dict) -> str | None:
+    def _meet_link(data: dict[str, Any]) -> str | None:
         """Video link from conferenceData (current) or hangoutLink (legacy)."""
         for entry in data.get("conferenceData", {}).get("entryPoints", []):
             if entry.get("entryPointType") == "video":
@@ -76,9 +76,8 @@ class CalendarParser:
         return link
 
     @staticmethod
-    def parse_attendee(data: dict) -> Attendee:
-        """
-        Parse attendee data to Attendee entity.
+    def parse_attendee(data: dict[str, Any]) -> Attendee:
+        """Parse attendee data to Attendee entity.
 
         Args:
             data: Raw attendee dict from API
@@ -95,9 +94,8 @@ class CalendarParser:
         )
 
     @staticmethod
-    def parse_calendar(data: dict) -> CalendarEntity:
-        """
-        Parse Calendar API response to CalendarEntity.
+    def parse_calendar(data: dict[str, Any]) -> CalendarEntity:
+        """Parse Calendar API response to CalendarEntity.
 
         Args:
             data: Raw API response dict

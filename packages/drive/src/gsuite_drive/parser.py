@@ -2,6 +2,7 @@
 
 from dataclasses import fields
 from datetime import UTC, datetime
+from typing import Any
 
 from gsuite_drive.file import File, Folder
 
@@ -10,9 +11,8 @@ class DriveParser:
     """Parser for Drive API responses."""
 
     @staticmethod
-    def parse_file(data: dict) -> File:
-        """
-        Parse Drive API response to File entity.
+    def parse_file(data: dict[str, Any]) -> File:
+        """Parse Drive API response to File entity.
 
         Args:
             data: Raw API response dict
@@ -37,9 +37,8 @@ class DriveParser:
         )
 
     @staticmethod
-    def parse_folder(data: dict) -> Folder:
-        """
-        Parse Drive API response to Folder entity.
+    def parse_folder(data: dict[str, Any]) -> Folder:
+        """Parse Drive API response to Folder entity.
 
         Args:
             data: Raw API response dict

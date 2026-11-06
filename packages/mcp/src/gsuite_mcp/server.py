@@ -135,7 +135,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
     @tool(READ)
     def gmail_search(query: str, max_results: int = 10) -> dict[str, Any]:
         """Search Gmail with Gmail query syntax (from:, to:, subject:, is:unread,
-        has:attachment, newer_than:7d, label:...). Returns summaries without bodies."""
+        has:attachment, newer_than:7d, label:...). Returns summaries without bodies.
+        """
         return results(
             [message_summary(m) for m in svc.gmail.search(query, max_results=max_results)]
         )
@@ -186,7 +187,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
     @tool(READ)
     def gmail_read_thread(thread_id: str) -> dict[str, Any]:
         """Read a whole conversation: every message with its text body, oldest first.
-        Messages carry their `thread_id`, so search or read a message first."""
+        Messages carry their `thread_id`, so search or read a message first.
+        """
         thread = svc.gmail.get_thread(thread_id)
         if thread is None:
             raise ToolError(f"No thread {thread_id}")
@@ -211,7 +213,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
         """Add or remove labels on messages; labels are names or IDs. Recipes:
         archive = remove ["INBOX"]; mark read = remove ["UNREAD"]; mark unread =
         add ["UNREAD"]; star = add ["STARRED"]; file = add ["Work"]. Use
-        gmail_trash to delete."""
+        gmail_trash to delete.
+        """
         if not add and not remove:
             raise ToolError("Pass labels to add and/or remove")
         count = svc.gmail.batch_modify(message_ids, add_labels=add, remove_labels=remove)
@@ -222,7 +225,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
         message_id: str, to: list[str], body: str = "", include_attachments: bool = True
     ) -> dict[str, Any]:
         """Forward a message with an optional note above it. Confirm recipients
-        with the user first."""
+        with the user first.
+        """
         message = svc.gmail.get_message(message_id)
         if message is None:
             raise ToolError(f"No message {message_id}")
@@ -243,7 +247,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
     @tool(DESTRUCTIVE)
     def gmail_trash(message_ids: list[str]) -> dict[str, Any]:
         """Move messages to the trash (Gmail empties it after 30 days). Confirm
-        with the user first."""
+        with the user first.
+        """
         trashed, missing = [], []
         for message_id in message_ids:
             message = svc.gmail.get_message(message_id)
@@ -287,7 +292,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
     ) -> dict[str, Any]:
         """Create an event. `start`/`end` are ISO; a date alone makes an all-day event.
         `meet` adds a Google Meet link; `send_updates="all"` emails the attendees
-        (confirm with the user first)."""
+        (confirm with the user first).
+        """
         start_at = parse_when(start)
         event = svc.calendar.create_event(
             summary=summary,
@@ -332,7 +338,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
         name: str | None = None, query: str | None = None, max_results: int = 20
     ) -> dict[str, Any]:
         """Find files by name (contains) or with a raw Drive query
-        (e.g. "mimeType = 'application/pdf' and modifiedTime > '2026-01-01'")."""
+        (e.g. "mimeType = 'application/pdf' and modifiedTime > '2026-01-01'").
+        """
         if name and not query:
             files = svc.drive.search(name)[:max_results]
         else:
@@ -342,7 +349,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
     @tool(READ)
     def drive_read_file(file_id: str, max_chars: int = 20000) -> dict[str, Any]:
         """Text of a file: Google Docs/Slides as text, Google Sheets as CSV, and
-        plain-text files as they are. Binary files (PDF, images) are refused."""
+        plain-text files as they are. Binary files (PDF, images) are refused.
+        """
         file = svc.drive.get(file_id)
         if file is None:
             raise ToolError(f"No file {file_id}")
@@ -382,7 +390,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
         notify: bool = True,
     ) -> dict[str, Any]:
         """Share a file with a person (email) or with anyone who has the link
-        (anyone=true). Confirm with the user first."""
+        (anyone=true). Confirm with the user first.
+        """
         if not email and not anyone:
             raise ToolError("Give an email, or anyone=true for a link anyone can open")
         permission = svc.drive.add_permission(
@@ -416,7 +425,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
         spreadsheet: str, range: str = "A1:Z200", sheet: str | None = None
     ) -> dict[str, Any]:
         """Read a range. `spreadsheet` is a URL, an ID or an exact title; `sheet`
-        is the tab (default: the first one). Values come back as displayed."""
+        is the tab (default: the first one). Values come back as displayed.
+        """
         ws = worksheet(spreadsheet, sheet)
         return {"sheet": ws.title, "range": range, "values": ws.get(range)}
 
@@ -443,7 +453,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
         spreadsheet: str, rows: list[dict[str, Any]], key: str, sheet: str | None = None
     ) -> dict[str, Any]:
         """Update the rows whose `key` column matches and append the rest.
-        The first row of the sheet is the header; rows are {column: value}."""
+        The first row of the sheet is the header; rows are {column: value}.
+        """
         ws = worksheet(spreadsheet, sheet)
         return dict(ws.upsert(rows, key=key))
 
@@ -457,7 +468,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
         max_results: int = 100,
     ) -> dict[str, Any]:
         """Tasks of a list (default: the user's main list), pending only unless
-        show_completed. Needs the Tasks scope."""
+        show_completed. Needs the Tasks scope.
+        """
         tasks = svc.tasks.list_tasks(
             tasklist_id,
             show_completed=show_completed,
@@ -490,7 +502,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
     @tool(READ)
     def contacts_search(query: str, max_results: int = 10) -> dict[str, Any]:
         """Contacts whose name, email, phone or company starts with `query`
-        (max 30). Needs the Contacts scope."""
+        (max 30). Needs the Contacts scope.
+        """
         return results(to_json(svc.contacts.search(query, max_results=max_results)))
 
     @tool(READ)
@@ -506,7 +519,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
     @tool(READ)
     def searchconsole_list_sites() -> dict[str, Any]:
         """Search Console properties the user can see (siteUrl, permissionLevel).
-        Domain properties look like "sc-domain:example.com"."""
+        Domain properties look like "sc-domain:example.com".
+        """
         return results(to_json(svc.searchconsole.list_sites()))
 
     @tool(READ)
@@ -525,7 +539,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
         days (data lags ~2-3 days). `filters` are ANDed:
         [{"dimension": "query", "operator": "contains", "expression": "shoes"}];
         operators: equals, notEquals, contains, notContains, includingRegex, excludingRegex.
-        `row_limit` max 25000."""
+        `row_limit` max 25000.
+        """
         rows = svc.searchconsole.query(
             site_url,
             start_date,
@@ -544,7 +559,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
     ) -> dict[str, Any]:
         """URL Inspection: Google index status, coverage, canonical and last
         crawl for one URL of a property; `raw` has the full result (mobile
-        usability, rich results)."""
+        usability, rich results).
+        """
         inspection = svc.searchconsole.inspect_url(site_url, url, language_code=language_code)
         return to_json(inspection, skip=set())  # type: ignore[no-any-return]
 
@@ -588,7 +604,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
         {"field": "country", "value": "Argentina"}, {"field": .., "operator":
         "CONTAINS", "value": ..}, {"field": .., "values": [..]}, numeric
         {"field": "sessions", "operator": "GREATER_THAN", "value": 10}; "not": true negates.
-        Each row has `dimensions` (name -> value) and numeric `metrics`."""
+        Each row has `dimensions` (name -> value) and numeric `metrics`.
+        """
         try:
             ranges = (
                 [(start, end) for start, end in date_ranges]
@@ -620,7 +637,8 @@ def build_server(services: Services | None = None) -> MCPServer:  # noqa: C901, 
         limit: int = 100,
     ) -> dict[str, Any]:
         """GA4 realtime report (last 30 minutes). Default metric activeUsers;
-        dimensions e.g. country, unifiedScreenName, deviceCategory."""
+        dimensions e.g. country, unifiedScreenName, deviceCategory.
+        """
         report = svc.analytics.run_realtime_report(
             property_id,
             dimensions,

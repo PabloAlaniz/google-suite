@@ -19,7 +19,8 @@ def print_json(data: Any) -> None:
 
 def to_data(value: Any, keep_raw: bool = False) -> Any:
     """SDK entities as JSON-ready data: dataclasses become dicts (without their ``raw``
-    API resource unless ``keep_raw``), dates become ISO strings."""
+    API resource unless ``keep_raw``), dates become ISO strings.
+    """
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return {
             f.name: to_data(getattr(value, f.name), keep_raw)

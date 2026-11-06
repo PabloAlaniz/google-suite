@@ -141,8 +141,7 @@ def download_file(
         description=f"Export format for Google files: {', '.join(sorted(EXPORT_FORMATS))}",
     ),
 ) -> Response:
-    """
-    Download file content.
+    """Download file content.
 
     Google Docs/Sheets/Slides are exported (docx/xlsx/pptx unless `export`
     says otherwise; Drive caps exports at 10 MB).

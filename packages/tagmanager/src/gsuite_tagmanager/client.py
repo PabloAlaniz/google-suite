@@ -1,5 +1,6 @@
 """Tag Manager client (read-only): accounts, containers, workspaces, tags, triggers,
-variables and versions."""
+variables and versions.
+"""
 
 from __future__ import annotations
 
@@ -47,8 +48,7 @@ def _paged(list_method: Any, key: str, kind: str, parent: str | None = None) -> 
 
 
 class TagManager:
-    """
-    Read-only Google Tag Manager client (``tagmanager`` v2).
+    """Read-only Google Tag Manager client (``tagmanager`` v2).
 
     Resources are addressed by their API paths: ``accounts/1``,
     ``accounts/1/containers/2``, ``accounts/1/containers/2/workspaces/3``.

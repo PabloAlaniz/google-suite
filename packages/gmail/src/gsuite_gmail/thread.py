@@ -9,8 +9,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class Thread:
-    """
-    Gmail thread (conversation).
+    """Gmail thread (conversation).
 
     A thread is a collection of related messages.
     """

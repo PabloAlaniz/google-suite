@@ -11,8 +11,7 @@ from gsuite_sheets.worksheet import Worksheet
 
 @dataclass
 class Spreadsheet:
-    """
-    A Google Spreadsheet.
+    """A Google Spreadsheet.
 
     Contains multiple worksheets (tabs).
     """
@@ -50,8 +49,7 @@ class Spreadsheet:
         rows: int = 1000,
         cols: int = 26,
     ) -> Worksheet:
-        """
-        Add a new worksheet.
+        """Add a new worksheet.
 
         Args:
             title: Worksheet title
@@ -99,8 +97,7 @@ class Spreadsheet:
         role: str = "reader",
         notify: bool = True,
     ) -> bool:
-        """
-        Share spreadsheet with someone.
+        """Share spreadsheet with someone.
 
         Args:
             email: Email to share with
@@ -143,8 +140,7 @@ class Spreadsheet:
         self.time_zone = timezone
 
     def export(self, format: str = "pdf") -> bytes:
-        """
-        The whole spreadsheet as bytes.
+        """The whole spreadsheet as bytes.
 
         Args:
             format: "pdf", "xlsx", "ods", "csv", "tsv" (first sheet only) or "html" (zip)

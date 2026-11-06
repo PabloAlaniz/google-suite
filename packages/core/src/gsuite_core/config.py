@@ -10,8 +10,7 @@ from gsuite_core._version import __version__
 
 
 class Settings(BaseSettings):
-    """
-    Application settings loaded from environment variables.
+    """Application settings loaded from environment variables.
 
     Prefix: GSUITE_
     Example: GSUITE_API_KEY=secret

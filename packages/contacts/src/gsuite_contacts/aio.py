@@ -32,6 +32,7 @@ from gsuite_contacts._requests import (
     group_change_bodies,
     group_resource_name,
     is_expired_sync,
+    raw_update,
     resource_name,
     skipped_members,
     sync_params,
@@ -255,6 +256,22 @@ class AsyncContacts:
             json=body,
             resource_type="contact",
             resource_id=current.resource_name,
+        )
+        return ContactsParser.parse_contact(data)
+
+    async def update_raw(
+        self, contact_id: str, body: dict[str, Any], update_fields: str | list[str]
+    ) -> Contact:
+        """Send a People API ``Person`` body as it is (see ``Contacts.update_raw``)."""
+        name = resource_name(contact_id)
+        person, fields = raw_update(body, update_fields)
+        data = await self._json(
+            "PATCH",
+            f"{name}:updateContact",
+            params={"updatePersonFields": fields, "personFields": self.person_fields},
+            json=person,
+            resource_type="contact",
+            resource_id=name,
         )
         return ContactsParser.parse_contact(data)
 

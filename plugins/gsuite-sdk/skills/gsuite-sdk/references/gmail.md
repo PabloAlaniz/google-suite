@@ -47,6 +47,11 @@ start = delta.history_id
 `history` raises `SyncTokenExpiredError` when the ID is older than about a
 week: list again and start over from `get_history_id()`.
 
+`list_message_ids(query, page_token=...)` returns one page and its
+`next_page_token`, to stop a long listing and resume it later.
+`delta.added_labels` maps each added message to its label IDs, and
+`message.raw` / `thread.raw` hold the API resource as fetched.
+
 ## Sending and replying
 
 ```python

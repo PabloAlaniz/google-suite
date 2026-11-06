@@ -16,6 +16,7 @@ from gsuite_contacts._requests import (
     group_change_bodies,
     group_resource_name,
     is_expired_sync,
+    raw_update,
     resource_name,
     skipped_members,
     sync_params,
@@ -271,6 +272,30 @@ class Contacts:
             "contacts",
             "contact",
             current.resource_name,
+        )
+        return ContactsParser.parse_contact(data)
+
+    def update_raw(
+        self, contact_id: str, body: dict[str, Any], update_fields: str | list[str]
+    ) -> Contact:
+        """Send a People API ``Person`` body as it is, without reading the contact first.
+
+        For callers that build the body themselves: ``body`` must carry the
+        contact's ``etag`` (a stale one fails instead of overwriting a newer
+        change) and ``update_fields`` names the fields it replaces.
+        """
+        name = resource_name(contact_id)
+        person, fields = raw_update(body, update_fields)
+        data = execute(
+            self.service.people().updateContact(
+                resourceName=name,
+                updatePersonFields=fields,
+                personFields=self.person_fields,
+                body=person,
+            ),
+            "contacts",
+            "contact",
+            name,
         )
         return ContactsParser.parse_contact(data)
 

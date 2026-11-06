@@ -63,6 +63,8 @@ def add_history_page(delta: HistoryDelta, page: dict[str, Any]) -> None:
                 message_id = change.get("message", {}).get("id")
                 if message_id and message_id not in bucket:
                     bucket.append(message_id)
+                if key == "messagesAdded" and message_id:
+                    delta.added_labels[message_id] = change["message"].get("labelIds", [])
     if page.get("historyId"):
         delta.history_id = str(page["historyId"])
 
@@ -72,4 +74,5 @@ def finish_history(delta: HistoryDelta) -> HistoryDelta:
     gone = set(delta.deleted)
     delta.added = [m for m in delta.added if m not in gone]
     delta.labels_changed = [m for m in delta.labels_changed if m not in gone]
+    delta.added_labels = {m: labels for m, labels in delta.added_labels.items() if m not in gone}
     return delta

@@ -102,6 +102,7 @@ class GmailParser:
             reply_to=get_header("Reply-To") or None,
             rfc822_message_id=get_header("Message-ID") or None,
             references=get_header("References") or None,
+            raw=data,
         )
 
     @staticmethod

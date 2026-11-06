@@ -31,7 +31,7 @@ from gsuite_gmail._requests import (
     list_params,
 )
 from gsuite_gmail.draft import Draft
-from gsuite_gmail.history import HistoryDelta
+from gsuite_gmail.history import HistoryDelta, IdPage
 from gsuite_gmail.label import Label
 from gsuite_gmail.message import Message
 from gsuite_gmail.parser import GmailParser
@@ -320,6 +320,7 @@ class Gmail:
             id=thread_data["id"],
             messages=messages,
             snippet=thread_data.get("snippet", ""),
+            raw=thread_data,
         )
 
     # ========== Labels ==========
@@ -770,6 +771,27 @@ class Gmail:
             **list_params(query, labels),
         ):
             yield ref["id"]
+
+    def list_message_ids(
+        self,
+        query: str | Query | None = None,
+        labels: list[str] | None = None,
+        page_token: str | None = None,
+        page_size: int = 500,
+    ) -> IdPage:
+        """One page of matching message IDs, to page through a listing yourself.
+
+        ``iter_message_ids`` follows every page in one go; this returns one and
+        its ``next_page_token``, so a long listing can stop and resume later.
+        """
+        params = {"maxResults": max(1, min(page_size, 500)), **list_params(query, labels)}
+        if page_token:
+            params["pageToken"] = page_token
+        data = execute(self.service.users().messages().list(userId=self.user_id, **params), "gmail")
+        return IdPage(
+            ids=[ref["id"] for ref in data.get("messages", [])],
+            next_page_token=data.get("nextPageToken"),
+        )
 
     def iter_thread_ids(
         self,

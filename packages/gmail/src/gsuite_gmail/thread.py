@@ -1,7 +1,7 @@
 """Gmail Thread entity."""
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from gsuite_gmail.message import Message
@@ -17,6 +17,7 @@ class Thread:
     id: str
     messages: list["Message"] = field(default_factory=list)
     snippet: str = ""
+    raw: dict[str, Any] = field(default_factory=dict, repr=False)  # as Gmail returned it
 
     @property
     def subject(self) -> str:

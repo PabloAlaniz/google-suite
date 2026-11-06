@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 if TYPE_CHECKING:
     from gsuite_gmail.client import Gmail, OutgoingAttachment
@@ -77,6 +77,8 @@ class Message:
     reply_to: str | None = None
     rfc822_message_id: str | None = None
     references: str | None = None
+    # The API resource as Gmail returned it (in the format it was fetched with)
+    raw: dict[str, Any] = field(default_factory=dict, repr=False)
 
     _gmail: Optional["Gmail"] = field(default=None, repr=False)
 

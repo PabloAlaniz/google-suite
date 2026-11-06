@@ -66,11 +66,35 @@ class ContactChanges:
         return body, fields
 
 
+IDENTIFYING_FIELDS = ("names", "emailAddresses", "phoneNumbers")
+
+
 def create_body(changes: ContactChanges) -> dict[str, Any]:
-    """people.createContact body; a contact needs a name, an email or a phone."""
-    if not (changes.given_name or changes.family_name or changes.emails or changes.phones):
+    """people.createContact body; a contact needs a name, an email or a phone.
+
+    They can come as arguments or already in API form in ``raw_fields``.
+    """
+    body = changes.person_body()[0]
+    filled = (
+        value
+        for key in IDENTIFYING_FIELDS
+        for entry in body.get(key) or []
+        for name, value in entry.items()
+        if name != "metadata"
+    )
+    if not any(filled):
         raise ValidationError("contact", "A contact needs a name, an email or a phone number")
-    return changes.person_body()[0]
+    return body
+
+
+def raw_update(body: dict[str, Any], update_fields: str | list[str]) -> tuple[dict[str, Any], str]:
+    """(body, updatePersonFields) for an update sent as given; the body needs its etag."""
+    if not body.get("etag"):
+        raise ValidationError("etag", "a raw update needs the contact's etag")
+    fields = update_fields if isinstance(update_fields, str) else ",".join(update_fields)
+    if not fields:
+        raise ValidationError("update_fields", "say which person fields to update")
+    return body, fields
 
 
 def update_body(current: Contact, changes: ContactChanges) -> tuple[dict[str, Any], str]:

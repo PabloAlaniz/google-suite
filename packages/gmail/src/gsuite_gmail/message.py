@@ -22,6 +22,11 @@ class Attachment:
     # Small attachments arrive inline in the message instead of by ID
     _data: bytes | None = field(default=None, repr=False)
 
+    @property
+    def is_inline(self) -> bool:
+        """Whether the content came with the message (download() makes no request)."""
+        return self._data is not None
+
     def download(self) -> bytes:
         """Download attachment content."""
         if self._data is not None:

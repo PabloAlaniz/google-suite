@@ -3,21 +3,21 @@
 import base64
 import logging
 from collections.abc import Iterator, Sequence
-from email.utils import parseaddr
 from itertools import islice
 from typing import Any
 
 from gsuite_core import GoogleAuth, execute, execute_batch, paginate
 from gsuite_core.exceptions import GSuiteError, NotFoundError
 from gsuite_core.service import GoogleService
-from gsuite_gmail._html import html_to_text
 from gsuite_gmail._labels import SYSTEM_LABELS, LabelResolver
 from gsuite_gmail._mime import (
     MessageSpec,
     OutgoingAttachment,
     build_message,
     encode_for_api,
+    forward_text,
     prefixed,
+    reply_recipients,
     with_signature,
 )
 from gsuite_gmail.draft import Draft
@@ -560,9 +560,6 @@ class Gmail:
             )
         )
 
-    def _is_me(self, address: str) -> bool:
-        return parseaddr(address)[1].lower() == self.email.lower()
-
     def reply(
         self,
         message: Message,
@@ -583,19 +580,7 @@ class Gmail:
         Returns:
             The sent reply
         """
-        if self._is_me(message.sender):
-            to = [a for a in GmailParser._addresses(message.recipient) if not self._is_me(a)]
-        else:
-            to = [message.reply_to or message.sender]
-
-        cc: list[str] = []
-        if reply_all:
-            seen = {parseaddr(a)[1].lower() for a in to}
-            for address in [*GmailParser._addresses(message.recipient), *message.cc]:
-                email = parseaddr(address)[1].lower()
-                if email and email not in seen and not self._is_me(address):
-                    seen.add(email)
-                    cc.append(address)
+        to, cc = reply_recipients(message, self.email, reply_all)
 
         return self._send_composed(
             self._compose(
@@ -626,13 +611,7 @@ class Gmail:
         Returns:
             The sent message
         """
-        date = message.date.strftime("%a, %d %b %Y %H:%M") if message.date else ""
-        original = message.plain or html_to_text(message.html or "")
-        quoted = (
-            f"{body}\n\n---------- Forwarded message ---------\n"
-            f"From: {message.sender}\nDate: {date}\nSubject: {message.subject}\n"
-            f"To: {message.recipient}\n\n{original}"
-        ).lstrip()
+        quoted = forward_text(message, body)
 
         attachments: list[OutgoingAttachment] = []
         if include_attachments:

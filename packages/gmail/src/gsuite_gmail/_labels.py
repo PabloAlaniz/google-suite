@@ -11,6 +11,11 @@ SYSTEM_LABELS = frozenset(
 )
 
 
+def is_system_label(name: str) -> bool:
+    """INBOX, UNREAD, CATEGORY_* ...: IDs that need no lookup."""
+    return name in SYSTEM_LABELS or name.startswith("CATEGORY_")
+
+
 class LabelResolver:
     """Resolve label names (or IDs) to IDs.
 
@@ -35,7 +40,7 @@ class LabelResolver:
 
     def resolve(self, name: str) -> str | None:
         """The label's ID, or None if there is no such label. IDs pass through."""
-        if name in SYSTEM_LABELS or name.startswith("CATEGORY_"):
+        if is_system_label(name):
             return name
         if self._by_name is None:
             self._by_name = {label["name"]: label["id"] for label in self._list_labels()}

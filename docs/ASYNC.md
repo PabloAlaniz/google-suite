@@ -61,7 +61,7 @@ returns a real `AsyncSheets` over the in-memory emulator.
 ## Gmail
 
 `AsyncGmail` mirrors `Gmail` for messages, threads, labels (`batch_modify`
-included), drafts, send, reply and forward. Filters stay sync-only. Where the
+included), drafts, filters, send, reply and forward. Where the
 sync client sends an HTTP batch, the async one runs the requests concurrently
 (`concurrency=10` by default). Message parsing and MIME building are the sync
 client's own code.
@@ -78,7 +78,8 @@ async with AsyncGmail(auth) as gmail:
 Messages from `AsyncGmail` have no sync client behind them, so their fluent
 methods (`message.trash()`, `attachment.download()` for attachments not sent
 inline) raise `TypeError` instead of silently doing nothing; await
-`gmail.trash(id)`, `gmail.batch_modify(...)` or
+`gmail.modify_message(message, add_labels=..., remove_labels=...)` (same rules
+as the fluent methods), `gmail.trash(id)` or
 `gmail.download_attachment(message_id, attachment_id)` instead.
 
 ## Calendar
@@ -127,8 +128,9 @@ Files from `AsyncDrive` have no sync client behind them: `file.trash()`,
 ## REST API
 
 Routers backed by an async client run as `async def` routes on the event
-loop instead of FastAPI's thread pool: **Calendar** (`/calendar`) and **Drive**
-(`/drive`; uploads stream the request's file to Drive in chunks). Each request
+loop instead of FastAPI's thread pool: **Gmail** (`/gmail`), **Calendar**
+(`/calendar`) and **Drive** (`/drive`; uploads stream the request's file to
+Drive in chunks). Each request
 gets its own client, closed when the response is sent, as the sync routes
 build theirs per request. The other routers stay sync until their services
 have async clients.

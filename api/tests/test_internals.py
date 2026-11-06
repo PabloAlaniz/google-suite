@@ -73,7 +73,6 @@ class TestGetAuth:
 @pytest.mark.parametrize(
     ("factory", "cls"),
     [
-        (dependencies.get_gmail, "Gmail"),
         (dependencies.get_sheets, "Sheets"),
     ],
 )

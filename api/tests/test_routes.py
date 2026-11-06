@@ -1,7 +1,7 @@
 """Route behavior with mocked Google clients."""
 
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, call, patch
 
 import pytest
 
@@ -72,6 +72,7 @@ class TestGmail:
         attachment.id = "att1"
         attachment.mime_type = "application/pdf"
         attachment.filename = 'informe "final"\r\nX-Injected: 1 ñ.pdf'
+        attachment.is_inline = True
         attachment.download.return_value = b"%PDF"
         services["gmail"].get_message.return_value = _message(attachments=[attachment])
 
@@ -87,6 +88,16 @@ class TestGmail:
             "filename*=UTF-8''informe%20%22final%22%0D%0AX-Injected%3A%201%20%C3%B1.pdf"
             in disposition
         )
+
+    def test_attachment_not_inline_is_fetched_by_the_client(self, client, services):
+        attachment = Attachment(id="att1", filename="a.pdf", mime_type="application/pdf", size=4)
+        services["gmail"].get_message.return_value = _message(attachments=[attachment])
+        services["gmail"].download_attachment.return_value = b"%PDF"
+
+        response = client.get("/gmail/messages/m1/attachments/att1")
+
+        assert response.content == b"%PDF"
+        services["gmail"].download_attachment.assert_awaited_once_with("m1", "att1")
 
 
 class TestCalendar:
@@ -148,41 +159,45 @@ class TestHealthAuth:
 
 
 class TestGmailActions:
+    # (method, path, the labels AsyncGmail.modify_message gets): the same
+    # changes the sync fluent methods made
     ACTIONS = (
-        ("POST", "read", "mark_as_read"),
-        ("POST", "unread", "mark_as_unread"),
-        ("POST", "star", "star"),
-        ("DELETE", "star", "unstar"),
-        ("POST", "important", "mark_important"),
-        ("DELETE", "important", "mark_not_important"),
-        ("POST", "untrash", "untrash"),
-        ("POST", "archive", "archive"),
-        ("POST", "inbox", "move_to_inbox"),
+        ("POST", "read", {"remove_labels": ["UNREAD"]}),
+        ("POST", "unread", {"add_labels": ["UNREAD"]}),
+        ("POST", "star", {"add_labels": ["STARRED"]}),
+        ("DELETE", "star", {"remove_labels": ["STARRED"]}),
+        ("POST", "important", {"add_labels": ["IMPORTANT"]}),
+        ("DELETE", "important", {"remove_labels": ["IMPORTANT"]}),
+        ("POST", "archive", {"remove_labels": ["INBOX"]}),
+        ("POST", "inbox", {"add_labels": ["INBOX"]}),
     )
 
-    @pytest.mark.parametrize(("method", "action", "message_method"), ACTIONS)
-    def test_action_calls_message_method(self, client, services, method, action, message_method):
+    @pytest.mark.parametrize(("method", "action", "labels"), ACTIONS)
+    def test_action_changes_the_message_labels(self, client, services, method, action, labels):
         message = MagicMock()
         services["gmail"].get_message.return_value = message
 
         response = client.request(method, f"/gmail/messages/m1/{action}")
 
         assert response.status_code == 200
-        getattr(message, message_method).assert_called_once_with()
+        services["gmail"].modify_message.assert_awaited_once_with(message, **labels)
 
-    @pytest.mark.parametrize(("method", "action", "_"), ACTIONS)
-    def test_action_on_missing_message(self, client, services, method, action, _):
+    @pytest.mark.parametrize(
+        ("method", "action"), [(m, a) for m, a, _ in ACTIONS] + [("POST", "untrash")]
+    )
+    def test_action_on_missing_message(self, client, services, method, action):
         services["gmail"].get_message.return_value = None
         assert client.request(method, f"/gmail/messages/m1/{action}").status_code == 404
 
-    def test_trash(self, client, services):
-        message = MagicMock()
-        services["gmail"].get_message.return_value = message
+    def test_trash_and_untrash(self, client, services):
+        services["gmail"].get_message.return_value = MagicMock()
 
         assert client.delete("/gmail/messages/m1").status_code == 200
-        message.trash.assert_called_once_with()
+        assert client.post("/gmail/messages/m1/untrash").status_code == 200
+        services["gmail"].trash.assert_awaited_once_with("m1")
+        services["gmail"].untrash.assert_awaited_once_with("m1")
 
-    def test_modify_labels(self, client, services):
+    def test_modify_labels_adds_then_removes(self, client, services):
         message = MagicMock()
         services["gmail"].get_message.return_value = message
 
@@ -191,8 +206,10 @@ class TestGmailActions:
         )
 
         assert response.status_code == 200
-        message.add_label.assert_called_once_with("A")
-        message.remove_label.assert_called_once_with("B")
+        assert services["gmail"].modify_message.await_args_list == [
+            call(message, add_labels=["A"]),
+            call(message, remove_labels=["B"]),
+        ]
 
     @pytest.mark.parametrize(
         ("path", "method"),

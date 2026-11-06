@@ -1,8 +1,8 @@
 """Async Gmail: AsyncGmail, the async counterpart of ``Gmail``.
 
 Covers reading (messages, threads, labels, drafts), sending (send, reply,
-forward, drafts) and organizing (labels, batch_modify, trash). Filters stay
-sync-only. Requests go through ``gsuite_core.aio``, so retries, rate limits
+forward, drafts) and organizing (labels, batch_modify, modify_message, trash,
+filters). Requests go through ``gsuite_core.aio``, so retries, rate limits
 and errors are the suite's; message parsing and MIME building are the sync
 client's own code.
 
@@ -62,7 +62,7 @@ class _AsyncOnly:
     def __getattr__(self, name: str) -> NoReturn:
         raise TypeError(
             "This message came from AsyncGmail, whose messages have no sync client: "
-            "await gmail.batch_modify(...), gmail.trash(...), "
+            "await gmail.modify_message(...), gmail.trash(...), "
             "gmail.download_attachment(...) instead"
         )
 
@@ -201,6 +201,18 @@ class AsyncGmail:
     async def get_unread(self, max_results: int = 25) -> list[Message]:
         """Unread messages."""
         return await self.get_messages(query="is:unread", max_results=max_results)
+
+    async def get_starred(self, max_results: int = 25) -> list[Message]:
+        """Starred messages."""
+        return await self.get_messages(query="is:starred", max_results=max_results)
+
+    async def get_important(self, max_results: int = 25) -> list[Message]:
+        """Important messages."""
+        return await self.get_messages(query="is:important", max_results=max_results)
+
+    async def get_sent(self, max_results: int = 25) -> list[Message]:
+        """Sent messages."""
+        return await self.get_messages(query="in:sent", max_results=max_results)
 
     async def get_message(self, message_id: str) -> Message | None:
         """A message by ID, or None if it doesn't exist."""
@@ -390,6 +402,80 @@ class AsyncGmail:
                 body["removeLabelIds"] = remove_ids
             await self._json("POST", "messages/batchModify", json=body)
         return len(ids)
+
+    async def modify_message(
+        self,
+        message: Message,
+        add_labels: Sequence[str] = (),
+        remove_labels: Sequence[str] = (),
+    ) -> Message:
+        """Add/remove labels on one message, as the sync fluent methods do.
+
+        Labels are names or IDs. Like ``message.add_label()``, an unknown name
+        is skipped, and a label the message already has (or lacks) isn't sent.
+        ``message.labels`` is updated; the same message is returned.
+
+        Example:
+            await gmail.modify_message(message, remove_labels=["UNREAD"])  # read
+        """
+        resolver = await self._resolver([*add_labels, *remove_labels])
+        resolved_add = [resolver.resolve(name) for name in add_labels]
+        resolved_remove = [resolver.resolve(name) for name in remove_labels]
+        add = [i for i in dict.fromkeys(resolved_add) if i and i not in message.labels]
+        remove = [i for i in dict.fromkeys(resolved_remove) if i and i in message.labels]
+        if not add and not remove:
+            return message
+        body: dict[str, Any] = {}
+        if add:
+            body["addLabelIds"] = add
+        if remove:
+            body["removeLabelIds"] = remove
+        await self._json(
+            "POST",
+            f"messages/{message.id}/modify",
+            json=body,
+            resource_type="message",
+            resource_id=message.id,
+        )
+        message.labels = [label for label in message.labels if label not in remove] + add
+        return message
+
+    # ---- filters ----
+
+    async def list_filters(self) -> list[dict[str, Any]]:
+        """Filters ({id, criteria, action} dicts as the API returns them)."""
+        response = await self._json("GET", "settings/filters")
+        filters: list[dict[str, Any]] = response.get("filter", [])
+        return filters
+
+    async def create_filter(
+        self, criteria: dict[str, Any], action: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Create a filter; label names in the action are resolved to IDs."""
+        action = dict(action)
+        for key in ("addLabelIds", "removeLabelIds"):
+            if key in action:
+                action[key] = await self._label_ids(action[key])
+        created: dict[str, Any] = await self._json(
+            "POST",
+            "settings/filters",
+            json={"criteria": criteria, "action": action},
+            resource_type="filter",
+        )
+        return created
+
+    async def delete_filter(self, filter_id: str) -> bool:
+        """Delete a filter; False if it doesn't exist."""
+        try:
+            await self._json(
+                "DELETE",
+                f"settings/filters/{filter_id}",
+                resource_type="filter",
+                resource_id=filter_id,
+            )
+        except NotFoundError:
+            return False
+        return True
 
     # ---- profile and signature ----
 

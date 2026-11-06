@@ -10,6 +10,7 @@ from gsuite_api.main import create_app
 from gsuite_calendar import AsyncCalendar
 from gsuite_core import Settings
 from gsuite_drive import AsyncDrive
+from gsuite_gmail import AsyncGmail
 
 API_KEY = "test-api-key"
 
@@ -23,7 +24,7 @@ def settings():
 def services():
     """Mocked Google clients, one per service, injected into the routes."""
     return {
-        "gmail": MagicMock(name="gmail"),
+        "gmail": create_autospec(AsyncGmail, instance=True, name="gmail"),
         # Async clients: autospec makes their methods awaitable and checks the
         # arguments routes pass against the real signatures
         "calendar": create_autospec(AsyncCalendar, instance=True, name="calendar"),

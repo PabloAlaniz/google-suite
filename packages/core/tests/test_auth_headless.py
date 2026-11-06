@@ -184,3 +184,31 @@ class TestMissingScope:
         error = error_for_status(403, "forbidden", "nope", "drive")
 
         assert type(error) is PermissionDeniedError
+
+
+class TestGrantedScopes:
+    def test_google_granting_extra_scopes_still_logs_in(self, auth):
+        """Google adds "openid" when userinfo scopes are asked; oauthlib raises on that."""
+        from requests import Response
+        from requests_oauthlib import OAuth2Session
+
+        auth.scopes = ["https://www.googleapis.com/auth/userinfo.email"]
+        request = auth.start_authorization()
+        token = {
+            "access_token": "at",
+            "refresh_token": "rt",
+            "token_type": "Bearer",
+            "expires_in": 3599,
+            "scope": "openid https://www.googleapis.com/auth/userinfo.email",
+        }
+        response = Response()
+        response.status_code = 200
+        response._content = json.dumps(token).encode()
+        response.headers["Content-Type"] = "application/json"
+        response.request = MagicMock(url="https://oauth2.googleapis.com/token", headers={}, body="")
+
+        with patch.object(OAuth2Session, "request", return_value=response):
+            credentials = auth.finish_authorization(request, "CODE")
+
+        assert credentials.refresh_token == "rt"
+        assert auth.token_store.get_token()["refresh_token"] == "rt"

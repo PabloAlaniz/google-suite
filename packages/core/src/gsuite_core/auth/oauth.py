@@ -343,6 +343,13 @@ class GoogleAuth:
         )
         try:
             flow.fetch_token(code=code)
+        except Warning as changed:
+            # oauthlib raises when Google grants other scopes than asked, e.g. it
+            # adds "openid" to userinfo scopes; the token is fine and comes along
+            token = getattr(changed, "token", None)
+            if token is None:
+                raise AuthenticationError(f"Google rejected the login: {changed}") from changed
+            flow.oauth2session.token = token
         except Exception as exc:
             raise AuthenticationError(f"Google rejected the authorization code: {exc}") from exc
         self._credentials = flow.credentials

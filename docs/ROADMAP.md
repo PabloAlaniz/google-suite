@@ -72,7 +72,8 @@ imagen Docker más chica. 0.6.0 sumó las APIs de marketing en solo lectura
   - [x] Base en `gsuite_core.aio` (httpx, reintentos y errores compartidos con sync)
   - [x] `AsyncSheets`
   - [x] `AsyncGmail`
-  - [ ] `AsyncCalendar`, `AsyncDrive`
+  - [x] `AsyncCalendar`
+  - [ ] `AsyncDrive`
 
 - [ ] **Caching**
   - [x] Caché de lecturas de Sheets (`Sheets(auth, cache=True)`)

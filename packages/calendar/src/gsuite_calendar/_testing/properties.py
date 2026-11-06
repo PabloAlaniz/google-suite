@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from gsuite_calendar.client import _rfc3339
+from gsuite_calendar._requests import rfc3339 as _rfc3339
 from gsuite_calendar.parser import CalendarParser
 from gsuite_core._testing import require
 

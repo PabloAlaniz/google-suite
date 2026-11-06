@@ -2,9 +2,25 @@
 
 import logging
 from collections.abc import Iterator
-from http import HTTPStatus
 from typing import Any, Literal
 
+from gsuite_contacts._requests import (
+    BATCH_GET_SIZE,
+    MAX_CONTACTS,
+    MAX_PAGE_SIZE,
+    MAX_SEARCH_RESULTS,
+    ContactChanges,
+    add_to_delta,
+    chunks,
+    create_body,
+    group_change_bodies,
+    group_resource_name,
+    is_expired_sync,
+    resource_name,
+    skipped_members,
+    sync_params,
+    update_body,
+)
 from gsuite_contacts.contact import Contact
 from gsuite_contacts.group import ContactGroup, ContactsDelta
 from gsuite_contacts.parser import GROUP_FIELDS, PERSON_FIELDS, ContactsParser
@@ -25,32 +41,6 @@ SortOrder = Literal[
     "FIRST_NAME_ASCENDING",
     "LAST_NAME_ASCENDING",
 ]
-
-MAX_PAGE_SIZE = 1000  # people.connections.list
-MAX_SEARCH_RESULTS = 30  # people.searchContacts
-BATCH_GET_SIZE = 200  # people.getBatchGet
-MAX_GROUP_CHANGES = 1000  # contactGroups.members.modify, per list
-MAX_CONTACTS = 25_000  # a Google account holds at most this many contacts
-
-
-def resource_name(contact_id: str) -> str:
-    """Accept "c123" or "people/c123"."""
-    bare = contact_id.removeprefix("people/")
-    if not bare or "/" in bare:
-        raise ValidationError("contact_id", f"Invalid contact ID: {contact_id!r}")
-    return contact_id if contact_id.startswith("people/") else f"people/{contact_id}"
-
-
-def group_resource_name(group_id: str) -> str:
-    """Accept "abc123", "myContacts" or "contactGroups/abc123"."""
-    bare = group_id.removeprefix("contactGroups/")
-    if not bare or "/" in bare:
-        raise ValidationError("group_id", f"Invalid group ID: {group_id!r}")
-    return f"contactGroups/{bare}"
-
-
-def _chunks(items: list[str], size: int) -> list[list[str]]:
-    return [items[i : i + size] for i in range(0, len(items), size)]
 
 
 class Contacts:
@@ -149,14 +139,7 @@ class Contacts:
             SyncTokenExpiredError: The token is too old (about 7 days) or
                 was issued for other person fields; sync again without it.
         """
-        params: dict[str, Any] = {
-            "resourceName": "people/me",
-            "personFields": self.person_fields,
-            "pageSize": MAX_PAGE_SIZE,
-            "requestSyncToken": True,
-        }
-        if sync_token:
-            params["syncToken"] = sync_token
+        params = {"resourceName": "people/me", **sync_params(self.person_fields, sync_token)}
         delta = ContactsDelta()
         while True:
             try:
@@ -164,16 +147,10 @@ class Contacts:
                     self.service.people().connections().list(**params), "contacts", "sync"
                 )
             except APIError as exc:
-                # Older error bodies say so only in the message
-                if (
-                    exc.status_code == HTTPStatus.BAD_REQUEST
-                    and "sync token" in exc.message.lower()
-                ):
+                if is_expired_sync(exc):
                     raise SyncTokenExpiredError("contacts") from exc
                 raise
-            for person in data.get("connections", []):
-                contact = ContactsParser.parse_contact(person)
-                (delta.deleted if contact.deleted else delta.changed).append(contact)
+            add_to_delta(delta, data.get("connections", []))
             if not data.get("nextPageToken"):
                 delta.sync_token = data.get("nextSyncToken")
                 return delta
@@ -183,7 +160,7 @@ class Contacts:
         """Several contacts by ID, 200 per request; missing ones are left out."""
         names = [resource_name(c) for c in contact_ids]
         contacts = []
-        for chunk in _chunks(names, BATCH_GET_SIZE):
+        for chunk in chunks(names, BATCH_GET_SIZE):
             data = execute(
                 self.service.people().getBatchGet(
                     resourceNames=chunk, personFields=self.person_fields
@@ -238,12 +215,11 @@ class Contacts:
             raw_fields: More Person fields as the API takes them, e.g.
                 {"urls": [{"value": "https://..."}], "birthdays": [...]}
         """
-        if not (given_name or family_name or emails or phones):
-            raise ValidationError("contact", "A contact needs a name, an email or a phone number")
-        body, _ = ContactsParser.build_person(
-            given_name, family_name, emails, phones, organization, job_title, notes
+        body = create_body(
+            ContactChanges(
+                given_name, family_name, emails, phones, organization, job_title, notes, raw_fields
+            )
         )
-        body.update(raw_fields or {})
         data = execute(
             self.service.people().createContact(body=body, personFields=self.person_fields),
             "contacts",
@@ -279,25 +255,16 @@ class Contacts:
         if current is None:
             raise NotFoundError("contacts", "contact", contact_id)
 
-        if given_name is not None or family_name is not None:
-            given_name = current.given_name if given_name is None else given_name
-            family_name = current.family_name if family_name is None else family_name
-        if organization is not None or job_title is not None:
-            organization = current.organization if organization is None else organization
-            job_title = current.job_title if job_title is None else job_title
-        body, fields = ContactsParser.build_person(
-            given_name, family_name, emails, phones, organization, job_title, notes
+        body, fields = update_body(
+            current,
+            ContactChanges(
+                given_name, family_name, emails, phones, organization, job_title, notes, raw_fields
+            ),
         )
-        body.update(raw_fields or {})
-        fields += [f for f in raw_fields or {} if f not in fields]
-        if not fields:
-            raise ValidationError("contact", "Nothing to update")
-        # The etag makes the update fail instead of overwriting a concurrent change
-        body["etag"] = current.etag
         data = execute(
             self.service.people().updateContact(
                 resourceName=current.resource_name,
-                updatePersonFields=",".join(fields),
+                updatePersonFields=fields,
                 personFields=self.person_fields,
                 body=body,
             ),
@@ -390,23 +357,13 @@ class Contacts:
             is their last one; the rest were changed
         """
         name = group_resource_name(group_id)
-        to_add = [resource_name(c) for c in add or []]
-        to_remove = [resource_name(c) for c in remove or []]
         skipped: list[str] = []
-        while to_add or to_remove:
-            body: dict[str, Any] = {}
-            if to_add:
-                body["resourceNamesToAdd"] = to_add[:MAX_GROUP_CHANGES]
-                to_add = to_add[MAX_GROUP_CHANGES:]
-            if to_remove:
-                body["resourceNamesToRemove"] = to_remove[:MAX_GROUP_CHANGES]
-                to_remove = to_remove[MAX_GROUP_CHANGES:]
+        for body in group_change_bodies(add or [], remove or []):
             data = execute(
                 self.service.contactGroups().members().modify(resourceName=name, body=body),
                 "contacts",
                 "group",
                 name,
             )
-            skipped += data.get("notFoundResourceNames", [])
-            skipped += data.get("canNotRemoveLastContactGroupResourceNames", [])
+            skipped += skipped_members(data)
         return skipped

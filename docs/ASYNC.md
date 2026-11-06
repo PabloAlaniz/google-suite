@@ -124,6 +124,14 @@ Files from `AsyncDrive` have no sync client behind them: `file.trash()`,
 `file.download()` and `folder.list_files()` raise `TypeError`; await the
 `AsyncDrive` method instead.
 
+## REST API
+
+Routers backed by an async client run as `async def` routes on the event
+loop instead of FastAPI's thread pool: **Calendar** (`/calendar`). Each request
+gets its own client, closed when the response is sent, as the sync routes
+build theirs per request. The other routers stay sync until their services
+have async clients.
+
 ## Shared code
 
 Each async client is a thin I/O layer: parsers, query strings, request

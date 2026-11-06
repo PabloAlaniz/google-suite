@@ -2,7 +2,7 @@
 
 import json
 import logging
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -74,7 +74,6 @@ class TestGetAuth:
     ("factory", "cls"),
     [
         (dependencies.get_gmail, "Gmail"),
-        (dependencies.get_calendar, "Calendar"),
         (dependencies.get_drive, "Drive"),
         (dependencies.get_sheets, "Sheets"),
     ],
@@ -82,6 +81,22 @@ class TestGetAuth:
 def test_client_factories(factory, cls):
     auth = MagicMock()
     assert type(factory(auth)).__name__ == cls
+
+
+async def test_async_client_dependency_closes_the_client_after_the_request():
+    from gsuite_calendar import AsyncCalendar
+
+    dependency = dependencies.get_calendar(MagicMock())
+    calendar = await anext(dependency)
+    assert isinstance(calendar, AsyncCalendar)
+
+    with (
+        patch.object(calendar, "aclose", new=AsyncMock()) as aclose,
+        pytest.raises(StopAsyncIteration),
+    ):
+        await anext(dependency)
+
+    aclose.assert_awaited_once()
 
 
 @pytest.fixture

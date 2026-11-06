@@ -129,7 +129,7 @@ class CalendarParser:
             return None
         try:
             # Handle Z suffix and timezone offset
-            parsed = datetime.fromisoformat(dt_string.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(dt_string)
         except (ValueError, TypeError):
             return None
         if parsed.tzinfo is not None:

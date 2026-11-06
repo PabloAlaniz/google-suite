@@ -91,7 +91,7 @@ def login(
         if e.cause:
             console.print(f"[dim]Cause: {e.cause}[/dim]")
         raise typer.Exit(1) from None
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - last resort: report any failure, exit 1
         console.print(f"[red]✗ Authentication failed: {e}[/red]")
         raise typer.Exit(1) from None
 

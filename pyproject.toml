@@ -90,14 +90,27 @@ line-length = 100
 extend-exclude = ["*.md"]
 
 [tool.ruff.lint]
-select = ["E", "W", "F", "I", "B", "C4", "UP", "S", "RUF", "SIM", "PT", "RET", "PIE"]
+select = [
+    "E", "W", "F", "I", "B", "C4", "UP", "S", "RUF", "SIM", "PT", "RET", "PIE",
+    "ARG", "BLE", "DTZ", "FLY", "FURB", "G", "ISC", "LOG", "N", "PERF", "PGH", "PLE", "PLW",
+    "PTH", "T20", "TID",
+]
+# Not enabled: TC (FastAPI, Typer and pydantic read annotations at runtime) and
+# ERA (flags the "# ---- section" comments as commented-out code).
 # Pylint code used in existing noqa comments; keeps RUF100 from stripping them
 external = ["PLC0415"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests use bare asserts and dummy credentials/paths
-"**/tests/**" = ["S101", "S105", "S106", "S108"]
-"conftest.py" = ["S101", "S105", "S106", "S108"]
+# Tests also mock call signatures (ARG), build naive datetimes on purpose (DTZ),
+# mirror camelCase Google API methods (N802/N803) and use plain os/open (PTH)
+"**/tests/**" = ["S101", "S105", "S106", "S108", "ARG", "DTZ", "N802", "N803", "PTH", "PLW0108"]
+"conftest.py" = ["S101", "S105", "S106", "S108", "ARG", "DTZ", "N802", "N803", "PTH", "PLW0108"]
+# Fakes and property strategies shipped for tests: same reasons
+"**/testing/**" = ["ARG", "DTZ", "N802", "N803"]
+"**/_testing/**" = ["ARG", "BLE001", "DTZ", "N818"]
+# Command-line scripts report through stdout
+"scripts/**" = ["T20"]
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI/Typer declare parameters through calls in defaults

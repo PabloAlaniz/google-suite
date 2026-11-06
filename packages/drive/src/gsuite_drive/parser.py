@@ -61,7 +61,7 @@ class DriveParser:
         if not dt_string:
             return None
         try:
-            parsed = datetime.fromisoformat(dt_string.replace("Z", "+00:00"))
+            parsed = datetime.fromisoformat(dt_string)
         except (ValueError, TypeError):
             return None
         return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=UTC)

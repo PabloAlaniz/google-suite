@@ -42,6 +42,7 @@ def count_errors(path: str) -> int:
     # fixed argv: this interpreter running mypy on a path from the PACKAGES table
     result = subprocess.run(  # noqa: S603
         [sys.executable, "-m", "mypy", path],
+        check=False,  # mypy exits 1 when it finds errors; we count them
         cwd=ROOT,
         capture_output=True,
         text=True,

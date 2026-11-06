@@ -53,7 +53,7 @@ class SecretManagerTokenStore(TokenStore):
         try:
             self.client.get_secret(request={"name": self._secret_path})
         except exceptions.NotFound:
-            logger.info(f"Creating secret: {self.secret_name}")
+            logger.info("Creating secret: %s", self.secret_name)
             self.client.create_secret(
                 request={
                     "parent": f"projects/{self.project_id}",
@@ -108,7 +108,7 @@ class SecretManagerTokenStore(TokenStore):
                 "payload": {"data": json.dumps(payload).encode("utf-8")},
             }
         )
-        logger.info(f"Token saved to Secret Manager: {self.secret_name}")
+        logger.info("Token saved to Secret Manager: %s", self.secret_name)
 
     def delete_token(self, user_id: str = "default") -> bool:
         """Delete token from Secret Manager."""

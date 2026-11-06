@@ -12,6 +12,7 @@ $GITHUB_OUTPUT.
 
 import json
 import os
+from pathlib import Path
 
 PACKAGES = [
     "core",
@@ -60,7 +61,7 @@ def main() -> None:
         f"all={str(packages == PACKAGES).lower()}",
     ]
     print("\n".join(lines))
-    with open(os.environ["GITHUB_OUTPUT"], "a") as out:
+    with Path(os.environ["GITHUB_OUTPUT"]).open("a") as out:
         out.write("\n".join(lines) + "\n")
 
 

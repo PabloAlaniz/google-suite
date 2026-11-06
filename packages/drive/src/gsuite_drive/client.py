@@ -2,8 +2,8 @@
 
 import io
 import logging
-import os
 from collections.abc import Callable, Iterator
+from pathlib import Path
 from typing import Any, BinaryIO
 
 from googleapiclient.discovery import build
@@ -288,8 +288,7 @@ class Drive:
             content = self.export(file_id, export_format)
         else:
             content = self.get_content(file_id)
-        with open(path, "wb") as f:
-            f.write(content)
+        Path(path).write_bytes(content)
         return path
 
     def update(
@@ -405,7 +404,7 @@ class Drive:
         Returns:
             Created File
         """
-        metadata: dict[str, Any] = {"name": name or os.path.basename(path)}
+        metadata: dict[str, Any] = {"name": name or Path(path).name}
         if parent_id:
             metadata["parents"] = [parent_id]
 
@@ -524,9 +523,9 @@ class Drive:
                 file_id,
             )
         except NotFoundError:
-            logger.warning(f"File not found for {action}: {file_id}")
+            logger.warning("File not found for %s: %s", action, file_id)
             return False
-        logger.info(f"{'Trashed' if trashed else 'Restored'} file {file_id}")
+        logger.info("%s file %s", "Trashed" if trashed else "Restored", file_id)
         return True
 
     def delete(self, file_id: str) -> bool:
@@ -544,9 +543,9 @@ class Drive:
                 file_id,
             )
         except NotFoundError:
-            logger.warning(f"File not found for deletion: {file_id}")
+            logger.warning("File not found for deletion: %s", file_id)
             return False
-        logger.info(f"Deleted file {file_id}")
+        logger.info("Deleted file %s", file_id)
         return True
 
     # ========== Sharing ==========
@@ -615,7 +614,7 @@ class Drive:
             "file",
             file_id,
         )
-        logger.info(f"Granted {role} on {file_id} to {email or domain or type}")
+        logger.info("Granted %s on %s to %s", role, file_id, email or domain or type)
         return Permission.from_api(created)
 
     def share(
@@ -641,7 +640,7 @@ class Drive:
         try:
             self.add_permission(file_id, role=role, type="user", email=email, notify=notify)
         except NotFoundError:
-            logger.error(f"File not found for sharing: {file_id}")
+            logger.error("File not found for sharing: %s", file_id)
             return False
         return True
 
@@ -663,7 +662,7 @@ class Drive:
             )
         except NotFoundError:
             return False
-        logger.info(f"Removed permission {permission_id} from {file_id}")
+        logger.info("Removed permission %s from %s", permission_id, file_id)
         return True
 
     # ========== Parsing ==========

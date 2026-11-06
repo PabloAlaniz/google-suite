@@ -121,7 +121,7 @@ class Spreadsheet:
     def worksheet_or_create(self, title: str, rows: int = 100, cols: int = 26) -> Worksheet:
         """The tab titled ``title``, created if missing."""
         existing = self.worksheet(title)
-        return existing if existing else self.add_worksheet(title, rows, cols)
+        return existing or self.add_worksheet(title, rows, cols)
 
     def worksheet_by_id(self, sheet_id: int) -> Worksheet | None:
         """Tab by its numeric ID (gid)."""

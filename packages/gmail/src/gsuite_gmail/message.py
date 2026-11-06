@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
@@ -42,8 +43,7 @@ class Attachment:
         content = self.download()
         save_path = path or self.filename
 
-        with open(save_path, "wb") as f:
-            f.write(content)
+        Path(save_path).write_bytes(content)
 
         return save_path
 

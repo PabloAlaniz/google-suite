@@ -15,7 +15,11 @@ class PolarsDataFrameAdapter:
     """Conversión filas <-> ``polars.DataFrame``."""
 
     def from_rows(
-        self, header: list[str], rows: list[list[Any]], *, index_col: str | None = None
+        self,
+        header: list[str],
+        rows: list[list[Any]],
+        *,
+        index_col: str | None = None,  # noqa: ARG002 - pandas-only
     ) -> Any:
         """Construye un ``DataFrame`` con ``header`` como columnas y ``rows`` como datos."""
         pl = self._polars()
@@ -26,7 +30,11 @@ class PolarsDataFrameAdapter:
         return pl.DataFrame(rows, schema=header, orient="row")
 
     def to_rows(
-        self, df: Any, include_header: bool, *, include_index: bool = False
+        self,
+        df: Any,
+        include_header: bool,
+        *,
+        include_index: bool = False,  # noqa: ARG002 - pandas-only
     ) -> list[list[Any]]:
         """Convierte un ``DataFrame`` en filas, anteponiendo el encabezado si se pide."""
         header: list[list[Any]] = [list(df.columns)] if include_header else []

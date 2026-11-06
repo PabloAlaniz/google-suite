@@ -596,7 +596,7 @@ class Gmail:
             signature: str | None = settings.get("signature")
             return signature
         except GSuiteError as e:
-            logger.debug(f"Could not get signature for {send_as_email}: {e}")
+            logger.debug("Could not get signature for %s: %s", send_as_email, e)
             return None
 
     def _compose(

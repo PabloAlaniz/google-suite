@@ -45,7 +45,7 @@ def return_type(cls: type, method: str) -> type | None:
         return None
     try:
         hints = typing.get_type_hints(func)
-    except Exception:  # unresolvable forward references: give up on this value
+    except Exception:  # noqa: BLE001 - unresolvable forward references: give up on this value
         return None
     return unwrap(hints.get("return"))
 
@@ -131,8 +131,8 @@ class SnippetChecker(ast.NodeVisitor):
         for statement in node.body:
             self.visit(statement)
 
-    visit_AsyncWith = visit_With  # type: ignore[assignment]
-    visit_AsyncFor = visit_For  # type: ignore[assignment]
+    visit_AsyncWith = visit_With  # type: ignore[assignment]  # noqa: N815 - ast.NodeVisitor name
+    visit_AsyncFor = visit_For  # type: ignore[assignment]  # noqa: N815 - ast.NodeVisitor name
 
     def type_of(self, node: ast.expr) -> type | None:
         if isinstance(node, ast.Await):
@@ -184,7 +184,7 @@ class SnippetChecker(ast.NodeVisitor):
             return
         try:
             hints = typing.get_type_hints(target.__init__ if inspect.isclass(target) else target)
-        except Exception:
+        except Exception:  # noqa: BLE001 - same: give up on hints
             hints = {}
         self.check_arguments(node, label, signature, hints)
 

@@ -82,7 +82,7 @@ def parse_when(value: str) -> datetime | date:
     try:
         if len(value) == 10:
             return date.fromisoformat(value)
-        return datetime.fromisoformat(value.replace("Z", "+00:00"))
+        return datetime.fromisoformat(value)
     except ValueError as exc:
         raise ToolError(f"{value!r} is not an ISO date or datetime") from exc
 

@@ -246,8 +246,7 @@ def construct_query(
         unit_map = {"day": "d", "days": "d", "d": "d", "month": "m", "months": "m", "m": "m"}
         parts.append(f"older_than:{amount}{unit_map.get(unit, unit)}")
     if labels:
-        for lbl in labels:
-            parts.append(_term("label", lbl))
+        parts.extend(_term("label", lbl) for lbl in labels)
     if has_attachment:
         parts.append("has:attachment")
 

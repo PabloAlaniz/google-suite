@@ -89,10 +89,30 @@ def _strip_tags(text: str) -> str:
     return _TAG.sub("", text[: last + 1]) + text[last + 1 :]
 
 
+# Anything past 7 digits is above U+10FFFF, which unescape turns into U+FFFD
+_MAX_CHARREF_DIGITS = 7
+
+
+def _attach(message: EmailMessage, item: OutgoingAttachment) -> None:
+    """Add a path or a (filename, bytes) pair as an attachment, typed by extension."""
+    if isinstance(item, tuple):
+        filename, content = item
+    else:
+        path = Path(item)
+        filename, content = path.name, path.read_bytes()
+    try:
+        guessed = mimetypes.guess_type(filename)[0]
+    except ValueError:
+        # guess_type parses the name as a URL: "//[x.pdf" is a bad IPv6 host
+        guessed = None
+    mime_type = guessed or "application/octet-stream"
+    maintype, subtype = mime_type.split("/", 1)
+    message.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename)
+
+
 def _shorten_charref(match: re.Match[str]) -> str:
     digits = match.group(1).lstrip("0") or "0"
-    # Anything past 7 digits is above U+10FFFF, which unescape turns into U+FFFD
-    return f"&#{digits if len(digits) <= 7 else 65533}"
+    return f"&#{digits if len(digits) <= _MAX_CHARREF_DIGITS else 65533}"
 
 
 def _unescape(text: str) -> str:
@@ -593,11 +613,11 @@ class Gmail:
                 "gmail",
                 "signature",
             )
-            signature: str | None = settings.get("signature")
-            return signature
         except GSuiteError as e:
             logger.debug("Could not get signature for %s: %s", send_as_email, e)
             return None
+        signature: str | None = settings.get("signature")
+        return signature
 
     def _compose(
         self,
@@ -626,14 +646,7 @@ class Gmail:
             message["Bcc"] = ", ".join(bcc)
 
         if reply_to:
-            # Threading headers: without them the recipient sees a new
-            # conversation even though it's in the sender's thread.
-            original = self._get_message_by_id(reply_to, include_body=False)
-            thread_id = thread_id or original.thread_id
-            if original.rfc822_message_id:
-                message["In-Reply-To"] = original.rfc822_message_id
-                refs = f"{original.references or ''} {original.rfc822_message_id}".strip()
-                message["References"] = refs
+            thread_id = self._add_reply_headers(message, reply_to, thread_id)
         message["Subject"] = subject
 
         if html:
@@ -643,19 +656,7 @@ class Gmail:
             message.set_content(body)
 
         for item in attachments or []:
-            if isinstance(item, tuple):
-                filename, content = item
-            else:
-                path = Path(item)
-                filename, content = path.name, path.read_bytes()
-            try:
-                guessed = mimetypes.guess_type(filename)[0]
-            except ValueError:
-                # guess_type parses the name as a URL: "//[x.pdf" is a bad IPv6 host
-                guessed = None
-            mime_type = guessed or "application/octet-stream"
-            maintype, subtype = mime_type.split("/", 1)
-            message.add_attachment(content, maintype=maintype, subtype=subtype, filename=filename)
+            _attach(message, item)
 
         api_body: dict[str, Any] = {
             "raw": base64.urlsafe_b64encode(message.as_bytes()).decode("ascii")
@@ -663,6 +664,21 @@ class Gmail:
         if thread_id:
             api_body["threadId"] = thread_id
         return api_body
+
+    def _add_reply_headers(
+        self, message: EmailMessage, reply_to: str, thread_id: str | None
+    ) -> str | None:
+        """Set In-Reply-To/References from the original; return the thread to send in.
+
+        Without these headers the recipient sees a new conversation even though
+        it's in the sender's thread.
+        """
+        original = self._get_message_by_id(reply_to, include_body=False)
+        if original.rfc822_message_id:
+            message["In-Reply-To"] = original.rfc822_message_id
+            refs = f"{original.references or ''} {original.rfc822_message_id}".strip()
+            message["References"] = refs
+        return thread_id or original.thread_id
 
     def _send_composed(self, api_body: dict[str, Any]) -> Message:
         sent = execute(

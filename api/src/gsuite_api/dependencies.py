@@ -95,7 +95,7 @@ def get_authenticated_auth(auth: AuthDep) -> GoogleAuth:
     if auth.needs_refresh():
         auth.refresh()
         return auth
-    raise NotAuthenticatedError()
+    raise NotAuthenticatedError
 
 
 AuthenticatedDep = Annotated[GoogleAuth, Depends(get_authenticated_auth)]

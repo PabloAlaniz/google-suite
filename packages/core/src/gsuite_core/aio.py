@@ -92,7 +92,7 @@ class AsyncGoogleClient:
     def _credentials(self) -> Any:
         credentials = getattr(self._auth, "credentials", self._auth)
         if credentials is None:
-            raise NotAuthenticatedError()
+            raise NotAuthenticatedError
         return credentials
 
     async def _ensure_valid(self) -> Any:

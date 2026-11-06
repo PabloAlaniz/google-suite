@@ -16,6 +16,9 @@ from gsuite_sheets.worksheet import Worksheet
 console = Console()
 app = typer.Typer(no_args_is_help=True)
 
+# Longer than this is taken as a spreadsheet ID (IDs are 44 characters), not a title
+_ID_HINT_LENGTH = 30
+
 
 def get_sheets() -> "Sheets":
     """Get authenticated Sheets client."""
@@ -95,7 +98,7 @@ def _open(spreadsheet: str) -> Spreadsheet:
     try:
         if spreadsheet.startswith("http"):
             return sheets_client.open_by_url(spreadsheet)
-        if len(spreadsheet) > 30:  # Likely an ID
+        if len(spreadsheet) > _ID_HINT_LENGTH:
             return sheets_client.open_by_key(spreadsheet)
         return sheets_client.open(spreadsheet)
     except ValueError as e:

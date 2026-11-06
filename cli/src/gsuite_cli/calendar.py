@@ -195,7 +195,7 @@ def delete(
     if not confirm:
         confirm = typer.confirm("Are you sure you want to delete this event?")
         if not confirm:
-            raise typer.Abort()
+            raise typer.Abort
 
     cal = get_calendar()
 

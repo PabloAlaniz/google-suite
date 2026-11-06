@@ -640,7 +640,7 @@ class Drive:
         try:
             self.add_permission(file_id, role=role, type="user", email=email, notify=notify)
         except NotFoundError:
-            logger.error("File not found for sharing: %s", file_id)
+            logger.warning("File not found for sharing: %s", file_id)
             return False
         return True
 

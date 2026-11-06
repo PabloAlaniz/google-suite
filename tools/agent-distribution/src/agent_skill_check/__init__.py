@@ -105,7 +105,7 @@ class SkillCheck:
 
         text = (self.skill_dir / "SKILL.md").read_text(encoding="utf-8")
         parts = text.split("---", 2)
-        if len(parts) < 3:
+        if len(parts) < 3:  # noqa: PLR2004 - "", front matter, body
             return {}  # check_spec reports it
         try:
             data = strictyaml.dirty_load(parts[1], allow_flow_style=True).data

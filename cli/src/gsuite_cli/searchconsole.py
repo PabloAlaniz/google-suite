@@ -33,10 +33,12 @@ def get_searchconsole() -> SearchConsole:
 
 def _filter(value: str) -> dict[str, str]:
     """dimension:operator:expression, e.g. query:contains:shoes."""
-    parts = value.split(":", 2)
-    if len(parts) != 3 or not all(parts):
+    try:
+        dimension, operator, expression = value.split(":", 2)
+    except ValueError:
+        dimension = operator = expression = ""
+    if not (dimension and operator and expression):
         raise typer.BadParameter(f"{value!r} is not dimension:operator:expression")
-    dimension, operator, expression = parts
     return {"dimension": dimension, "operator": operator, "expression": expression}
 
 

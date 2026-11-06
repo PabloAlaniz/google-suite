@@ -68,20 +68,18 @@ class SecretManagerTokenStore(TokenStore):
             response = self.client.access_secret_version(
                 request={"name": self._get_latest_version_path()}
             )
-            data: dict[str, Any] = json.loads(response.payload.data.decode("utf-8"))
-
-            if user_id in data:
-                token: dict[str, Any] = data[user_id]
-                return token
-            if user_id == "default" and "token" in data:
-                return data
-
-            return None
-
         except exceptions.NotFound:
             return None
         # anything else (PermissionDenied, a corrupt payload) propagates, as in
         # save_token/delete_token: reporting "no token" would hide the misconfiguration
+        data: dict[str, Any] = json.loads(response.payload.data.decode("utf-8"))
+
+        if user_id in data:
+            token: dict[str, Any] = data[user_id]
+            return token
+        if user_id == "default" and "token" in data:
+            return data
+        return None
 
     def save_token(self, token_data: dict[str, Any], user_id: str = "default") -> None:
         """Store token data in Secret Manager."""
@@ -126,15 +124,14 @@ class SecretManagerTokenStore(TokenStore):
                         "payload": {"data": json.dumps(data).encode("utf-8")},
                     }
                 )
-                return True
-            if user_id == "default":
+            elif user_id == "default":
                 self.client.delete_secret(request={"name": self._secret_path})
-                return True
-
-            return False
-
+            else:
+                return False
         except exceptions.NotFound:
+            # also covers the secret vanishing between the read and the write
             return False
+        return True
 
     def exists(self, user_id: str = "default") -> bool:
         """Check if token exists in Secret Manager."""

@@ -12,6 +12,7 @@ import random
 import time
 from collections.abc import Callable, Iterator
 from functools import wraps
+from http import HTTPStatus
 from typing import Any, TypeVar
 
 import google_auth_httplib2
@@ -89,7 +90,9 @@ def parse_retry_after(value: Any) -> int | None:
 
 def is_rate_limited(status: int, reason: str | None) -> bool:
     """Google throttling: 429, or 403 with a rate-limit reason."""
-    return status == 429 or (status == 403 and reason in RATE_LIMIT_REASONS)
+    return status == HTTPStatus.TOO_MANY_REQUESTS or (
+        status == HTTPStatus.FORBIDDEN and reason in RATE_LIMIT_REASONS
+    )
 
 
 def should_retry_status(
@@ -115,11 +118,11 @@ def error_for_status(
     cause: Exception | None = None,
 ) -> APIError:
     """The GSuiteError subclass for a failed Google API response."""
-    if status == 404:
+    if status == HTTPStatus.NOT_FOUND:
         return NotFoundError(service, resource_type, resource_id)
     if is_rate_limited(status, reason):
         return RateLimitError(service, retry_after)
-    if status == 403:
+    if status == HTTPStatus.FORBIDDEN:
         # Match API quota by reason; the message is only a fallback when
         # Google sent none. "storageQuotaExceeded" (the user's Drive is full)
         # is not an API quota and must not look retryable later.
@@ -484,7 +487,7 @@ def api_call_optional(
                 logger.debug("%s: %s not found", service, resource_type)
                 return None
             except HttpError as e:
-                if e.resp.status == 404:
+                if e.resp.status == HTTPStatus.NOT_FOUND:
                     logger.debug("%s: %s not found", service, resource_type)
                     return None
                 raise map_http_error(e, service, resource_type) from e

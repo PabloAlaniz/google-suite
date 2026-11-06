@@ -24,8 +24,7 @@ def _term(operator: str, value: str) -> str:
 
 @dataclass
 class Query:
-    """
-    Gmail search query builder.
+    """Gmail search query builder.
 
     Supports combining queries with & (AND) and | (OR).
 
@@ -211,8 +210,7 @@ def construct_query(
     has_attachment: bool | None = None,
     exclude_starred: bool | None = None,
 ) -> Query:
-    """
-    Build query from parameters.
+    """Build query from parameters.
 
     Each of ``from_``, ``to``, ``subject`` and every label becomes exactly one
     search term, quoted when needed (see :func:`from_`, :func:`label`).

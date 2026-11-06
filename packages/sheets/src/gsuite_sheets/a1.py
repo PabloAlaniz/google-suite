@@ -93,8 +93,7 @@ def _cell(ref: str, original: str) -> tuple[int | None, int | None]:
 
 
 def grid_range(cell_range: str, sheet_id: int) -> dict[str, Any]:
-    """
-    Convert an A1 range (without sheet title) to a Sheets API GridRange.
+    """Convert an A1 range (without sheet title) to a Sheets API GridRange.
 
     Supports "B2", "A1:C10", "A:C" (whole columns), "1:5" (whole rows) and
     open-ended "A2:C". Indexes are zero-based with exclusive ends. A sheet

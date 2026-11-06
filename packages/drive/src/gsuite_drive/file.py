@@ -11,8 +11,7 @@ if TYPE_CHECKING:
 
 @dataclass
 class File:
-    """
-    Google Drive file.
+    """Google Drive file.
 
     Represents a file in Google Drive with methods for
     download, update, and management.
@@ -45,8 +44,7 @@ class File:
         return self.mime_type.startswith("application/vnd.google-apps.")
 
     def download(self, path: str | None = None, export_format: str | None = None) -> str:
-        """
-        Download file to local path.
+        """Download file to local path.
 
         Google Docs, Sheets and Slides can't be downloaded as-is; they are
         exported (by default to docx/xlsx/pptx, or `export_format`).
@@ -71,8 +69,7 @@ class File:
         return self._drive.download(self.id, path, export_format=export_format)
 
     def get_content(self) -> bytes:
-        """
-        Get file content as bytes.
+        """Get file content as bytes.
 
         Returns:
             File content
@@ -95,8 +92,7 @@ class File:
 
 @dataclass
 class Folder(File):
-    """
-    Google Drive folder.
+    """Google Drive folder.
 
     A folder is a special type of file.
     """
@@ -106,8 +102,7 @@ class Folder(File):
         self.mime_type = "application/vnd.google-apps.folder"
 
     def list_files(self, recursive: bool = False) -> list[File]:
-        """
-        List files in this folder.
+        """List files in this folder.
 
         Args:
             recursive: Include files in subfolders (subfolders themselves are

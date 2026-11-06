@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class SecretManagerTokenStore(TokenStore):
-    """
-    Google Secret Manager token storage for Cloud Run.
+    """Google Secret Manager token storage for Cloud Run.
 
     Stores OAuth tokens as secrets in Google Cloud Secret Manager.
     Required for stateless deployments.
@@ -26,8 +25,7 @@ class SecretManagerTokenStore(TokenStore):
         secret_name: str = "gsuite-token",  # noqa: S107 - secret resource name, not a password
         auto_create: bool = False,
     ):
-        """
-        Initialize Secret Manager token store.
+        """Initialize Secret Manager token store.
 
         Args:
             project_id: GCP project ID

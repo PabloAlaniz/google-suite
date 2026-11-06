@@ -97,8 +97,7 @@ def build_filter(filters: list[dict[str, Any]] | None) -> dict[str, Any] | None:
 
 
 class Analytics:
-    """
-    Read-only Google Analytics 4 client.
+    """Read-only Google Analytics 4 client.
 
     Admin API (``analyticsadmin`` v1beta) for accounts and properties, Data API
     (``analyticsdata`` v1beta) for reports. Needs ``Scopes.analytics()``.

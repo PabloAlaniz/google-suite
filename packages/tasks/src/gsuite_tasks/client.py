@@ -21,8 +21,7 @@ _UNSET: Any = object()
 
 
 class Tasks:
-    """
-    High-level Google Tasks client.
+    """High-level Google Tasks client.
 
     Example:
         auth = GoogleAuth(scopes=Scopes.tasks())

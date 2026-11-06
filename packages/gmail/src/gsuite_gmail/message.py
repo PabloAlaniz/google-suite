@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
-    from gsuite_gmail.client import Gmail
+    from gsuite_gmail.client import Gmail, OutgoingAttachment
 
 
 @dataclass
@@ -31,8 +31,7 @@ class Attachment:
         return self._gmail._download_attachment(self._message_id, self.id)
 
     def save(self, path: str | None = None) -> str:
-        """
-        Download and save attachment to disk.
+        """Download and save attachment to disk.
 
         Args:
             path: Save path (default: current dir with original filename)
@@ -50,8 +49,7 @@ class Attachment:
 
 @dataclass
 class Message:
-    """
-    Gmail message with fluent modification methods.
+    """Gmail message with fluent modification methods.
 
     Example:
         message.mark_as_read().star().add_label("Work")
@@ -194,10 +192,9 @@ class Message:
         html: bool = False,
         signature: bool = False,
         reply_all: bool = False,
-        attachments: list | None = None,
+        attachments: "list[OutgoingAttachment] | None" = None,
     ) -> "Message":
-        """
-        Reply to this message, in the same thread for every participant.
+        """Reply to this message, in the same thread for every participant.
 
         Args:
             body: Reply body

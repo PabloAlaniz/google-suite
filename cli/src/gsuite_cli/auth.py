@@ -59,8 +59,7 @@ def login(
         ),
     ),
 ) -> None:
-    """
-    Authenticate with Google (opens browser).
+    """Authenticate with Google (opens browser).
 
     This will open a browser window for OAuth consent.
     """

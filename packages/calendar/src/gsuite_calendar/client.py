@@ -46,8 +46,7 @@ logger = logging.getLogger(__name__)
 
 
 class Calendar:
-    """
-    High-level Calendar client.
+    """High-level Calendar client.
 
     Example:
         auth = GoogleAuth()
@@ -68,8 +67,7 @@ class Calendar:
     """
 
     def __init__(self, auth: GoogleAuth, calendar_id: str = "primary"):
-        """
-        Initialize Calendar client.
+        """Initialize Calendar client.
 
         Args:
             auth: GoogleAuth instance with valid credentials
@@ -99,8 +97,7 @@ class Calendar:
         single_events: bool = True,
         order_by: str = "startTime",
     ) -> Iterator[Event]:
-        """
-        Lazily yield events in a time range, following result pages.
+        """Lazily yield events in a time range, following result pages.
 
         Args:
             time_min: Start of range (default: now). Naive datetimes are UTC.
@@ -143,8 +140,7 @@ class Calendar:
         single_events: bool = True,
         order_by: str = "startTime",
     ) -> list[Event]:
-        """
-        Get events in a time range.
+        """Get events in a time range.
 
         Args:
             time_min: Start of range (default: now). Naive datetimes are UTC.
@@ -167,8 +163,7 @@ class Calendar:
         calendar_id: str | None = None,
         max_results: int = 100,
     ) -> list[Event]:
-        """
-        Get upcoming events.
+        """Get upcoming events.
 
         Args:
             days: Number of days ahead (default: 7)
@@ -262,8 +257,7 @@ class Calendar:
         meet: bool = False,
         send_updates: SendUpdates = "none",
     ) -> Event:
-        """
-        Create a new event.
+        """Create a new event.
 
         Args:
             summary: Event title
@@ -340,8 +334,7 @@ class Calendar:
         calendar_id: str | None = None,
         send_updates: SendUpdates = "none",
     ) -> Event:
-        """
-        Change an event. Only the arguments you pass are updated.
+        """Change an event. Only the arguments you pass are updated.
 
         Moving an event: pass start (and end, or it becomes 1 hour long).
         attendees replaces the whole list.
@@ -408,8 +401,7 @@ class Calendar:
         time_max: datetime,
         calendars: list[str] | None = None,
     ) -> dict[str, list[dict[str, datetime | None]]]:
-        """
-        Busy intervals per calendar.
+        """Busy intervals per calendar.
 
         Args:
             calendars: Calendar IDs or emails ("me" = your primary calendar).
@@ -452,8 +444,7 @@ class Calendar:
         calendar_id: str | None = None,
         send_updates: SendUpdates = "none",
     ) -> bool:
-        """
-        Delete an event.
+        """Delete an event.
 
         Args:
             send_updates: Email attendees about the cancellation: "all",
@@ -482,6 +473,6 @@ class Calendar:
 
     # ========== Parsing ==========
 
-    def _parse_event(self, data: dict, calendar_id: str) -> Event:
+    def _parse_event(self, data: dict[str, Any], calendar_id: str) -> Event:
         """Parse Calendar API response to Event object."""
         return CalendarParser.parse_event(data, calendar_id)

@@ -1,12 +1,12 @@
 """Drive sharing permissions."""
 
 from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
 class Permission:
-    """
-    Who can access a file and how.
+    """Who can access a file and how.
 
     type is "user", "group", "domain" or "anyone"; role is "reader",
     "commenter", "writer", "fileOrganizer", "organizer" or "owner".
@@ -20,7 +20,7 @@ class Permission:
     display_name: str | None = None
 
     @classmethod
-    def from_api(cls, data: dict) -> "Permission":
+    def from_api(cls, data: dict[str, Any]) -> "Permission":
         return cls(
             id=data["id"],
             type=data.get("type", ""),

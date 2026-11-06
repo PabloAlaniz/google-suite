@@ -13,8 +13,7 @@ class LabelType(StrEnum):
 
 @dataclass
 class Label:
-    """
-    Gmail label.
+    """Gmail label.
 
     Labels are like folders/tags that can be applied to messages.
     """

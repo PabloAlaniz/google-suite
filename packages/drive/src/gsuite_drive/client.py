@@ -70,8 +70,7 @@ def default_export_format(mime_type: str) -> str:
 
 
 class Drive:
-    """
-    High-level Google Drive client.
+    """High-level Google Drive client.
 
     Works with My Drive and shared drives.
 
@@ -94,8 +93,7 @@ class Drive:
     """
 
     def __init__(self, auth: GoogleAuth):
-        """
-        Initialize Drive client.
+        """Initialize Drive client.
 
         Args:
             auth: GoogleAuth instance with valid credentials
@@ -123,8 +121,7 @@ class Drive:
         order_by: str = "modifiedTime desc",
         trashed: bool | None = False,
     ) -> Iterator[File]:
-        """
-        Lazily yield files, following result pages.
+        """Lazily yield files, following result pages.
 
         Args:
             query: Drive API query string (raw; quote values with drive_query_literal)
@@ -171,8 +168,7 @@ class Drive:
         order_by: str = "modifiedTime desc",
         trashed: bool | None = False,
     ) -> list[File]:
-        """
-        List files in Drive.
+        """List files in Drive.
 
         Args:
             query: Drive API query string (raw; quote values with drive_query_literal)
@@ -194,8 +190,7 @@ class Drive:
         return [DriveParser.to_folder(f) for f in files]
 
     def search(self, name: str, exact: bool = False) -> list[File]:
-        """
-        Search files by name.
+        """Search files by name.
 
         Args:
             name: File name to search
@@ -227,8 +222,7 @@ class Drive:
         return self._parse_file(item)
 
     def get_content(self, file_id: str) -> bytes:
-        """
-        Download file content as bytes.
+        """Download file content as bytes.
 
         Google Docs/Sheets/Slides have no binary content; use export().
         """
@@ -247,8 +241,7 @@ class Drive:
         return buffer.getvalue()
 
     def export(self, file_id: str, format: str) -> bytes:
-        """
-        Export a Google Doc, Sheet, Slides or Drawing.
+        """Export a Google Doc, Sheet, Slides or Drawing.
 
         Args:
             file_id: File ID
@@ -272,8 +265,7 @@ class Drive:
         return content
 
     def download(self, file_id: str, path: str, export_format: str | None = None) -> str:
-        """
-        Download file to local path.
+        """Download file to local path.
 
         Args:
             file_id: File ID
@@ -298,8 +290,7 @@ class Drive:
         description: str | None = None,
         starred: bool | None = None,
     ) -> File:
-        """
-        Update file metadata. Only the arguments you pass are changed.
+        """Update file metadata. Only the arguments you pass are changed.
 
         Returns:
             The updated File
@@ -327,8 +318,7 @@ class Drive:
         return self.update(file_id, name=name)
 
     def copy(self, file_id: str, name: str | None = None, parent_id: str | None = None) -> File:
-        """
-        Copy a file. Folders can't be copied.
+        """Copy a file. Folders can't be copied.
 
         Args:
             file_id: File to copy
@@ -355,8 +345,7 @@ class Drive:
         return self._parse_file(copied)
 
     def move(self, file_id: str, parent_id: str) -> File:
-        """
-        Move a file into another folder (removing it from its current ones).
+        """Move a file into another folder (removing it from its current ones).
 
         Returns:
             The moved file
@@ -391,8 +380,7 @@ class Drive:
         mime_type: str | None = None,
         on_progress: ProgressCallback | None = None,
     ) -> File:
-        """
-        Upload a file (resumable, in chunks; each chunk is retried on failure).
+        """Upload a file (resumable, in chunks; each chunk is retried on failure).
 
         Args:
             path: Local file path
@@ -419,8 +407,7 @@ class Drive:
         mime_type: str = "application/octet-stream",
         on_progress: ProgressCallback | None = None,
     ) -> File:
-        """
-        Upload content directly.
+        """Upload content directly.
 
         Args:
             content: File content as bytes or file-like object
@@ -469,8 +456,7 @@ class Drive:
         name: str,
         parent_id: str | None = None,
     ) -> Folder:
-        """
-        Create a folder.
+        """Create a folder.
 
         Args:
             name: Folder name
@@ -493,8 +479,7 @@ class Drive:
     # ========== Delete/Trash ==========
 
     def trash(self, file_id: str) -> bool:
-        """
-        Move file to trash.
+        """Move file to trash.
 
         Returns:
             True if trashed, False if the file doesn't exist. Other failures
@@ -503,8 +488,7 @@ class Drive:
         return self._set_trashed(file_id, True)
 
     def restore(self, file_id: str) -> bool:
-        """
-        Restore a file from the trash.
+        """Restore a file from the trash.
 
         Returns:
             True if restored, False if the file doesn't exist. Other failures raise.
@@ -529,8 +513,7 @@ class Drive:
         return True
 
     def delete(self, file_id: str) -> bool:
-        """
-        Permanently delete file. Prefer trash() unless you mean it.
+        """Permanently delete file. Prefer trash() unless you mean it.
 
         Returns:
             True if deleted, False if the file doesn't exist. Other failures raise.
@@ -573,8 +556,7 @@ class Drive:
         domain: str | None = None,
         notify: bool = True,
     ) -> Permission:
-        """
-        Grant access to a file.
+        """Grant access to a file.
 
         Args:
             file_id: File ID
@@ -624,8 +606,7 @@ class Drive:
         role: str = "reader",
         notify: bool = True,
     ) -> bool:
-        """
-        Share a file with someone.
+        """Share a file with someone.
 
         Args:
             file_id: File ID
@@ -645,8 +626,7 @@ class Drive:
         return True
 
     def remove_permission(self, file_id: str, permission_id: str) -> bool:
-        """
-        Revoke a permission.
+        """Revoke a permission.
 
         Returns:
             True if removed, False if the file or permission doesn't exist.
@@ -667,7 +647,7 @@ class Drive:
 
     # ========== Parsing ==========
 
-    def _parse_file(self, data: dict) -> File:
+    def _parse_file(self, data: dict[str, Any]) -> File:
         """Parse Drive API response to File object."""
         file = DriveParser.parse_file(data)
         file._drive = self

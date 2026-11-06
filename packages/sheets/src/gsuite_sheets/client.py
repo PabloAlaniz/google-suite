@@ -19,8 +19,7 @@ ValueInput = Literal["USER_ENTERED", "RAW"]
 
 
 class Sheets:
-    """
-    High-level Google Sheets client.
+    """High-level Google Sheets client.
 
     Inspired by gspread's simple API.
 
@@ -53,8 +52,7 @@ class Sheets:
         dataframe_backend: Literal["pandas", "polars"] = "pandas",
         batch_cell_limit: int | None = 50_000,
     ):
-        """
-        Initialize Sheets client.
+        """Initialize Sheets client.
 
         Args:
             auth: GoogleAuth instance with valid credentials
@@ -155,8 +153,7 @@ class Sheets:
     # ========== Opening spreadsheets (gspread-style) ==========
 
     def open(self, title: str) -> Spreadsheet:
-        """
-        Open a spreadsheet by title.
+        """Open a spreadsheet by title.
 
         Args:
             title: Spreadsheet title
@@ -189,8 +186,7 @@ class Sheets:
         return self.open_by_key(files[0]["id"])
 
     def open_by_key(self, key: str) -> Spreadsheet:
-        """
-        Open a spreadsheet by key (ID).
+        """Open a spreadsheet by key (ID).
 
         Args:
             key: Spreadsheet ID
@@ -211,8 +207,7 @@ class Sheets:
         return self._parse_spreadsheet(response)
 
     def open_by_url(self, url: str) -> Spreadsheet:
-        """
-        Open a spreadsheet by URL.
+        """Open a spreadsheet by URL.
 
         Args:
             url: Full Google Sheets URL
@@ -232,8 +227,7 @@ class Sheets:
     # ========== Creating spreadsheets ==========
 
     def create(self, title: str) -> Spreadsheet:
-        """
-        Create a new spreadsheet.
+        """Create a new spreadsheet.
 
         Args:
             title: Spreadsheet title
@@ -267,9 +261,8 @@ class Sheets:
 
     # ========== Listing ==========
 
-    def list_spreadsheets(self, max_results: int | None = 100) -> list[dict]:
-        """
-        List all spreadsheets accessible to the user.
+    def list_spreadsheets(self, max_results: int | None = 100) -> list[dict[str, Any]]:
+        """List all spreadsheets accessible to the user.
 
         Args:
             max_results: Maximum spreadsheets to return (None = all)
@@ -299,8 +292,7 @@ class Sheets:
         range: str,
         value_render: ValueRender = "FORMATTED_VALUE",
     ) -> list[list[Any]]:
-        """
-        Get values from a range.
+        """Get values from a range.
 
         Args:
             spreadsheet_id: Spreadsheet ID
@@ -342,9 +334,8 @@ class Sheets:
         range: str,
         values: list[list[Any]],
         value_input: ValueInput = "USER_ENTERED",
-    ) -> dict:
-        """
-        Update values in a range.
+    ) -> dict[str, Any]:
+        """Update values in a range.
 
         Args:
             value_input: USER_ENTERED parses values as if typed into the UI
@@ -352,7 +343,7 @@ class Sheets:
                 for untrusted data so text starting with "=" stays text.
         """
         self.clear_cache()  # keep engine reads consistent with direct writes
-        result: dict = execute(
+        result: dict[str, Any] = execute(
             self.service.spreadsheets()
             .values()
             .update(
@@ -373,10 +364,10 @@ class Sheets:
         range: str,
         values: list[list[Any]],
         value_input: ValueInput = "USER_ENTERED",
-    ) -> dict:
+    ) -> dict[str, Any]:
         """Append rows after the table found in `range` (see update_values for value_input)."""
         self.clear_cache()  # keep engine reads consistent with direct writes
-        result: dict = execute(
+        result: dict[str, Any] = execute(
             self.service.spreadsheets()
             .values()
             .append(
@@ -392,10 +383,10 @@ class Sheets:
         )
         return result
 
-    def clear_values(self, spreadsheet_id: str, range: str) -> dict:
+    def clear_values(self, spreadsheet_id: str, range: str) -> dict[str, Any]:
         """Clear values from a range (formatting is kept)."""
         self.clear_cache()  # keep engine reads consistent with direct writes
-        result: dict = execute(
+        result: dict[str, Any] = execute(
             self.service.spreadsheets().values().clear(spreadsheetId=spreadsheet_id, range=range),
             "sheets",
             "spreadsheet",
@@ -406,11 +397,10 @@ class Sheets:
     def batch_update(
         self,
         spreadsheet_id: str,
-        data: list[dict],
+        data: list[dict[str, Any]],
         value_input: ValueInput = "USER_ENTERED",
-    ) -> dict:
-        """
-        Batch update multiple ranges.
+    ) -> dict[str, Any]:
+        """Batch update multiple ranges.
 
         Args:
             spreadsheet_id: Spreadsheet ID
@@ -418,7 +408,7 @@ class Sheets:
             value_input: See update_values
         """
         self.clear_cache()  # keep engine reads consistent with direct writes
-        result: dict = execute(
+        result: dict[str, Any] = execute(
             self.service.spreadsheets()
             .values()
             .batchUpdate(
@@ -434,9 +424,10 @@ class Sheets:
         )
         return result
 
-    def batch_requests(self, spreadsheet_id: str, requests: list[dict]) -> list[dict]:
-        """
-        Run raw spreadsheets.batchUpdate requests (formatting, structure, ...).
+    def batch_requests(
+        self, spreadsheet_id: str, requests: list[dict[str, Any]]
+    ) -> list[dict[str, Any]]:
+        """Run raw spreadsheets.batchUpdate requests (formatting, structure, ...).
 
         Use for anything this client doesn't wrap; see the Sheets API
         reference for request types. Returns one reply per request.
@@ -450,16 +441,15 @@ class Sheets:
             "spreadsheet",
             spreadsheet_id,
         )
-        replies: list[dict] = response.get("replies", [])
+        replies: list[dict[str, Any]] = response.get("replies", [])
         return replies
 
     # ========== Formatting and protection ==========
 
     def format_range(
-        self, spreadsheet_id: str, sheet_id: int, range: str, cell_format: dict
+        self, spreadsheet_id: str, sheet_id: int, range: str, cell_format: dict[str, Any]
     ) -> None:
-        """
-        Apply a cell format to a range.
+        """Apply a cell format to a range.
 
         Args:
             range: A1 range without the sheet, e.g. "A1:Z1"
@@ -521,8 +511,7 @@ class Sheets:
         editors: list[str] | None = None,
         warning_only: bool = False,
     ) -> int:
-        """
-        Protect a range (or the whole sheet when range is None).
+        """Protect a range (or the whole sheet when range is None).
 
         Args:
             editors: Emails that can still edit (default: only the owner)
@@ -556,8 +545,7 @@ class Sheets:
         match_entire_cell: bool = False,
         regex: bool = False,
     ) -> int:
-        """
-        Find and replace text, in one sheet or all of them.
+        """Find and replace text, in one sheet or all of them.
 
         Args:
             regex: Treat `find` as a regular expression; `replacement` can
@@ -639,8 +627,7 @@ class Sheets:
         return SheetsParser.parse_worksheet_from_reply(replies[0]["duplicateSheet"])
 
     def delete_worksheet(self, spreadsheet_id: str, sheet_id: int) -> bool:
-        """
-        Delete a worksheet.
+        """Delete a worksheet.
 
         Returns:
             True if deleted, False if the spreadsheet doesn't exist. Other
@@ -672,8 +659,7 @@ class Sheets:
         role: str = "reader",
         notify: bool = True,
     ) -> bool:
-        """
-        Share a spreadsheet.
+        """Share a spreadsheet.
 
         Returns:
             True if shared, False if the spreadsheet doesn't exist. Other
@@ -698,7 +684,7 @@ class Sheets:
 
     # ========== Parsing ==========
 
-    def _parse_spreadsheet(self, data: dict) -> Spreadsheet:
+    def _parse_spreadsheet(self, data: dict[str, Any]) -> Spreadsheet:
         """Parse API response to Spreadsheet object."""
         spreadsheet = SheetsParser.parse_spreadsheet(data)
 

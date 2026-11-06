@@ -1,6 +1,7 @@
 """Tasks CLI commands."""
 
 from datetime import date
+from typing import Any
 
 import typer
 from rich.console import Console
@@ -41,7 +42,7 @@ def _day(value: str | None) -> date | None:
         raise typer.BadParameter(f"{value!r} is not a YYYY-MM-DD date") from None
 
 
-def _as_dict(t: Task) -> dict:
+def _as_dict(t: Task) -> dict[str, Any]:
     return {
         "id": t.id,
         "title": t.title,

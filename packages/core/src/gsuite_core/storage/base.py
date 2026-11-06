@@ -5,8 +5,7 @@ from typing import Any
 
 
 class TokenStore(ABC):
-    """
-    Abstract interface for OAuth token storage.
+    """Abstract interface for OAuth token storage.
 
     Implementations can store tokens in:
     - SQLite (local development)
@@ -16,8 +15,7 @@ class TokenStore(ABC):
 
     @abstractmethod
     def get_token(self, user_id: str = "default") -> dict[str, Any] | None:
-        """
-        Retrieve stored token data.
+        """Retrieve stored token data.
 
         Args:
             user_id: User identifier for multi-user setups
@@ -28,8 +26,7 @@ class TokenStore(ABC):
 
     @abstractmethod
     def save_token(self, token_data: dict[str, Any], user_id: str = "default") -> None:
-        """
-        Store token data.
+        """Store token data.
 
         Args:
             token_data: Token data to store
@@ -38,8 +35,7 @@ class TokenStore(ABC):
 
     @abstractmethod
     def delete_token(self, user_id: str = "default") -> bool:
-        """
-        Delete stored token.
+        """Delete stored token.
 
         Args:
             user_id: User identifier
@@ -50,8 +46,7 @@ class TokenStore(ABC):
 
     @abstractmethod
     def exists(self, user_id: str = "default") -> bool:
-        """
-        Check if token exists.
+        """Check if token exists.
 
         Args:
             user_id: User identifier

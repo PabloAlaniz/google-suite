@@ -56,8 +56,7 @@ def get_logs(
     limit: int = Query(50, ge=1, le=500),
     hours: int = Query(24, ge=1, le=168, description="Hours to look back"),
 ) -> dict[str, Any]:
-    """
-    Fetch recent logs from Cloud Logging.
+    """Fetch recent logs from Cloud Logging.
 
     Requires the X-Admin-Key header.
     """

@@ -1,6 +1,7 @@
 """Google OAuth2 authentication."""
 
 from pathlib import Path
+from typing import Any
 
 import httplib2
 from google.auth.exceptions import GoogleAuthError, RefreshError, TransportError
@@ -19,8 +20,7 @@ from gsuite_core.storage import SQLiteTokenStore, TokenStore
 
 
 class GoogleAuth:
-    """
-    Google OAuth2 authentication handler.
+    """Google OAuth2 authentication handler.
 
     Manages credential acquisition, refresh, and storage.
     Supports both OAuth (interactive) and Service Account (server-to-server).
@@ -44,8 +44,7 @@ class GoogleAuth:
         scopes: list[str] | None = None,
         user_id: str = "default",
     ):
-        """
-        Initialize OAuth authenticator.
+        """Initialize OAuth authenticator.
 
         Args:
             token_store: Storage backend for tokens (default: SQLite)
@@ -71,8 +70,7 @@ class GoogleAuth:
         scopes: list[str] | None = None,
         subject: str | None = None,
     ) -> "GoogleAuth":
-        """
-        Create authenticator from service account.
+        """Create authenticator from service account.
 
         Args:
             service_account_file: Path to service account JSON
@@ -152,8 +150,7 @@ class GoogleAuth:
         return creds.expired and creds.refresh_token is not None
 
     def refresh(self) -> bool:
-        """
-        Refresh expired credentials.
+        """Refresh expired credentials.
 
         Returns:
             True if refresh succeeded
@@ -173,8 +170,7 @@ class GoogleAuth:
         return True
 
     def authenticate(self, force: bool = False) -> Credentials:
-        """
-        Get valid credentials, running OAuth flow if needed.
+        """Get valid credentials, running OAuth flow if needed.
 
         Args:
             force: Force new authentication even if credentials exist
@@ -211,8 +207,7 @@ class GoogleAuth:
         return self._credentials
 
     def revoke(self) -> bool:
-        """
-        Revoke and delete stored credentials.
+        """Revoke and delete stored credentials.
 
         Returns:
             True if credentials were deleted
@@ -222,9 +217,8 @@ class GoogleAuth:
             return self.token_store.delete_token(self.user_id)
         return False
 
-    def export_token(self) -> dict | None:
-        """
-        Export token data for external storage.
+    def export_token(self) -> dict[str, Any] | None:
+        """Export token data for external storage.
 
         Returns:
             Token data dict or None if not authenticated
@@ -241,8 +235,7 @@ class GoogleAuth:
         return None
 
     def get_user_email(self) -> str | None:
-        """
-        Get authenticated user's email.
+        """Get authenticated user's email.
 
         Returns:
             Email address or None

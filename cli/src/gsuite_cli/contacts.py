@@ -1,5 +1,7 @@
 """Contacts CLI commands."""
 
+from typing import Any
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -28,7 +30,7 @@ def get_contacts() -> Contacts:
     return Contacts(auth)
 
 
-def _as_dict(c: Contact) -> dict:
+def _as_dict(c: Contact) -> dict[str, Any]:
     return {
         "id": c.id,
         "display_name": c.display_name,

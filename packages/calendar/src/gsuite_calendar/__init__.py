@@ -5,6 +5,7 @@ __version__ = "0.1.0"
 from gsuite_calendar.aio import AsyncCalendar
 from gsuite_calendar.calendar_entity import CalendarEntity
 from gsuite_calendar.client import Calendar
+from gsuite_calendar.delta import EventsDelta
 from gsuite_calendar.event import Event
 
 __all__ = [
@@ -12,4 +13,5 @@ __all__ = [
     "Calendar",
     "CalendarEntity",
     "Event",
+    "EventsDelta",
 ]

@@ -63,7 +63,21 @@ class CalendarParser:
             updated=CalendarParser._parse_datetime(data.get("updated")),
             creator=data.get("creator", {}).get("email"),
             recurring_event_id=data.get("recurringEventId"),
+            ical_uid=data.get("iCalUID"),
+            original_start=CalendarParser._parse_when(data.get("originalStartTime")),
+            organizer_name=data.get("organizer", {}).get("displayName"),
+            organizer_self=bool(data.get("organizer", {}).get("self")),
+            raw=data,
         )
+
+    @staticmethod
+    def _parse_when(when: dict[str, Any] | None) -> datetime | None:
+        """A start/end-like object: {"dateTime", "timeZone"} or {"date"}."""
+        if not when:
+            return None
+        if "date" in when:
+            return CalendarParser._parse_date(when["date"])
+        return CalendarParser._parse_datetime(when.get("dateTime"), when.get("timeZone"))
 
     @staticmethod
     def _meet_link(data: dict[str, Any]) -> str | None:
@@ -91,6 +105,7 @@ class CalendarParser:
             response_status=data.get("responseStatus", "needsAction"),
             organizer=data.get("organizer", False),
             self_=data.get("self", False),
+            resource=data.get("resource", False),
         )
 
     @staticmethod

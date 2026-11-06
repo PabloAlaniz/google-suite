@@ -34,6 +34,20 @@ busy = calendar.get_free_busy(datetime(2026, 3, 2, 9, tzinfo=tz), datetime(2026,
                               calendars=["ana@example.com"])
 ```
 
+Each `Event` also has `ical_uid` (the same in .ics exports), `recurring_event_id`
+and `original_start` (to tell occurrences apart), `organizer_name`,
+`organizer_self`, attendees' `resource` (rooms) and `raw` (the API's dict).
+
+Keeping a local copy in sync:
+
+```python
+delta = calendar.sync()                    # first time: the whole calendar
+delta = calendar.sync(delta.sync_token)    # later: delta.changed, delta.cancelled (deleted)
+```
+
+The API takes no time range with sync tokens. When Google invalidates a token,
+`sync` raises `SyncTokenExpiredError`: call it again without one.
+
 ## Creating and changing
 
 ```python

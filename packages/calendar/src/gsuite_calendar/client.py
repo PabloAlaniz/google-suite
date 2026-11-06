@@ -8,6 +8,7 @@ from zoneinfo import ZoneInfo
 
 from gsuite_calendar._requests import (
     FreeBusy,
+    add_events_page,
     details,
     free_busy_body,
     free_busy_ids,
@@ -16,9 +17,11 @@ from gsuite_calendar._requests import (
     parse_free_busy,
     patch_body,
     range_params,
+    sync_params,
     time_bodies,
 )
 from gsuite_calendar.calendar_entity import CalendarEntity
+from gsuite_calendar.delta import EventsDelta
 from gsuite_calendar.event import Event
 from gsuite_calendar.parser import CalendarParser
 from gsuite_core import GoogleAuth, execute, get_settings, paginate
@@ -159,6 +162,32 @@ class Calendar:
         tomorrow = today + timedelta(days=1)
 
         return self.get_events(time_min=today, time_max=tomorrow, calendar_id=calendar_id)
+
+    def sync(
+        self,
+        sync_token: str | None = None,
+        calendar_id: str | None = None,
+        single_events: bool = True,
+    ) -> EventsDelta:
+        """Events changed or cancelled since ``sync_token`` (every event without one).
+
+        The API allows no time range with sync tokens, so the first sync lists
+        the whole calendar; later ones return only what changed. Keep
+        ``delta.sync_token`` for the next call, with the same ``single_events``.
+
+        Raises:
+            SyncTokenExpiredError: Google invalidated the token (410); sync
+                again without it.
+        """
+        cal_id = calendar_id or self.calendar_id
+        params = {"calendarId": cal_id, **sync_params(single_events, sync_token)}
+        delta = EventsDelta()
+        while True:
+            page = execute(self.service.events().list(**params), "calendar", "sync")
+            add_events_page(delta, page, cal_id)
+            if not page.get("nextPageToken"):
+                return delta
+            params["pageToken"] = page["nextPageToken"]
 
     def get_event(self, event_id: str, calendar_id: str | None = None) -> Event | None:
         """Get a specific event by ID."""

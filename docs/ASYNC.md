@@ -116,6 +116,10 @@ async with AsyncCalendar(auth) as cal:
     await cal.create_event("Standup", datetime(2026, 3, 2, 9), meet=True)
 ```
 
+`calendar.sync(token)` (both clients) returns the events changed or
+cancelled since a sync token; the first call, without one, lists the whole
+calendar.
+
 ## Drive
 
 `AsyncDrive` mirrors `Drive`: listing and search, metadata (get, update,

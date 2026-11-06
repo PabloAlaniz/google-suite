@@ -26,6 +26,7 @@ from zoneinfo import ZoneInfo
 
 from gsuite_calendar._requests import (
     FreeBusy,
+    add_events_page,
     details,
     free_busy_body,
     free_busy_ids,
@@ -34,10 +35,12 @@ from gsuite_calendar._requests import (
     parse_free_busy,
     patch_body,
     range_params,
+    sync_params,
     time_bodies,
 )
 from gsuite_calendar.calendar_entity import CalendarEntity
 from gsuite_calendar.client import SendUpdates
+from gsuite_calendar.delta import EventsDelta
 from gsuite_calendar.event import Event
 from gsuite_calendar.parser import CalendarParser
 from gsuite_core import get_settings
@@ -146,6 +149,29 @@ class AsyncCalendar:
         tz = ZoneInfo(get_settings().default_timezone)
         today = datetime.now(tz).replace(hour=0, minute=0, second=0, microsecond=0)
         return await self.get_events(today, today + timedelta(days=1), calendar_id)
+
+    async def sync(
+        self,
+        sync_token: str | None = None,
+        calendar_id: str | None = None,
+        single_events: bool = True,
+    ) -> EventsDelta:
+        """Events changed or cancelled since ``sync_token`` (see ``Calendar.sync``).
+
+        Raises:
+            SyncTokenExpiredError: Google invalidated the token; sync again without it.
+        """
+        cal_id = calendar_id or self.calendar_id
+        params = sync_params(single_events, sync_token)
+        delta = EventsDelta()
+        while True:
+            page = await self._json(
+                "GET", self._events_url(cal_id), params=params, resource_type="sync"
+            )
+            add_events_page(delta, page, cal_id)
+            if not page.get("nextPageToken"):
+                return delta
+            params["pageToken"] = page["nextPageToken"]
 
     async def get_event(self, event_id: str, calendar_id: str | None = None) -> Event | None:
         """An event by ID, or None if it doesn't exist."""

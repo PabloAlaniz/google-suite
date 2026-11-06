@@ -7,3 +7,5 @@
 ::: gsuite_calendar.Event
 
 ::: gsuite_calendar.CalendarEntity
+
+::: gsuite_calendar.EventsDelta

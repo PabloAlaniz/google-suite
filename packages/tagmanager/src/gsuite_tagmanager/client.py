@@ -6,9 +6,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from googleapiclient.discovery import build
-
-from gsuite_core import GoogleAuth, authorized_http, execute, paginate
+from gsuite_core import GoogleAuth, execute, paginate
+from gsuite_core.service import GoogleService
 from gsuite_tagmanager.models import (
     Account,
     Container,
@@ -55,20 +54,10 @@ class TagManager:
     Needs ``Scopes.tagmanager()``.
     """
 
+    service = GoogleService("tagmanager", "v2")
+
     def __init__(self, auth: GoogleAuth):
         self.auth = auth
-        self._service: Any = None
-
-    @property
-    def service(self) -> Any:
-        if self._service is None:
-            self._service = build(
-                "tagmanager",
-                "v2",
-                http=authorized_http(self.auth.credentials),
-                cache_discovery=False,
-            )
-        return self._service
 
     @property
     def _accounts(self) -> Any:

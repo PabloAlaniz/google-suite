@@ -341,8 +341,8 @@ def fake_sheets(client: InMemoryClient, **options: Any) -> Any:
 
     sheets = Sheets(Mock(), **options)
     fake = FakeGoogleService(client)
-    sheets._sheets_service = fake
-    sheets._drive_service = fake
+    sheets.service = fake
+    sheets.drive = fake
     return sheets
 
 

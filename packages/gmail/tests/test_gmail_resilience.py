@@ -11,7 +11,7 @@ RAW = {"id": "m", "threadId": "t", "payload": {"headers": []}, "labelIds": []}
 
 @pytest.fixture
 def service(batching):
-    with patch("gsuite_gmail.client.build") as build:
+    with patch("gsuite_core.service.build") as build:
         svc = batching(MagicMock())
         build.return_value = svc
         yield svc

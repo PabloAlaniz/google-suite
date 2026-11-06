@@ -11,7 +11,7 @@ from gsuite_core import Settings
 
 @pytest.fixture
 def service():
-    with patch("gsuite_calendar.client.build") as build:
+    with patch("gsuite_core.service.build") as build:
         svc = MagicMock()
         svc.events().list().execute.return_value = {"items": []}
         build.return_value = svc

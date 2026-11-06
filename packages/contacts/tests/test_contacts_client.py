@@ -27,7 +27,7 @@ PERSON = {
 
 @pytest.fixture
 def service():
-    with patch("gsuite_contacts.client.build") as build:
+    with patch("gsuite_core.service.build") as build:
         svc = MagicMock()
         build.return_value = svc
         yield svc

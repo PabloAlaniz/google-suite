@@ -13,7 +13,7 @@ FOLDER = "application/vnd.google-apps.folder"
 
 @pytest.fixture
 def service():
-    with patch("gsuite_drive.client.build") as build:
+    with patch("gsuite_core.service.build") as build:
         svc = MagicMock()
         build.return_value = svc
         yield svc

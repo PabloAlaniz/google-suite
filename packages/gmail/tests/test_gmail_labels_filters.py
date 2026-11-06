@@ -12,7 +12,7 @@ LABELS = {"labels": [{"id": "INBOX", "name": "INBOX"}, {"id": "Label_7", "name":
 
 @pytest.fixture
 def service(batching):
-    with patch("gsuite_gmail.client.build") as build:
+    with patch("gsuite_core.service.build") as build:
         svc = batching(MagicMock())
         svc.users().labels().list().execute.return_value = LABELS
         build.return_value = svc

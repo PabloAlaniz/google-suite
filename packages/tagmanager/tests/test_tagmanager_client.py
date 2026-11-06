@@ -15,7 +15,7 @@ WS = "accounts/1/containers/2/workspaces/3"
 @pytest.fixture
 def gtm():
     client = TagManager(MagicMock(name="auth"))
-    client._service = MagicMock(name="service")
+    client.service = MagicMock(name="service")
     return client
 
 

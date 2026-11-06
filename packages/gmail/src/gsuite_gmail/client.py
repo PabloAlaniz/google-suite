@@ -13,10 +13,9 @@ from itertools import islice
 from pathlib import Path
 from typing import Any
 
-from googleapiclient.discovery import build
-
-from gsuite_core import GoogleAuth, authorized_http, execute, execute_batch, paginate
+from gsuite_core import GoogleAuth, execute, execute_batch, paginate
 from gsuite_core.exceptions import GSuiteError, NotFoundError, ValidationError
+from gsuite_core.service import GoogleService
 from gsuite_gmail.draft import Draft
 from gsuite_gmail.label import Label
 from gsuite_gmail.message import Message
@@ -164,6 +163,8 @@ class Gmail:
         )
     """
 
+    service = GoogleService("gmail", "v1")
+
     def __init__(self, auth: GoogleAuth, user_id: str = "me"):
         """Initialize Gmail client.
 
@@ -173,18 +174,8 @@ class Gmail:
         """
         self.auth = auth
         self.user_id = user_id
-        self._service: Any = None
         self._labels_cache: dict[str, str] | None = None
         self._email: str | None = None
-
-    @property
-    def service(self) -> Any:
-        """Lazy-load Gmail API service."""
-        if self._service is None:
-            self._service = build(
-                "gmail", "v1", http=authorized_http(self.auth.credentials), cache_discovery=False
-            )
-        return self._service
 
     # ========== Message retrieval ==========
 

@@ -77,8 +77,8 @@ def service():
 @pytest.fixture
 def sheets(service):
     client = Sheets(Mock())
-    client._sheets_service = service
-    client._drive_service = service
+    client.service = service
+    client.drive = service
     return client
 
 

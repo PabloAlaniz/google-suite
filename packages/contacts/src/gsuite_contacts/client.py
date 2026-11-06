@@ -4,12 +4,11 @@ import logging
 from collections.abc import Iterator
 from typing import Any, Literal
 
-from googleapiclient.discovery import build
-
 from gsuite_contacts.contact import Contact
 from gsuite_contacts.parser import PERSON_FIELDS, ContactsParser
-from gsuite_core import GoogleAuth, authorized_http, execute, paginate
+from gsuite_core import GoogleAuth, execute, paginate
 from gsuite_core.exceptions import NotFoundError, ValidationError
+from gsuite_core.service import GoogleService
 
 logger = logging.getLogger(__name__)
 
@@ -48,19 +47,11 @@ class Contacts:
         contacts.update(contact.id, phones=["+54 11 5555-5555"])
     """
 
+    service = GoogleService("people", "v1")
+
     def __init__(self, auth: GoogleAuth):
         self.auth = auth
-        self._service = None
         self._search_warmed_up = False
-
-    @property
-    def service(self) -> Any:
-        """Lazy-load People API service."""
-        if self._service is None:
-            self._service = build(
-                "people", "v1", http=authorized_http(self.auth.credentials), cache_discovery=False
-            )
-        return self._service
 
     # ========== Reading ==========
 

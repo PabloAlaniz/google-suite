@@ -21,7 +21,7 @@ EVENT = {
 
 @pytest.fixture
 def service():
-    with patch("gsuite_calendar.client.build") as build:
+    with patch("gsuite_core.service.build") as build:
         svc = MagicMock()
         for method in ("insert", "patch", "quickAdd"):
             getattr(svc.events(), method)().execute.return_value = EVENT

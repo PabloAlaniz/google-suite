@@ -5,10 +5,9 @@ from collections.abc import Iterator
 from datetime import date
 from typing import Any
 
-from googleapiclient.discovery import build
-
-from gsuite_core import GoogleAuth, authorized_http, execute, paginate
+from gsuite_core import GoogleAuth, execute, paginate
 from gsuite_core.exceptions import NotFoundError, ValidationError
+from gsuite_core.service import GoogleService
 from gsuite_tasks.parser import TasksParser, format_due
 from gsuite_tasks.task import Task, TaskList
 
@@ -39,19 +38,11 @@ class Tasks:
     default list (``@default``).
     """
 
+    service = GoogleService("tasks", "v1")
+
     def __init__(self, auth: GoogleAuth, tasklist_id: str = DEFAULT_LIST):
         self.auth = auth
         self.tasklist_id = tasklist_id
-        self._service = None
-
-    @property
-    def service(self) -> Any:
-        """Lazy-load Tasks API service."""
-        if self._service is None:
-            self._service = build(
-                "tasks", "v1", http=authorized_http(self.auth.credentials), cache_discovery=False
-            )
-        return self._service
 
     def _list(self, tasklist_id: str | None) -> str:
         return tasklist_id or self.tasklist_id

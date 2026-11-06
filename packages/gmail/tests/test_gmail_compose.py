@@ -31,7 +31,7 @@ def _raw_original(**headers):
 
 @pytest.fixture
 def service():
-    with patch("gsuite_gmail.client.build") as build:
+    with patch("gsuite_core.service.build") as build:
         svc = MagicMock()
         svc.users().getProfile().execute.return_value = {"emailAddress": ME}
         svc.users().messages().send().execute.return_value = {"id": "sent"}

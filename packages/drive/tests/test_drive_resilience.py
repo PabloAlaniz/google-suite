@@ -9,7 +9,7 @@ from gsuite_drive.client import Drive
 
 @pytest.fixture
 def service():
-    with patch("gsuite_drive.client.build") as build:
+    with patch("gsuite_core.service.build") as build:
         svc = MagicMock()
         svc.files().list().execute.return_value = {"files": []}
         build.return_value = svc

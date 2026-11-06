@@ -6,6 +6,8 @@
 
 ::: gsuite_core.Settings
 
+::: gsuite_core.GoogleService
+
 ::: gsuite_core.exceptions
 
 ::: gsuite_core.aio.AsyncGoogleClient

@@ -16,3 +16,16 @@ class HistoryDelta:
     deleted: list[str] = field(default_factory=list)
     labels_changed: list[str] = field(default_factory=list)
     history_id: str | None = None
+    # Label IDs each added message had when it arrived, e.g. to skip some labels
+    added_labels: dict[str, list[str]] = field(default_factory=dict)
+
+
+@dataclass
+class IdPage:
+    """One page of message IDs, and the token for the next (None on the last page).
+
+    Store ``next_page_token`` to resume a long listing later, e.g. across runs.
+    """
+
+    ids: list[str] = field(default_factory=list)
+    next_page_token: str | None = None

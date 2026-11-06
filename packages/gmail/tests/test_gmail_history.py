@@ -44,7 +44,11 @@ def test_folding_drops_deleted_messages_and_repeats():
     finish_history(delta)
 
     assert delta == HistoryDelta(
-        added=["m1"], deleted=["m2"], labels_changed=["m1", "m3"], history_id="15"
+        added=["m1"],
+        deleted=["m2"],
+        labels_changed=["m1", "m3"],
+        history_id="15",
+        added_labels={"m1": []},  # m2 was deleted
     )
 
 
@@ -173,3 +177,63 @@ class TestAsync:
         assert thread.messages[0].subject == "Hi"
         assert calls[-1][1]["format"] == "metadata"
         assert calls[-1][1].get_list("metadataHeaders") == ["Subject"]
+
+
+def test_added_labels_keep_each_message_labels():
+    delta = HistoryDelta()
+    add_history_page(
+        delta,
+        {
+            "history": [
+                {"messagesAdded": [{"message": {"id": "m7", "labelIds": ["INBOX", "Label_3"]}}]}
+            ]
+        },
+    )
+
+    assert finish_history(delta).added_labels == {"m7": ["INBOX", "Label_3"]}
+
+
+class TestRawAndPages:
+    @pytest.fixture
+    def service(self):
+        with patch("gsuite_core.service.build") as build:
+            svc = MagicMock()
+            build.return_value = svc
+            yield svc
+
+    def test_one_page_of_ids_with_its_token(self, service):
+        lister = service.users().messages().list
+        lister.return_value.execute.return_value = {
+            "messages": [{"id": "m1"}],
+            "nextPageToken": "p2",
+        }
+
+        page = Gmail(Mock()).list_message_ids("in:inbox", page_token="p1", page_size=50)
+
+        assert (page.ids, page.next_page_token) == (["m1"], "p2")
+        kwargs = lister.call_args.kwargs
+        assert (kwargs["q"], kwargs["pageToken"], kwargs["maxResults"]) == ("in:inbox", "p1", 50)
+
+    def test_message_and_thread_keep_the_api_dict(self, service):
+        service.users().threads().get.return_value.execute.return_value = {
+            "id": "t1",
+            "messages": [HEADERS_ONLY],
+        }
+
+        thread = Gmail(Mock()).get_thread("t1", format="metadata")
+
+        assert thread.raw["id"] == "t1"
+        assert thread.messages[0].raw is HEADERS_ONLY
+
+
+async def test_async_page_of_ids():
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["pageToken"] == "p1"
+        return httpx.Response(200, json={"messages": [{"id": "m1"}]})
+
+    s = Settings(max_retries=0, _env_file=None)
+    with patch("gsuite_core.config.get_settings", return_value=s):
+        async with AsyncGmail(FakeCredentials(), transport=httpx.MockTransport(handler)) as g:
+            page = await g.list_message_ids(page_token="p1")
+
+    assert (page.ids, page.next_page_token) == (["m1"], None)

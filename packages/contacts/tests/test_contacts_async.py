@@ -215,3 +215,14 @@ class TestGroups:
         assert skipped == ["people/c3"]
         sent = [c[3] for c in api.calls if c[1] == "contactGroups/a1/members:modify"]
         assert [len(b.get("resourceNamesToAdd", [])) for b in sent] == [1000, 1]
+
+
+async def test_update_raw(contacts, api):
+    api.routes["PATCH", "people/c1:updateContact"] = (200, person("c1"))
+
+    await contacts.update_raw("c1", {"etag": "e9", "urls": []}, "urls")
+
+    _, _, params, body = api.last("PATCH", "people/c1:updateContact")
+    assert params["updatePersonFields"] == "urls"
+    assert body == {"etag": "e9", "urls": []}
+    assert not [c for c in api.calls if c[0] == "GET"]

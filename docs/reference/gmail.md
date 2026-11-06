@@ -7,3 +7,5 @@
 ::: gsuite_gmail.Message
 
 ::: gsuite_gmail.HistoryDelta
+
+::: gsuite_gmail.IdPage

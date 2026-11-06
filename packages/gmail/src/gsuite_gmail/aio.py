@@ -52,7 +52,7 @@ from gsuite_gmail._requests import (
 )
 from gsuite_gmail.client import BATCH_MODIFY_LIMIT, BATCH_SIZE
 from gsuite_gmail.draft import Draft
-from gsuite_gmail.history import HistoryDelta
+from gsuite_gmail.history import HistoryDelta, IdPage
 from gsuite_gmail.label import Label
 from gsuite_gmail.message import Message
 from gsuite_gmail.parser import GmailParser
@@ -276,6 +276,7 @@ class AsyncGmail:
             id=data["id"],
             messages=[self._parse(m, include_body) for m in data.get("messages", [])],
             snippet=data.get("snippet", ""),
+            raw=data,
         )
 
     async def _fetch_thread(
@@ -535,6 +536,23 @@ class AsyncGmail:
     ) -> AsyncIterator[str]:
         """IDs of the matching messages, without fetching them (500 per request)."""
         return self._iter_ids("messages", query, labels, max_results)
+
+    async def list_message_ids(
+        self,
+        query: str | Query | None = None,
+        labels: list[str] | None = None,
+        page_token: str | None = None,
+        page_size: int = 500,
+    ) -> IdPage:
+        """One page of matching message IDs and the next page's token (see ``Gmail``)."""
+        params = {"maxResults": max(1, min(page_size, 500)), **list_params(query, labels)}
+        if page_token:
+            params["pageToken"] = page_token
+        data = await self._json("GET", "messages", params=params)
+        return IdPage(
+            ids=[ref["id"] for ref in data.get("messages", [])],
+            next_page_token=data.get("nextPageToken"),
+        )
 
     def iter_thread_ids(
         self,

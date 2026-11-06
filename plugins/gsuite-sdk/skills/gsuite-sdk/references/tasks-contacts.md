@@ -88,6 +88,10 @@ delta = contacts.sync(delta.sync_token)            # later: delta.changed, delta
 `sync` raises `SyncTokenExpiredError` when the token is too old (about a week):
 call it again without one.
 
+Callers that build People API bodies themselves: `contacts.create(raw_fields=body)`
+and `contacts.update_raw(contact_id, body, ["names", "urls"])` (the body carries
+its `etag`; nothing is read first).
+
 ## CLI
 
 ```bash

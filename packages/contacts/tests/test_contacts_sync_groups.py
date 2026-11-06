@@ -216,3 +216,30 @@ class TestGroups:
             contacts.group_members("contactGroups/a/b")
         with pytest.raises(ValidationError):
             contacts.create_group("  ")
+
+
+class TestRawBodies:
+    def test_create_from_an_api_body(self, contacts, service):
+        create = service.people().createContact
+        create.return_value.execute.return_value = person("c5")
+        body = {"names": [{"givenName": "Ana"}], "urls": [{"value": "https://ana.dev"}]}
+
+        contacts.create(raw_fields=body)
+
+        assert create.call_args.kwargs["body"] == body
+
+    def test_update_raw_sends_the_body_as_is(self, contacts, service):
+        update = service.people().updateContact
+        update.return_value.execute.return_value = person("c1")
+        body = {"etag": "e9", "names": [{"givenName": "Ana"}]}
+
+        contacts.update_raw("c1", body, ["names"])
+
+        kwargs = update.call_args.kwargs
+        assert (kwargs["resourceName"], kwargs["updatePersonFields"]) == ("people/c1", "names")
+        assert kwargs["body"] is body
+        service.people().get.assert_not_called()  # no read before writing
+
+    def test_update_raw_needs_the_etag(self, contacts):
+        with pytest.raises(ValidationError, match="etag"):
+            contacts.update_raw("c1", {"names": []}, "names")

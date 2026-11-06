@@ -50,4 +50,4 @@ class Task:
     @property
     def is_overdue(self) -> bool:
         """Open and due before today (in local time)."""
-        return not self.is_completed and self.due is not None and self.due < date.today()
+        return not self.is_completed and self.due is not None and self.due < date.today()  # noqa: DTZ011 - local on purpose

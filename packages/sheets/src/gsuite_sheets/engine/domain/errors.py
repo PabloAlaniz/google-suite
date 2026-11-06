@@ -16,7 +16,7 @@ class GSpreadManagerError(GSuiteError):
     (handlers de la REST API, la CLI) atrapa también los del motor de Sheets.
     """
 
-    def __init__(self, message: str = "", *args: object) -> None:
+    def __init__(self, message: str = "", *args: object) -> None:  # noqa: ARG002
         """Acepta el mensaje como los errores de GSM (``GSuiteError`` lo guarda en ``message``)."""
         super().__init__(str(message))
 

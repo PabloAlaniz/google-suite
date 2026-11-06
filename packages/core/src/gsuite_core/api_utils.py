@@ -441,8 +441,12 @@ def api_call(
                         raise map_http_error(e, service, resource_type) from e
                     wait = _backoff(attempt, _retry_delay, _retry_after(e))
                     logger.warning(
-                        f"{service}: HTTP {e.resp.status}, retrying in {wait:.1f}s "
-                        f"(attempt {attempt + 1}/{_max_retries})"
+                        "%s: HTTP %s, retrying in %.1fs (attempt %d/%d)",
+                        service,
+                        e.resp.status,
+                        wait,
+                        attempt + 1,
+                        _max_retries,
                     )
                     time.sleep(wait)
 
@@ -477,11 +481,11 @@ def api_call_optional(
             try:
                 return func(*args, **kwargs)
             except NotFoundError:
-                logger.debug(f"{service}: {resource_type} not found")
+                logger.debug("%s: %s not found", service, resource_type)
                 return None
             except HttpError as e:
                 if e.resp.status == 404:
-                    logger.debug(f"{service}: {resource_type} not found")
+                    logger.debug("%s: %s not found", service, resource_type)
                     return None
                 raise map_http_error(e, service, resource_type) from e
 

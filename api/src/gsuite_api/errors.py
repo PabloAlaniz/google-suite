@@ -92,7 +92,7 @@ def _gsuite_error(request: Request, exc: Exception) -> JSONResponse:
     if engine_status is not None:
         return problem(request, engine_status, exc.message)
 
-    logger.exception("Unhandled SDK error", exc_info=exc)
+    logger.error("Unhandled SDK error", exc_info=exc)
     return problem(request, 500, "Internal error")
 
 
@@ -145,7 +145,7 @@ def _validation_error(request: Request, exc: Exception) -> JSONResponse:
 
 
 def _unhandled(request: Request, exc: Exception) -> JSONResponse:
-    logger.exception("Unhandled error", exc_info=exc)
+    logger.error("Unhandled error", exc_info=exc)
     return problem(request, 500, "Internal error")
 
 

@@ -658,9 +658,9 @@ class Sheets:
                 spreadsheet_id,
             )
         except NotFoundError:
-            logger.warning(f"Spreadsheet not found: {spreadsheet_id}")
+            logger.warning("Spreadsheet not found: %s", spreadsheet_id)
             return False
-        logger.info(f"Deleted worksheet {sheet_id} from {spreadsheet_id}")
+        logger.info("Deleted worksheet %s from %s", sheet_id, spreadsheet_id)
         return True
 
     # ========== Sharing ==========
@@ -691,9 +691,9 @@ class Sheets:
                 spreadsheet_id,
             )
         except NotFoundError:
-            logger.error(f"Spreadsheet not found: {spreadsheet_id}")
+            logger.error("Spreadsheet not found: %s", spreadsheet_id)
             return False
-        logger.info(f"Shared spreadsheet {spreadsheet_id} with {email} ({role})")
+        logger.info("Shared spreadsheet %s with %s (%s)", spreadsheet_id, email, role)
         return True
 
     # ========== Parsing ==========

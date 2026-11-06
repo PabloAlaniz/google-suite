@@ -192,7 +192,7 @@ class _FakeBatch:
         for request, request_id in self.items:
             try:
                 response = request.execute()
-            except Exception as exc:  # delivered to the callback, like the real batch
+            except Exception as exc:  # noqa: BLE001 - delivered to the callback, like the real batch
                 self.callback(request_id, None, exc)
             else:
                 self.callback(request_id, response, None)

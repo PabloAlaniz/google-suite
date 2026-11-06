@@ -19,7 +19,7 @@ aware_timestamps = aware_datetimes.map(datetime.isoformat) | aware_datetimes.map
 def _parses_naive(value: str) -> bool:
     """B9-dates-1 input: an ISO string without an offset."""
     try:
-        return datetime.fromisoformat(value.replace("Z", "+00:00")).tzinfo is None
+        return datetime.fromisoformat(value).tzinfo is None
     except ValueError:
         return False
 

@@ -1,6 +1,6 @@
 """Calendar CLI commands."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 import typer
 from rich.console import Console
@@ -135,12 +135,13 @@ def create(
     """Create a new calendar event."""
     cal = get_calendar()
 
-    # Parse start time
+    # Parse start time. Naive on purpose: the Calendar client reads naive
+    # datetimes as wall time in GSUITE_DEFAULT_TIMEZONE.
     try:
         if " " in start:
-            start_dt = datetime.strptime(start, "%Y-%m-%d %H:%M")
+            start_dt = datetime.strptime(start, "%Y-%m-%d %H:%M")  # noqa: DTZ007
         else:
-            start_dt = datetime.strptime(start, "%Y-%m-%d")
+            start_dt = datetime.strptime(start, "%Y-%m-%d")  # noqa: DTZ007
             all_day = True
     except ValueError:
         console.print("[red]Invalid start format. Use: YYYY-MM-DD HH:MM or YYYY-MM-DD[/red]")
@@ -151,9 +152,9 @@ def create(
     if end:
         try:
             if " " in end:
-                end_dt = datetime.strptime(end, "%Y-%m-%d %H:%M")
+                end_dt = datetime.strptime(end, "%Y-%m-%d %H:%M")  # noqa: DTZ007
             else:
-                end_dt = datetime.strptime(end, "%Y-%m-%d")
+                end_dt = datetime.strptime(end, "%Y-%m-%d")  # noqa: DTZ007
         except ValueError:
             console.print("[red]Invalid end format[/red]")
             raise typer.Exit(1) from None
@@ -248,7 +249,7 @@ def week() -> None:
             by_day[day_key].append(event)
 
     for day, day_events in sorted(by_day.items()):
-        day_dt = datetime.strptime(day, "%Y-%m-%d")
+        day_dt = date.fromisoformat(day)
         day_name = day_dt.strftime("%A, %B %d")
 
         console.print(f"\n[bold cyan]{day_name}[/bold cyan]")

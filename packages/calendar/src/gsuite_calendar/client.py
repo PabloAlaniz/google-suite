@@ -3,7 +3,7 @@
 import logging
 import uuid
 from collections.abc import Iterator
-from datetime import UTC, date, datetime, timedelta
+from datetime import MINYEAR, UTC, date, datetime, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
@@ -38,7 +38,7 @@ def _rfc3339(value: datetime) -> str:
     try:
         value = value.astimezone(UTC)
     except OverflowError:
-        value = _MIN_UTC if value.year == datetime.min.year else _MAX_UTC
+        value = _MIN_UTC if value.year == MINYEAR else _MAX_UTC
     return value.isoformat().replace("+00:00", "Z")
 
 
@@ -436,7 +436,7 @@ class Calendar:
         for requested, query_id in zip(ids, query_ids, strict=True):
             info = response.get("calendars", {}).get(query_id, {})
             if info.get("errors"):
-                logger.warning(f"Free/busy unavailable for {requested}: {info['errors']}")
+                logger.warning("Free/busy unavailable for %s: %s", requested, info["errors"])
             result[requested] = [
                 {
                     "start": CalendarParser._parse_datetime(b.get("start")),
@@ -475,9 +475,9 @@ class Calendar:
                 event_id,
             )
         except NotFoundError:
-            logger.warning(f"Event not found for deletion: {event_id}")
+            logger.warning("Event not found for deletion: %s", event_id)
             return False
-        logger.info(f"Deleted event {event_id}")
+        logger.info("Deleted event %s", event_id)
         return True
 
     # ========== Parsing ==========

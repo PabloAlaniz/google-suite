@@ -54,7 +54,7 @@ and uses your own Google login.
 | Drive | `drive_search`, `drive_read_file`, `drive_upload`, `drive_share` |
 | Sheets | `sheets_read`, `sheets_append`, `sheets_update`, `sheets_upsert` |
 | Tasks | `tasks_list`, `tasks_add`, `tasks_complete` |
-| Contacts | `contacts_search`, `contacts_get` |
+| Contacts | `contacts_search`, `contacts_get`, `contacts_list_groups`, `contacts_group_members`, `contacts_create_group`, `contacts_modify_group`, `contacts_delete_group` |
 | Search Console (read-only) | `searchconsole_list_sites`, `searchconsole_query`, `searchconsole_inspect_url`, `searchconsole_list_sitemaps` |
 | Analytics GA4 (read-only) | `analytics_account_summaries`, `analytics_list_properties`, `analytics_run_report`, `analytics_run_realtime_report` |
 | Tag Manager (read-only) | `tagmanager_list_accounts`, `tagmanager_list_containers`, `tagmanager_list_workspaces`, `tagmanager_list_tags`, `tagmanager_list_triggers`, `tagmanager_list_variables`, `tagmanager_list_versions` |

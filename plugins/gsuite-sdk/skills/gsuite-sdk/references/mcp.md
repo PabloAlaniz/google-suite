@@ -24,7 +24,7 @@ Tools (read-only ones are annotated so clients can run them without asking):
 | Drive | `drive_search`, `drive_read_file` (Docs as text, Sheets as CSV), `drive_upload`, `drive_share` |
 | Sheets | `sheets_read`, `sheets_append`, `sheets_update`, `sheets_upsert` |
 | Tasks | `tasks_list`, `tasks_add`, `tasks_complete` |
-| Contacts | `contacts_search`, `contacts_get` |
+| Contacts | `contacts_search`, `contacts_get`, `contacts_list_groups`, `contacts_group_members`, `contacts_create_group`, `contacts_modify_group`, `contacts_delete_group` |
 
 List results come back as `{"count": n, "results": [...]}`. Errors are tool
 errors with a hint: no login → run `gsuite auth login`; a missing scope →

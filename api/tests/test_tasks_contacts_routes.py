@@ -4,8 +4,8 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from gsuite_contacts import Contact
-from gsuite_core.exceptions import NotFoundError, ValidationError
+from gsuite_contacts import Contact, ContactGroup, ContactsDelta
+from gsuite_core.exceptions import NotFoundError, SyncTokenExpiredError, ValidationError
 from gsuite_tasks import Task, TaskList
 
 
@@ -196,3 +196,68 @@ class TestContacts:
     def test_delete(self, client, contacts):
         contacts.delete.return_value = True
         assert client.delete("/contacts/c1").json() == {"id": "c1", "status": "deleted"}
+
+
+class TestContactGroupsAndSync:
+    def test_groups_are_not_taken_for_a_contact_id(self, client, contacts):
+        contacts.list_groups.return_value = [
+            ContactGroup(resource_name="contactGroups/a1", name="Family", member_count=3)
+        ]
+
+        body = client.get("/contacts/groups").json()
+
+        assert body["groups"][0] == {
+            "id": "a1",
+            "resource_name": "contactGroups/a1",
+            "name": "Family",
+            "group_type": "USER_CONTACT_GROUP",
+            "member_count": 3,
+        }
+        contacts.get.assert_not_called()
+
+    def test_create_and_delete(self, client, contacts):
+        contacts.create_group.return_value = ContactGroup(
+            resource_name="contactGroups/a2", name="Work"
+        )
+
+        response = client.post("/contacts/groups", json={"name": "Work"})
+
+        assert (response.status_code, response.json()["id"]) == (201, "a2")
+        assert client.post("/contacts/groups", json={"name": ""}).status_code == 422
+        contacts.delete_group.return_value = False
+        assert client.delete("/contacts/groups/zz").status_code == 404
+        contacts.delete_group.assert_called_with("zz", delete_contacts=False)
+
+    def test_members_and_modify(self, client, contacts):
+        contacts.group_members.return_value = ["people/c1", "people/c2"]
+        contacts.modify_group.return_value = ["people/c9"]
+
+        assert client.get("/contacts/groups/a1/members").json() == {
+            "members": ["c1", "c2"],
+            "count": 2,
+        }
+        body = client.post(
+            "/contacts/groups/a1/members", json={"add": ["c3"], "remove": ["c9"]}
+        ).json()
+
+        assert body["skipped"] == ["c9"]
+        contacts.modify_group.assert_called_once_with("a1", add=["c3"], remove=["c9"])
+
+    def test_sync(self, client, contacts):
+        contacts.sync.return_value = ContactsDelta(
+            changed=[_contact()], deleted=[_contact(resource_name="people/c7")], sync_token="s2"
+        )
+
+        body = client.post("/contacts/sync", json={"sync_token": "s1"}).json()
+
+        assert [c["id"] for c in body["changed"]] == ["c1"]
+        assert (body["deleted"], body["sync_token"]) == (["c7"], "s2")
+        contacts.sync.assert_called_once_with("s1")
+
+    def test_expired_sync_token_is_410(self, client, contacts):
+        contacts.sync.side_effect = SyncTokenExpiredError("contacts")
+
+        response = client.post("/contacts/sync", json={"sync_token": "old"})
+
+        assert response.status_code == 410
+        assert "sync again" in response.json()["detail"]

@@ -50,7 +50,7 @@ imagen Docker más chica. 0.6.0 sumó las APIs de marketing en solo lectura
 - [x] **Google Contacts** (`gsuite_contacts` sobre People API, REST `/contacts`, CLI `gsuite contacts`)
   - [x] Listar, buscar, crear, actualizar (con etag) y borrar
   - [x] Sync incremental (`Contacts.sync`), lectura en lote (`get_many`)
-  - [ ] Grupos de contactos (SDK listo; faltan REST, CLI y MCP)
+  - [x] Grupos de contactos (SDK, REST `/contacts/groups`, CLI `gsuite contacts groups`, MCP)
   - [ ] Directorio de la organización (Workspace)
 
 - [x] **APIs de marketing, solo lectura** (0.6.0: `gsuite_searchconsole`, `gsuite_analytics`,

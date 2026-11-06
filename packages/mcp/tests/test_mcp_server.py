@@ -9,7 +9,7 @@ from mcp.client import Client
 
 from gsuite_analytics import Property, Report, ReportRow
 from gsuite_calendar import Event
-from gsuite_contacts import Contact
+from gsuite_contacts import Contact, ContactGroup
 from gsuite_core.exceptions import NotFoundError, PermissionDeniedError, ValidationError
 from gsuite_drive import File, Permission
 from gsuite_gmail import Draft, Label, Message, Thread
@@ -85,7 +85,7 @@ class TestTools:
         async with Client(server) as client:
             tools = {t.name: t for t in (await client.list_tools()).tools}
 
-        assert len(tools) == 47
+        assert len(tools) == 52
         for name in ("gmail_read_thread", "gmail_list_labels", "gmail_list_drafts"):
             assert tools[name].annotations.read_only_hint is True
         for name in ("gmail_trash", "gmail_delete_draft"):
@@ -467,6 +467,36 @@ class TestTasksAndContacts:
         assert body["results"][0]["emails"] == ["a@x.com"]
         services.contacts.get.return_value = None
         assert (await call(server, "contacts_get", contact_id="c9"))[0] == "error"
+
+    async def test_contact_groups(self, services, server):
+        services.contacts.list_groups.return_value = [
+            ContactGroup(resource_name="contactGroups/a1", name="Family", member_count=2)
+        ]
+        services.contacts.group_members.return_value = ["people/c1"]
+        services.contacts.get_many.return_value = [
+            Contact(resource_name="people/c1", display_name="Ana")
+        ]
+        services.contacts.modify_group.return_value = []
+        services.contacts.delete_group.return_value = False
+
+        status, body = await call(server, "contacts_list_groups")
+        assert (status, body["results"][0]["name"]) == ("ok", "Family")
+        _, body = await call(server, "contacts_group_members", group_id="a1")
+        assert body["results"][0]["display_name"] == "Ana"
+        services.contacts.get_many.assert_called_once_with(["people/c1"])
+        assert (await call(server, "contacts_modify_group", group_id="a1", add=["c2"]))[1] == {
+            "skipped": []
+        }
+        assert (await call(server, "contacts_modify_group", group_id="a1"))[0] == "error"
+        assert (await call(server, "contacts_delete_group", group_id="zz"))[0] == "error"
+
+    async def test_contact_group_annotations(self, server):
+        async with Client(server) as client:
+            tools = {t.name: t for t in (await client.list_tools()).tools}
+
+        assert tools["contacts_list_groups"].annotations.read_only_hint is True
+        assert tools["contacts_modify_group"].annotations.destructive_hint is False
+        assert tools["contacts_delete_group"].annotations.destructive_hint is True
 
 
 def test_to_json_skips_raw_and_private_fields():

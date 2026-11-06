@@ -183,6 +183,13 @@ in `packages/mcp/README.md`, which is gsuite-mcp's PyPI description.
 release-please keeps the versions of gsuite-mcp and `server.json` in step with
 gsuite-sdk.
 
+Tools live in `gsuite_mcp/tools/`, one module per service, each with a
+`register(tool, svc)` function; `REGISTRARS` in `tools/__init__.py` sets the
+order clients list them in. Declare a tool with `@tool(READ)`, `@tool(WRITE)` or
+`@tool(DESTRUCTIVE)` (from `tools/_common.py`); its docstring is the
+description agents see. A new service adds a module and a `REGISTRARS` entry,
+and `server.py` doesn't change.
+
 ### Documentation
 
 The site at https://pabloalaniz.github.io/google-suite/ is built with MkDocs

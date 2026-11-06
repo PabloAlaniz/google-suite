@@ -2,11 +2,20 @@
 
 from datetime import UTC, datetime
 
+import httpx
 import pytest
 
-from gsuite_drive import File, Permission
+from gsuite_api import dependencies
+from gsuite_drive import AsyncDrive, File, Permission
 
 DOC = "application/vnd.google-apps.document"
+
+
+class FakeCredentials:
+    valid = True
+
+    def apply(self, headers):
+        headers["authorization"] = "Bearer t"
 
 
 def _file(**overrides) -> File:
@@ -82,6 +91,34 @@ def test_explicit_export_format(client, drive):
 
     assert response.headers["content-type"] == "application/pdf"
     drive.export.assert_called_once_with("f1", "pdf")
+
+
+def test_upload_reaches_drive_whole_through_the_real_async_client(make_client, settings):
+    """The UploadFile stream goes through AsyncDrive's resumable upload unchanged."""
+    received = bytearray()
+    session = "https://www.googleapis.com/upload/drive/v3/files?upload_id=s1"
+
+    def google(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST":
+            return httpx.Response(200, headers={"location": session})
+        received.extend(request.content)
+        body = {"id": "new", "name": "big.bin", "mimeType": "application/octet-stream"}
+        return httpx.Response(200, json=body)
+
+    payload = bytes(range(256)) * 4096  # 1 MiB, past the in-memory spool limit
+    test_client = make_client(settings)
+    drive = AsyncDrive(FakeCredentials(), transport=httpx.MockTransport(google))
+    test_client.app.dependency_overrides[dependencies.get_drive] = lambda: drive
+
+    response = test_client.post(
+        "/drive/files/upload",
+        headers={"X-API-Key": settings.api_key},
+        files={"file": ("big.bin", payload, "application/octet-stream")},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["id"] == "new"
+    assert bytes(received) == payload
 
 
 def test_upload(client, drive):

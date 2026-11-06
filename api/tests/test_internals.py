@@ -74,7 +74,6 @@ class TestGetAuth:
     ("factory", "cls"),
     [
         (dependencies.get_gmail, "Gmail"),
-        (dependencies.get_drive, "Drive"),
         (dependencies.get_sheets, "Sheets"),
     ],
 )

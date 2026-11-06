@@ -94,7 +94,7 @@ def _require(file: DriveFile | None) -> DriveFile:
 
 
 @router.get("/files")
-def list_files(
+async def list_files(
     drive: DriveDep,
     query: str | None = Query(None, description="Raw Drive search query (q)"),
     parent_id: str | None = Query(None, description="Parent folder ID"),
@@ -103,21 +103,21 @@ def list_files(
     limit: int = Query(100, ge=1, le=1000),
 ) -> dict[str, Any]:
     """List files, newest first."""
-    files = drive.list_files(
+    files = await drive.list_files(
         query=query, parent_id=parent_id, mime_type=mime_type, max_results=limit, trashed=trashed
     )
     return {"files": [_file(f) for f in files], "count": len(files)}
 
 
 @router.post("/files/upload")
-def upload_file(
+async def upload_file(
     drive: DriveDep,
     file: UploadFile = File(...),
     parent_id: str | None = Form(None),
     name: str | None = Form(None, description="Name in Drive (default: uploaded filename)"),
 ) -> FileResponse:
     """Upload a file (multipart/form-data)."""
-    uploaded = drive.upload_content(
+    uploaded = await drive.upload_content(
         file.file,
         name=name or file.filename or "upload",
         parent_id=parent_id,
@@ -127,13 +127,13 @@ def upload_file(
 
 
 @router.get("/files/{file_id}")
-def get_file(file_id: str, drive: DriveDep) -> FileResponse:
+async def get_file(file_id: str, drive: DriveDep) -> FileResponse:
     """Get file metadata."""
-    return _file(_require(drive.get(file_id)))
+    return _file(_require(await drive.get(file_id)))
 
 
 @router.get("/files/{file_id}/content")
-def download_file(
+async def download_file(
     file_id: str,
     drive: DriveDep,
     export: str | None = Query(
@@ -146,58 +146,58 @@ def download_file(
     Google Docs/Sheets/Slides are exported (docx/xlsx/pptx unless `export`
     says otherwise; Drive caps exports at 10 MB).
     """
-    file = _require(drive.get(file_id))
+    file = _require(await drive.get(file_id))
     if file.is_google_doc or export:
         fmt = export or default_export_format(file.mime_type)
-        content = drive.export(file_id, fmt)
+        content = await drive.export(file_id, fmt)
         return download_response(
             content, f"{file.name}.{fmt}", EXPORT_FORMATS.get(fmt.lower(), fmt)
         )
-    return download_response(drive.get_content(file_id), file.name, file.mime_type)
+    return download_response(await drive.get_content(file_id), file.name, file.mime_type)
 
 
 @router.patch("/files/{file_id}")
-def update_file(file_id: str, request: UpdateFileRequest, drive: DriveDep) -> FileResponse:
+async def update_file(file_id: str, request: UpdateFileRequest, drive: DriveDep) -> FileResponse:
     """Rename, describe or star a file. Only the fields you send change."""
-    return _file(drive.update(file_id, **request.model_dump(exclude_none=True)))
+    return _file(await drive.update(file_id, **request.model_dump(exclude_none=True)))
 
 
 @router.post("/files/{file_id}/copy")
-def copy_file(file_id: str, request: CopyRequest, drive: DriveDep) -> FileResponse:
+async def copy_file(file_id: str, request: CopyRequest, drive: DriveDep) -> FileResponse:
     """Copy a file."""
-    return _file(drive.copy(file_id, name=request.name, parent_id=request.parent_id))
+    return _file(await drive.copy(file_id, name=request.name, parent_id=request.parent_id))
 
 
 @router.post("/files/{file_id}/move")
-def move_file(file_id: str, request: MoveRequest, drive: DriveDep) -> FileResponse:
+async def move_file(file_id: str, request: MoveRequest, drive: DriveDep) -> FileResponse:
     """Move a file to another folder."""
-    return _file(drive.move(file_id, request.parent_id))
+    return _file(await drive.move(file_id, request.parent_id))
 
 
 @router.post("/files/{file_id}/trash")
-def trash_file(file_id: str, drive: DriveDep) -> dict[str, Any]:
+async def trash_file(file_id: str, drive: DriveDep) -> dict[str, Any]:
     """Move a file to the trash."""
-    if not drive.trash(file_id):
+    if not await drive.trash(file_id):
         raise HTTPException(status_code=404, detail="File not found")
     return {"id": file_id, "trashed": True}
 
 
 @router.post("/files/{file_id}/restore")
-def restore_file(file_id: str, drive: DriveDep) -> dict[str, Any]:
+async def restore_file(file_id: str, drive: DriveDep) -> dict[str, Any]:
     """Restore a file from the trash."""
-    if not drive.restore(file_id):
+    if not await drive.restore(file_id):
         raise HTTPException(status_code=404, detail="File not found")
     return {"id": file_id, "trashed": False}
 
 
 @router.delete("/files/{file_id}")
-def delete_file(
+async def delete_file(
     file_id: str,
     drive: DriveDep,
     permanent: bool = Query(False, description="Delete forever instead of trashing"),
 ) -> dict[str, Any]:
     """Trash a file, or delete it permanently with `permanent=true`."""
-    found = drive.delete(file_id) if permanent else drive.trash(file_id)
+    found = await drive.delete(file_id) if permanent else await drive.trash(file_id)
     if not found:
         raise HTTPException(status_code=404, detail="File not found")
     return {"id": file_id, "deleted": permanent, "trashed": not permanent}
@@ -207,18 +207,18 @@ def delete_file(
 
 
 @router.post("/folders")
-def create_folder(request: CreateFolderRequest, drive: DriveDep) -> FileResponse:
+async def create_folder(request: CreateFolderRequest, drive: DriveDep) -> FileResponse:
     """Create a folder."""
-    return _file(drive.create_folder(request.name, parent_id=request.parent_id))
+    return _file(await drive.create_folder(request.name, parent_id=request.parent_id))
 
 
 # ========== Permissions ==========
 
 
 @router.get("/files/{file_id}/permissions")
-def list_permissions(file_id: str, drive: DriveDep) -> dict[str, Any]:
+async def list_permissions(file_id: str, drive: DriveDep) -> dict[str, Any]:
     """List who can access a file."""
-    perms = drive.list_permissions(file_id)
+    perms = await drive.list_permissions(file_id)
     return {
         "permissions": [PermissionResponse(**vars(p)) for p in perms],
         "count": len(perms),
@@ -226,9 +226,11 @@ def list_permissions(file_id: str, drive: DriveDep) -> dict[str, Any]:
 
 
 @router.post("/files/{file_id}/permissions")
-def add_permission(file_id: str, request: PermissionRequest, drive: DriveDep) -> PermissionResponse:
+async def add_permission(
+    file_id: str, request: PermissionRequest, drive: DriveDep
+) -> PermissionResponse:
     """Share a file with a user, group, domain or anyone with the link."""
-    perm = drive.add_permission(
+    perm = await drive.add_permission(
         file_id,
         role=request.role,
         type=request.type,
@@ -240,8 +242,8 @@ def add_permission(file_id: str, request: PermissionRequest, drive: DriveDep) ->
 
 
 @router.delete("/files/{file_id}/permissions/{permission_id}")
-def remove_permission(file_id: str, permission_id: str, drive: DriveDep) -> dict[str, Any]:
+async def remove_permission(file_id: str, permission_id: str, drive: DriveDep) -> dict[str, Any]:
     """Revoke a permission."""
-    if not drive.remove_permission(file_id, permission_id):
+    if not await drive.remove_permission(file_id, permission_id):
         raise HTTPException(status_code=404, detail="Permission not found")
     return {"id": permission_id, "removed": True}

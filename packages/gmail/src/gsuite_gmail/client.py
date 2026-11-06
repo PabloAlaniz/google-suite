@@ -7,7 +7,7 @@ from itertools import islice
 from typing import Any
 
 from gsuite_core import GoogleAuth, execute, execute_batch, paginate
-from gsuite_core.exceptions import GSuiteError, NotFoundError
+from gsuite_core.exceptions import GSuiteError, NotFoundError, SyncTokenExpiredError
 from gsuite_core.service import GoogleService
 from gsuite_gmail._labels import SYSTEM_LABELS, LabelResolver
 from gsuite_gmail._mime import (
@@ -20,7 +20,18 @@ from gsuite_gmail._mime import (
     reply_recipients,
     with_signature,
 )
+from gsuite_gmail._requests import (
+    HISTORY_PAGE_SIZE,
+    HistoryType,
+    MessageFormat,
+    add_history_page,
+    finish_history,
+    get_params,
+    history_params,
+    list_params,
+)
 from gsuite_gmail.draft import Draft
+from gsuite_gmail.history import HistoryDelta
 from gsuite_gmail.label import Label
 from gsuite_gmail.message import Message
 from gsuite_gmail.parser import GmailParser
@@ -186,12 +197,31 @@ class Gmail:
         """Get draft messages (as Messages; see list_drafts for Draft objects)."""
         return self.get_messages(query="in:drafts", max_results=max_results)
 
-    def get_message(self, message_id: str) -> Message | None:
-        """Get a specific message by ID, or None if it doesn't exist."""
+    def get_message(
+        self,
+        message_id: str,
+        format: MessageFormat = "full",
+        headers: Sequence[str] | None = None,
+    ) -> Message | None:
+        """Get a specific message by ID, or None if it doesn't exist.
+
+        Args:
+            message_id: Message ID
+            format: "full" (body included), "metadata" (headers only) or "minimal"
+            headers: With format="metadata", only these headers ("From", "Subject", ...)
+        """
         try:
-            return self._get_message_by_id(message_id, include_body=True)
+            data = execute(
+                self.service.users()
+                .messages()
+                .get(userId=self.user_id, id=message_id, **get_params(format, headers)),
+                "gmail",
+                "message",
+                message_id,
+            )
         except NotFoundError:
             return None
+        return self._parse_message(data, include_body=format == "full")
 
     def _get_message_by_id(self, message_id: str, include_body: bool = True) -> Message:
         """Internal: fetch and parse a message."""
@@ -212,20 +242,32 @@ class Gmail:
 
     # ========== Threads ==========
 
-    def get_thread(self, thread_id: str) -> Thread | None:
-        """Get a full thread by ID, or None if it doesn't exist."""
+    def get_thread(
+        self,
+        thread_id: str,
+        format: MessageFormat = "full",
+        headers: Sequence[str] | None = None,
+    ) -> Thread | None:
+        """Get a thread by ID, or None if it doesn't exist.
+
+        Args:
+            thread_id: Thread ID
+            format: "full" (bodies included), "metadata" (headers only) or "minimal"
+            headers: With format="metadata", only these headers, e.g.
+                ["From", "To", "Cc", "Subject", "Date"]
+        """
         try:
             thread_data = execute(
                 self.service.users()
                 .threads()
-                .get(userId=self.user_id, id=thread_id, format="full"),
+                .get(userId=self.user_id, id=thread_id, **get_params(format, headers)),
                 "gmail",
                 "thread",
                 thread_id,
             )
         except NotFoundError:
             return None
-        return self._parse_thread(thread_data)
+        return self._parse_thread(thread_data, include_body=format == "full")
 
     def iter_threads(
         self,
@@ -269,9 +311,9 @@ class Gmail:
         """Get conversations matching criteria."""
         return list(self.iter_threads(query, labels, max_results))
 
-    def _parse_thread(self, thread_data: dict[str, Any]) -> Thread:
+    def _parse_thread(self, thread_data: dict[str, Any], include_body: bool = True) -> Thread:
         messages = [
-            self._parse_message(msg_data, include_body=True)
+            self._parse_message(msg_data, include_body=include_body)
             for msg_data in thread_data.get("messages", [])
         ]
         return Thread(
@@ -708,6 +750,88 @@ class Gmail:
         return True
 
     # ========== Profile ==========
+
+    # ========== Incremental sync ==========
+
+    def iter_message_ids(
+        self,
+        query: str | Query | None = None,
+        labels: list[str] | None = None,
+        max_results: int | None = None,
+    ) -> Iterator[str]:
+        """IDs of the matching messages, without fetching them (500 per request)."""
+        for ref in paginate(
+            self.service.users().messages().list,
+            "messages",
+            "gmail",
+            max_items=max_results,
+            max_page_size=500,
+            userId=self.user_id,
+            **list_params(query, labels),
+        ):
+            yield ref["id"]
+
+    def iter_thread_ids(
+        self,
+        query: str | Query | None = None,
+        labels: list[str] | None = None,
+        max_results: int | None = None,
+    ) -> Iterator[str]:
+        """IDs of the matching threads, without fetching them."""
+        for ref in paginate(
+            self.service.users().threads().list,
+            "threads",
+            "gmail",
+            max_items=max_results,
+            max_page_size=500,
+            userId=self.user_id,
+            **list_params(query, labels),
+        ):
+            yield ref["id"]
+
+    def get_history_id(self) -> str:
+        """The mailbox's current history ID: where a first ``history`` call starts."""
+        return str(self.get_profile()["historyId"])
+
+    def history(
+        self,
+        start_history_id: str,
+        history_types: Sequence[HistoryType] | None = None,
+        label_id: str | None = None,
+    ) -> HistoryDelta:
+        """Message IDs added, deleted or relabeled since ``start_history_id``.
+
+        Follows every page; keep ``delta.history_id`` for the next call.
+
+        Args:
+            start_history_id: From ``get_history_id()`` or the previous delta
+            history_types: Only these changes ("messageAdded", "messageDeleted",
+                "labelAdded", "labelRemoved"); default all
+            label_id: Only changes to messages with this label ID
+
+        Raises:
+            SyncTokenExpiredError: Gmail no longer has that history (it keeps
+                about a week); list the messages again and start over from
+                ``get_history_id()``.
+        """
+        params = history_params(start_history_id, history_types, label_id)
+        delta = HistoryDelta()
+        while True:
+            try:
+                page = execute(
+                    self.service.users()
+                    .history()
+                    .list(userId=self.user_id, maxResults=HISTORY_PAGE_SIZE, **params),
+                    "gmail",
+                    "history",
+                    str(start_history_id),
+                )
+            except NotFoundError as exc:
+                raise SyncTokenExpiredError("gmail") from exc
+            add_history_page(delta, page)
+            if not page.get("nextPageToken"):
+                return finish_history(delta)
+            params["pageToken"] = page["nextPageToken"]
 
     def get_profile(self) -> dict[str, Any]:
         """Get authenticated user's profile."""

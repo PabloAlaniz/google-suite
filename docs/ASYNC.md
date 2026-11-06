@@ -82,6 +82,23 @@ inline) raise `TypeError` instead of silently doing nothing; await
 as the fluent methods), `gmail.trash(id)` or
 `gmail.download_attachment(message_id, attachment_id)` instead.
 
+### Keeping a local copy in sync
+
+Both clients list IDs without fetching each message and read only what
+changed since a history ID:
+
+```python
+start = await gmail.get_history_id()            # once, after the first full import
+ids = [i async for i in gmail.iter_message_ids("newer_than:30d")]
+...
+delta = await gmail.history(start)              # added, deleted, labels_changed
+start = delta.history_id
+```
+
+Gmail keeps history for about a week; an older ID raises
+`SyncTokenExpiredError` (list again and start over). `get_thread` and
+`get_message` take `format="metadata", headers=[...]` to fetch only headers.
+
 ## Calendar
 
 `AsyncCalendar` mirrors `Calendar`: events (list, get, create with Meet and

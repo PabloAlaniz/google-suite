@@ -32,6 +32,20 @@ if msg is not None:
 
 Threads: `gmail.get_thread(thread_id)` (or `None`) has `messages`,
 `subject`, `participants`, `message_count`, `has_unread`.
+`get_thread(..., format="metadata", headers=["From", "To", "Subject", "Date"])`
+skips the bodies.
+
+Keeping a local copy in sync (IDs only, then what changed):
+
+```python
+start = gmail.get_history_id()                        # after the first full import
+ids = list(gmail.iter_message_ids("newer_than:30d"))  # no message is fetched
+delta = gmail.history(start)                          # .added, .deleted, .labels_changed
+start = delta.history_id
+```
+
+`history` raises `SyncTokenExpiredError` when the ID is older than about a
+week: list again and start over from `get_history_id()`.
 
 ## Sending and replying
 

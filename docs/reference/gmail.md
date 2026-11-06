@@ -5,3 +5,5 @@
 ::: gsuite_gmail.AsyncGmail
 
 ::: gsuite_gmail.Message
+
+::: gsuite_gmail.HistoryDelta

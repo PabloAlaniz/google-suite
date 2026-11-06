@@ -3,9 +3,13 @@
 from typing import Any
 
 from gsuite_contacts.contact import Contact
+from gsuite_contacts.group import ContactGroup
 
-# Person fields read and written by this client.
-PERSON_FIELDS = "names,emailAddresses,phoneNumbers,organizations,biographies"
+# Person fields read by default (Contacts(person_fields=...) changes them).
+PERSON_FIELDS = (
+    "names,emailAddresses,phoneNumbers,organizations,biographies,urls,memberships,metadata"
+)
+GROUP_FIELDS = "name,groupType,memberCount,metadata"
 
 
 def _primary_first(entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -26,6 +30,7 @@ class ContactsParser:
 
     @staticmethod
     def parse_contact(person: dict[str, Any]) -> Contact:
+        """A People API ``Person`` as a Contact (primary values first)."""
         name = _primary(person, "names")
         organization = _primary(person, "organizations")
         return Contact(
@@ -39,7 +44,26 @@ class ContactsParser:
             organization=organization.get("name"),
             job_title=organization.get("title"),
             notes=_primary(person, "biographies").get("value"),
+            urls=_values(person, "urls", "value"),
+            groups=[
+                m["contactGroupMembership"]["contactGroupResourceName"]
+                for m in person.get("memberships", [])
+                if m.get("contactGroupMembership", {}).get("contactGroupResourceName")
+            ],
+            deleted=bool(person.get("metadata", {}).get("deleted")),
             raw=person,
+        )
+
+    @staticmethod
+    def parse_group(group: dict[str, Any]) -> ContactGroup:
+        """A People API ``ContactGroup`` (system groups get their formatted name)."""
+        return ContactGroup(
+            resource_name=group["resourceName"],
+            name=group.get("formattedName") or group.get("name", ""),
+            group_type=group.get("groupType", "USER_CONTACT_GROUP"),
+            member_count=int(group.get("memberCount", 0)),
+            etag=group.get("etag"),
+            raw=group,
         )
 
     @staticmethod

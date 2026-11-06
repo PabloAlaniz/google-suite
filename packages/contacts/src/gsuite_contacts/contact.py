@@ -22,6 +22,11 @@ class Contact:
     organization: str | None = None
     job_title: str | None = None
     notes: str | None = None
+    urls: list[str] = field(default_factory=list)
+    # Resource names of the groups it belongs to ("contactGroups/myContacts", ...)
+    groups: list[str] = field(default_factory=list)
+    # Only an incremental sync returns deleted contacts
+    deleted: bool = False
 
     raw: dict[str, Any] = field(default_factory=dict, repr=False)
 

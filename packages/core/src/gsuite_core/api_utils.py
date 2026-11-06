@@ -27,6 +27,7 @@ from gsuite_core.exceptions import (
     PermissionDeniedError,
     QuotaExceededError,
     RateLimitError,
+    SyncTokenExpiredError,
 )
 from gsuite_core.rate_limit import get_rate_limiter
 
@@ -39,6 +40,8 @@ RATE_LIMIT_REASONS = frozenset({"rateLimitExceeded", "userRateLimitExceeded"})
 QUOTA_REASONS = frozenset({"quotaExceeded", "dailyLimitExceeded"})
 # A 403 a new login with more scopes fixes (classic reason / newer ErrorInfo reason)
 SCOPE_REASONS = frozenset({"insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT"})
+# An incremental sync must start over: People API (400) and Calendar (410)
+SYNC_EXPIRED_REASONS = frozenset({"EXPIRED_SYNC_TOKEN", "fullSyncRequired"})
 RETRYABLE_STATUSES = frozenset({500, 502, 503, 504})
 # Safe to repeat if the first attempt may have reached the server
 IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE", "OPTIONS"})
@@ -131,20 +134,27 @@ def error_for_status(
     cause: Exception | None = None,
 ) -> APIError:
     """The GSuiteError subclass for a failed Google API response."""
+    if reason in SYNC_EXPIRED_REASONS or status == HTTPStatus.GONE:
+        return SyncTokenExpiredError(service)
     if status == HTTPStatus.NOT_FOUND:
         return NotFoundError(service, resource_type, resource_id)
     if is_rate_limited(status, reason):
         return RateLimitError(service, retry_after)
     if status == HTTPStatus.FORBIDDEN:
-        # Match API quota by reason; the message is only a fallback when
-        # Google sent none. "storageQuotaExceeded" (the user's Drive is full)
-        # is not an API quota and must not look retryable later.
-        if reason in QUOTA_REASONS or (reason is None and "quota" in message.lower()):
-            return QuotaExceededError(service)
-        if reason in SCOPE_REASONS:
-            return InsufficientScopeError(service)
-        return PermissionDeniedError(service, "operation")
+        return _forbidden(reason, message, service)
     return APIError(message, service, status, cause=cause)
+
+
+def _forbidden(reason: str | None, message: str, service: str) -> APIError:
+    """A 403 that is not a rate limit: API quota, missing scope, or no permission."""
+    # Match API quota by reason; the message is only a fallback when Google
+    # sent none. "storageQuotaExceeded" (the user's Drive is full) is not an
+    # API quota and must not look retryable later.
+    if reason in QUOTA_REASONS or (reason is None and "quota" in message.lower()):
+        return QuotaExceededError(service)
+    if reason in SCOPE_REASONS:
+        return InsufficientScopeError(service)
+    return PermissionDeniedError(service, "operation")
 
 
 # ---- googleapiclient HttpError wrappers ----

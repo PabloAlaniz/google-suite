@@ -126,6 +126,21 @@ class InsufficientScopeError(PermissionDeniedError):
         self.operation = "operation"
 
 
+class SyncTokenExpiredError(APIError):
+    """An incremental sync token (or Gmail history ID) is too old to resume from.
+
+    Google keeps them for a limited time (about a week for Contacts and
+    Gmail). List everything again without a token and keep the new one.
+    """
+
+    def __init__(self, service: str):
+        super().__init__(
+            f"The {service} sync token expired: sync again from scratch",
+            service=service,
+            status_code=None,
+        )
+
+
 class ValidationError(GSuiteError):
     """Input validation error."""
 

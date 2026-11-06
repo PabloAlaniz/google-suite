@@ -28,8 +28,10 @@ señalaba:
 | **Docker** | 355 MB multi-stage (antes 525 MB) |
 
 Nuevas debilidades:
-- Las rutas de la API son síncronas. (El rate limiting ya no es solo del lado
-  cliente: `GSUITE_API_RATE_LIMIT` limita la API REST.)
+- ~~Las rutas de la API son síncronas~~: Gmail, Calendar y Drive corren async
+  sobre `AsyncGmail`/`AsyncCalendar`/`AsyncDrive`; Sheets, Tasks, Contacts y las
+  APIs de marketing siguen en el pool de threads de FastAPI. (El rate limiting
+  ya no es solo del lado cliente: `GSUITE_API_RATE_LIMIT` limita la API REST.)
 - Los tests de integración dependen de un token OAuth que, con la app en modo
   "Testing", vence cada 7 días.
 

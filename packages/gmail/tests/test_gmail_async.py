@@ -73,6 +73,12 @@ class FakeGmailApi:
             ),
             ("POST", "messages/send"): self._send,
             ("POST", "messages/batchModify"): lambda _: (204, None),
+            ("POST", r"messages/(\w+)/modify"): lambda body, mid: (200, {"id": mid}),
+            ("GET", "settings/filters"): lambda _: (200, {"filter": [{"id": "flt1"}]}),
+            ("POST", "settings/filters"): lambda body: (200, {"id": "flt2", **body}),
+            ("DELETE", r"settings/filters/(\w+)"): lambda _, fid: (
+                (204, None) if fid == "flt1" else (404, {"error": {"code": 404}})
+            ),
             ("GET", "profile"): lambda _: (200, {"emailAddress": ME}),
             ("GET", r"settings/sendAs/(.+)"): lambda _, email: (403, {"error": {"code": 403}}),
             ("GET", "labels"): lambda _: (200, {"labels": self.labels}),
@@ -172,7 +178,7 @@ class TestAsyncOnlyMessages:
 
         with pytest.raises(TypeError, match="AsyncGmail"):
             message.trash()
-        with pytest.raises(TypeError, match="batch_modify"):
+        with pytest.raises(TypeError, match="modify_message"):
             message.star()
 
     async def test_inline_attachment_downloads_without_a_request(self, gmail, api):
@@ -239,6 +245,44 @@ class TestLabels:
         assert await gmail.delete_label("Nope") is False
         assert await gmail.delete_label("Work") is True
         assert api.paths("DELETE") == ["labels/Label_7"]
+
+
+class TestModifyMessage:
+    async def test_sends_only_real_changes_and_updates_the_message(self, gmail, api):
+        message = await gmail.get_message("m1")  # labels: INBOX
+
+        await gmail.modify_message(
+            message, add_labels=["STARRED", "INBOX"], remove_labels=["UNREAD"]
+        )
+
+        assert api.calls[-1][1:] == ("messages/m1/modify", {}, {"addLabelIds": ["STARRED"]})
+        assert message.labels == ["INBOX", "STARRED"]
+
+    async def test_nothing_to_change_makes_no_request(self, gmail, api):
+        message = await gmail.get_message("m1")
+        calls = len(api.calls)
+
+        await gmail.modify_message(message, remove_labels=["UNREAD"])
+
+        assert len(api.calls) == calls
+
+    async def test_unknown_names_are_skipped_like_add_label(self, gmail, api):
+        message = await gmail.get_message("m1")
+
+        await gmail.modify_message(message, add_labels=["Work", "Nope"])
+
+        assert api.calls[-1][3] == {"addLabelIds": ["Label_7"]}
+
+
+class TestFilters:
+    async def test_list_create_delete(self, gmail, api):
+        assert await gmail.list_filters() == [{"id": "flt1"}]
+
+        created = await gmail.create_filter({"from": "a@x.com"}, {"addLabelIds": ["Work"]})
+
+        assert created["action"] == {"addLabelIds": ["Label_7"]}
+        assert await gmail.delete_filter("flt1") is True
+        assert await gmail.delete_filter("zz") is False
 
 
 class TestSending:

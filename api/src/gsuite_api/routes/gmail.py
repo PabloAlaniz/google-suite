@@ -189,7 +189,7 @@ def _message_to_detail(m: Message) -> MessageDetailResponse:
 
 
 @router.get("/messages")
-def list_messages(
+async def list_messages(
     gmail: GmailDep,
     query: str | None = Query(None, description="Gmail search query"),
     labels: list[str] | None = Query(None, description="Filter by label IDs"),
@@ -203,7 +203,7 @@ def list_messages(
     - `has:attachment` - messages with attachments
     - `newer_than:7d` - from last 7 days
     """
-    messages = gmail.get_messages(query=query, labels=labels, max_results=limit)
+    messages = await gmail.get_messages(query=query, labels=labels, max_results=limit)
     return {
         "messages": [_message_to_response(m) for m in messages],
         "count": len(messages),
@@ -211,9 +211,9 @@ def list_messages(
 
 
 @router.get("/messages/unread")
-def list_unread(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]:
+async def list_unread(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]:
     """Get unread messages."""
-    messages = gmail.get_unread(max_results=limit)
+    messages = await gmail.get_unread(max_results=limit)
     return {
         "messages": [_message_to_response(m) for m in messages],
         "count": len(messages),
@@ -221,9 +221,9 @@ def list_unread(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, An
 
 
 @router.get("/messages/starred")
-def list_starred(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]:
+async def list_starred(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]:
     """Get starred messages."""
-    messages = gmail.get_starred(max_results=limit)
+    messages = await gmail.get_starred(max_results=limit)
     return {
         "messages": [_message_to_response(m) for m in messages],
         "count": len(messages),
@@ -231,9 +231,9 @@ def list_starred(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, A
 
 
 @router.get("/messages/important")
-def list_important(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]:
+async def list_important(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]:
     """Get important messages."""
-    messages = gmail.get_important(max_results=limit)
+    messages = await gmail.get_important(max_results=limit)
     return {
         "messages": [_message_to_response(m) for m in messages],
         "count": len(messages),
@@ -241,9 +241,9 @@ def list_important(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str,
 
 
 @router.get("/messages/sent")
-def list_sent(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]:
+async def list_sent(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]:
     """Get sent messages."""
-    messages = gmail.get_sent(max_results=limit)
+    messages = await gmail.get_sent(max_results=limit)
     return {
         "messages": [_message_to_response(m) for m in messages],
         "count": len(messages),
@@ -251,22 +251,22 @@ def list_sent(gmail: GmailDep, limit: int = Query(25, le=100)) -> dict[str, Any]
 
 
 @router.get("/messages/{message_id}")
-def get_message(message_id: str, gmail: GmailDep) -> MessageDetailResponse:
+async def get_message(message_id: str, gmail: GmailDep) -> MessageDetailResponse:
     """Get a specific message with full body and attachments."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
     return _message_to_detail(message)
 
 
 @router.post("/messages/send")
-def send_message(request: SendRequest, gmail: GmailDep) -> dict[str, Any]:
+async def send_message(request: SendRequest, gmail: GmailDep) -> dict[str, Any]:
     """Send an email.
 
     Set `reply_to` to a message ID to reply to an existing message.
     Set `thread_id` to keep the reply in the same thread.
     """
-    message = gmail.send(
+    message = await gmail.send(
         to=[str(e) for e in request.to],
         subject=request.subject,
         body=request.body,
@@ -287,16 +287,16 @@ def send_message(request: SendRequest, gmail: GmailDep) -> dict[str, Any]:
 
 
 @router.post("/messages/batch/read")
-def batch_mark_as_read(request: BatchModifyRequest, gmail: GmailDep) -> dict[str, Any]:
+async def batch_mark_as_read(request: BatchModifyRequest, gmail: GmailDep) -> dict[str, Any]:
     """Mark multiple messages as read (one batchModify call per 1000 IDs)."""
-    count = gmail.batch_modify(request.message_ids, remove_labels=["UNREAD"])
+    count = await gmail.batch_modify(request.message_ids, remove_labels=["UNREAD"])
     return {"status": "success", "count": count}
 
 
 @router.post("/messages/batch/labels")
-def batch_modify_labels(request: BatchModifyRequest, gmail: GmailDep) -> dict[str, Any]:
+async def batch_modify_labels(request: BatchModifyRequest, gmail: GmailDep) -> dict[str, Any]:
     """Add/remove labels (names or IDs) on multiple messages. Unknown labels are a 422."""
-    count = gmail.batch_modify(request.message_ids, request.add_labels, request.remove_labels)
+    count = await gmail.batch_modify(request.message_ids, request.add_labels, request.remove_labels)
     return {
         "status": "success",
         "count": count,
@@ -309,102 +309,102 @@ def batch_modify_labels(request: BatchModifyRequest, gmail: GmailDep) -> dict[st
 
 
 @router.post("/messages/{message_id}/read")
-def mark_as_read(message_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def mark_as_read(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Mark message as read."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    message.mark_as_read()
+    await gmail.modify_message(message, remove_labels=["UNREAD"])
     return {"status": "success", "is_unread": message.is_unread}
 
 
 @router.post("/messages/{message_id}/unread")
-def mark_as_unread(message_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def mark_as_unread(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Mark message as unread."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    message.mark_as_unread()
+    await gmail.modify_message(message, add_labels=["UNREAD"])
     return {"status": "success", "is_unread": message.is_unread}
 
 
 @router.post("/messages/{message_id}/star")
-def star_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def star_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Star a message."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    message.star()
+    await gmail.modify_message(message, add_labels=["STARRED"])
     return {"status": "success", "is_starred": message.is_starred}
 
 
 @router.delete("/messages/{message_id}/star")
-def unstar_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def unstar_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Remove star from message."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    message.unstar()
+    await gmail.modify_message(message, remove_labels=["STARRED"])
     return {"status": "success", "is_starred": message.is_starred}
 
 
 @router.post("/messages/{message_id}/important")
-def mark_important(message_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def mark_important(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Mark message as important."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    message.mark_important()
+    await gmail.modify_message(message, add_labels=["IMPORTANT"])
     return {"status": "success", "is_important": message.is_important}
 
 
 @router.delete("/messages/{message_id}/important")
-def mark_not_important(message_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def mark_not_important(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Remove important mark from message."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    message.mark_not_important()
+    await gmail.modify_message(message, remove_labels=["IMPORTANT"])
     return {"status": "success", "is_important": message.is_important}
 
 
 @router.delete("/messages/{message_id}")
-def trash_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def trash_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Move message to trash."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    message.trash()
+    await gmail.trash(message_id)
     return {"status": "success", "message": f"Message {message_id} moved to trash"}
 
 
 @router.post("/messages/{message_id}/untrash")
-def untrash_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def untrash_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Remove message from trash."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    message.untrash()
+    await gmail.untrash(message_id)
     return {"status": "success", "message": f"Message {message_id} removed from trash"}
 
 
 @router.post("/messages/{message_id}/archive")
-def archive_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def archive_message(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Archive message (remove from inbox)."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    message.archive()
+    await gmail.modify_message(message, remove_labels=["INBOX"])
     return {"status": "success", "message": f"Message {message_id} archived"}
 
 
 @router.post("/messages/{message_id}/inbox")
-def move_to_inbox(message_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def move_to_inbox(message_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Move message to inbox."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
-    message.move_to_inbox()
+    await gmail.modify_message(message, add_labels=["INBOX"])
     return {"status": "success", "message": f"Message {message_id} moved to inbox"}
 
 
@@ -412,19 +412,19 @@ def move_to_inbox(message_id: str, gmail: GmailDep) -> dict[str, Any]:
 
 
 @router.post("/messages/{message_id}/labels")
-def modify_labels(message_id: str, request: ModifyLabelsRequest, gmail: GmailDep) -> dict[str, Any]:
+async def modify_labels(
+    message_id: str, request: ModifyLabelsRequest, gmail: GmailDep
+) -> dict[str, Any]:
     """Add or remove labels from a message."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
+    # Added, then removed, as before; unknown label names are skipped
     if request.add_labels:
-        for label in request.add_labels:
-            message.add_label(label)
-
+        await gmail.modify_message(message, add_labels=request.add_labels)
     if request.remove_labels:
-        for label in request.remove_labels:
-            message.remove_label(label)
+        await gmail.modify_message(message, remove_labels=request.remove_labels)
 
     return {
         "status": "success",
@@ -438,13 +438,15 @@ def modify_labels(message_id: str, request: ModifyLabelsRequest, gmail: GmailDep
 
 
 @router.post("/messages/{message_id}/reply")
-def reply_to_message(message_id: str, request: ReplyRequest, gmail: GmailDep) -> dict[str, Any]:
+async def reply_to_message(
+    message_id: str, request: ReplyRequest, gmail: GmailDep
+) -> dict[str, Any]:
     """Reply to a message (keeps thread)."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    reply = gmail.reply(
+    reply = await gmail.reply(
         message,
         request.body,
         html=request.html,
@@ -456,13 +458,15 @@ def reply_to_message(message_id: str, request: ReplyRequest, gmail: GmailDep) ->
 
 
 @router.post("/messages/{message_id}/forward")
-def forward_message(message_id: str, request: ForwardRequest, gmail: GmailDep) -> dict[str, Any]:
+async def forward_message(
+    message_id: str, request: ForwardRequest, gmail: GmailDep
+) -> dict[str, Any]:
     """Forward a message (with its attachments unless include_attachments=false)."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
-    sent = gmail.forward(
+    sent = await gmail.forward(
         message,
         [str(e) for e in request.to],
         request.body,
@@ -475,9 +479,9 @@ def forward_message(message_id: str, request: ForwardRequest, gmail: GmailDep) -
 
 
 @router.get("/messages/{message_id}/attachments/{attachment_id}")
-def download_attachment(message_id: str, attachment_id: str, gmail: GmailDep) -> Response:
+async def download_attachment(message_id: str, attachment_id: str, gmail: GmailDep) -> Response:
     """Download an attachment."""
-    message = gmail.get_message(message_id)
+    message = await gmail.get_message(message_id)
     if not message:
         raise HTTPException(status_code=404, detail="Message not found")
 
@@ -485,7 +489,11 @@ def download_attachment(message_id: str, attachment_id: str, gmail: GmailDep) ->
     if not attachment:
         raise HTTPException(status_code=404, detail="Attachment not found")
 
-    content = attachment.download()
+    content = (
+        attachment.download()  # small attachments come inline with the message
+        if attachment.is_inline
+        else await gmail.download_attachment(message_id, attachment_id)
+    )
 
     return download_response(content, attachment.filename, attachment.mime_type)
 
@@ -494,9 +502,9 @@ def download_attachment(message_id: str, attachment_id: str, gmail: GmailDep) ->
 
 
 @router.get("/threads/{thread_id}")
-def get_thread(thread_id: str, gmail: GmailDep) -> ThreadResponse:
+async def get_thread(thread_id: str, gmail: GmailDep) -> ThreadResponse:
     """Get a full email thread with all messages."""
-    thread = gmail.get_thread(thread_id)
+    thread = await gmail.get_thread(thread_id)
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
 
@@ -537,9 +545,9 @@ def get_thread(thread_id: str, gmail: GmailDep) -> ThreadResponse:
 
 
 @router.get("/labels")
-def list_labels(gmail: GmailDep) -> dict[str, Any]:
+async def list_labels(gmail: GmailDep) -> dict[str, Any]:
     """List all labels with stats."""
-    labels = gmail.get_labels()
+    labels = await gmail.get_labels()
     return {
         "labels": [
             LabelResponse(
@@ -561,19 +569,19 @@ def list_labels(gmail: GmailDep) -> dict[str, Any]:
 
 
 @router.get("/profile")
-def get_profile(gmail: GmailDep) -> dict[str, Any]:
+async def get_profile(gmail: GmailDep) -> dict[str, Any]:
     """Get authenticated user's profile."""
-    return gmail.get_profile()
+    return await gmail.get_profile()
 
 
 @router.get("/threads")
-def list_threads(
+async def list_threads(
     gmail: GmailDep,
     query: str | None = Query(None, description="Gmail search query"),
     limit: int = Query(25, ge=1, le=100),
 ) -> dict[str, Any]:
     """List conversations."""
-    threads = gmail.get_threads(query=query, max_results=limit)
+    threads = await gmail.get_threads(query=query, max_results=limit)
     return {
         "threads": [
             {
@@ -597,16 +605,16 @@ def _draft(draft: Any) -> dict[str, Any]:
 
 
 @router.get("/drafts")
-def list_drafts(gmail: GmailDep, limit: int = Query(25, ge=1, le=100)) -> dict[str, Any]:
+async def list_drafts(gmail: GmailDep, limit: int = Query(25, ge=1, le=100)) -> dict[str, Any]:
     """List drafts."""
-    drafts = gmail.list_drafts(max_results=limit)
+    drafts = await gmail.list_drafts(max_results=limit)
     return {"drafts": [_draft(d) for d in drafts], "count": len(drafts)}
 
 
 @router.post("/drafts")
-def create_draft(request: DraftRequest, gmail: GmailDep) -> dict[str, Any]:
+async def create_draft(request: DraftRequest, gmail: GmailDep) -> dict[str, Any]:
     """Save a draft."""
-    draft = gmail.create_draft(
+    draft = await gmail.create_draft(
         to=[str(e) for e in request.to],
         subject=request.subject,
         body=request.body,
@@ -619,25 +627,25 @@ def create_draft(request: DraftRequest, gmail: GmailDep) -> dict[str, Any]:
 
 
 @router.get("/drafts/{draft_id}")
-def get_draft(draft_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def get_draft(draft_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Get a draft."""
-    draft = gmail.get_draft(draft_id)
+    draft = await gmail.get_draft(draft_id)
     if not draft:
         raise HTTPException(status_code=404, detail="Draft not found")
     return _draft(draft)
 
 
 @router.post("/drafts/{draft_id}/send")
-def send_draft(draft_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def send_draft(draft_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Send a draft."""
-    sent = gmail.send_draft(draft_id)
+    sent = await gmail.send_draft(draft_id)
     return {"id": sent.id, "thread_id": sent.thread_id, "status": "sent"}
 
 
 @router.delete("/drafts/{draft_id}")
-def delete_draft(draft_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def delete_draft(draft_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Discard a draft."""
-    if not gmail.delete_draft(draft_id):
+    if not await gmail.delete_draft(draft_id):
         raise HTTPException(status_code=404, detail="Draft not found")
     return {"id": draft_id, "deleted": True}
 
@@ -646,9 +654,9 @@ def delete_draft(draft_id: str, gmail: GmailDep) -> dict[str, Any]:
 
 
 @router.post("/labels")
-def create_label(request: LabelRequest, gmail: GmailDep) -> LabelResponse:
+async def create_label(request: LabelRequest, gmail: GmailDep) -> LabelResponse:
     """Create a label ("Parent/Child" nests it)."""
-    label = gmail.create_label(request.name)
+    label = await gmail.create_label(request.name)
     return LabelResponse(
         id=label.id,
         name=label.name,
@@ -661,16 +669,16 @@ def create_label(request: LabelRequest, gmail: GmailDep) -> LabelResponse:
 
 
 @router.patch("/labels/{label}")
-def rename_label(label: str, request: LabelRequest, gmail: GmailDep) -> dict[str, Any]:
+async def rename_label(label: str, request: LabelRequest, gmail: GmailDep) -> dict[str, Any]:
     """Rename a label (by name or ID)."""
-    renamed = gmail.rename_label(label, request.name)
+    renamed = await gmail.rename_label(label, request.name)
     return {"id": renamed.id, "name": renamed.name}
 
 
 @router.delete("/labels/{label}")
-def delete_label(label: str, gmail: GmailDep) -> dict[str, Any]:
+async def delete_label(label: str, gmail: GmailDep) -> dict[str, Any]:
     """Delete a label (by name or ID); messages keep existing."""
-    if not gmail.delete_label(label):
+    if not await gmail.delete_label(label):
         raise HTTPException(status_code=404, detail="Label not found")
     return {"label": label, "deleted": True}
 
@@ -679,21 +687,21 @@ def delete_label(label: str, gmail: GmailDep) -> dict[str, Any]:
 
 
 @router.get("/filters")
-def list_filters(gmail: GmailDep) -> dict[str, Any]:
+async def list_filters(gmail: GmailDep) -> dict[str, Any]:
     """List filters."""
-    filters = gmail.list_filters()
+    filters = await gmail.list_filters()
     return {"filters": filters, "count": len(filters)}
 
 
 @router.post("/filters")
-def create_filter(request: FilterRequest, gmail: GmailDep) -> dict[str, Any]:
+async def create_filter(request: FilterRequest, gmail: GmailDep) -> dict[str, Any]:
     """Create a filter; label names in the action are resolved to IDs."""
-    return gmail.create_filter(request.criteria, request.action)
+    return await gmail.create_filter(request.criteria, request.action)
 
 
 @router.delete("/filters/{filter_id}")
-def delete_filter(filter_id: str, gmail: GmailDep) -> dict[str, Any]:
+async def delete_filter(filter_id: str, gmail: GmailDep) -> dict[str, Any]:
     """Delete a filter."""
-    if not gmail.delete_filter(filter_id):
+    if not await gmail.delete_filter(filter_id):
         raise HTTPException(status_code=404, detail="Filter not found")
     return {"id": filter_id, "deleted": True}

@@ -16,7 +16,7 @@ from gsuite_core import GoogleAuth, Settings, SQLiteTokenStore, TokenStore, get_
 from gsuite_core.exceptions import NotAuthenticatedError
 from gsuite_core.rate_limit import TokenBucket
 from gsuite_drive import AsyncDrive
-from gsuite_gmail import Gmail
+from gsuite_gmail import AsyncGmail
 from gsuite_searchconsole import SearchConsole
 from gsuite_sheets import Sheets
 from gsuite_tagmanager import TagManager
@@ -125,8 +125,10 @@ def get_authenticated_auth(auth: AuthDep) -> GoogleAuth:
 AuthenticatedDep = Annotated[GoogleAuth, Depends(get_authenticated_auth)]
 
 
-def get_gmail(auth: AuthenticatedDep) -> Gmail:
-    return Gmail(auth)
+async def get_gmail(auth: AuthenticatedDep) -> AsyncIterator[AsyncGmail]:
+    """An AsyncGmail for the request, closed after it."""
+    async with AsyncGmail(auth) as gmail:
+        yield gmail
 
 
 async def get_calendar(auth: AuthenticatedDep) -> AsyncIterator[AsyncCalendar]:
@@ -165,7 +167,7 @@ def get_tagmanager(auth: AuthenticatedDep) -> TagManager:
     return TagManager(auth)
 
 
-GmailDep = Annotated[Gmail, Depends(get_gmail)]
+GmailDep = Annotated[AsyncGmail, Depends(get_gmail)]
 CalendarDep = Annotated[AsyncCalendar, Depends(get_calendar)]
 DriveDep = Annotated[AsyncDrive, Depends(get_drive)]
 SheetsDep = Annotated[Sheets, Depends(get_sheets)]

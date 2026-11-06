@@ -59,7 +59,9 @@ class TestLabels:
         gmail._get_label_id("Work")
         service.users().labels().create().execute.return_value = {"id": "Label_9", "name": "New"}
         gmail.create_label("New")
-        assert gmail._labels_cache is None
+        labels = [*LABELS["labels"], {"id": "Label_9", "name": "New"}]
+        service.users().labels().list().execute.return_value = {"labels": labels}
+        assert gmail._get_label_id("New") == "Label_9"
 
 
 class TestBatchModify:

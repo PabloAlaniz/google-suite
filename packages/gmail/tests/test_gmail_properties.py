@@ -1,6 +1,6 @@
 """Property-based tests for gsuite_gmail (invariants in gsuite_gmail._testing.properties).
 
-Tests suffixed with a bug id are regressions for fixed bugs: B1 (_html_to_text
+Tests suffixed with a bug id are regressions for fixed bugs: B1 (html_to_text
 quadratic), B2 (query injection), B3a-d (parser not total), B9-gmail-1 (charset
 codec escapes the decoder), B9-gmail-2 (non-ASCII Cc/Bcc address).
 """
@@ -14,6 +14,7 @@ from typing import Any
 from hypothesis import example, given
 from hypothesis import strategies as st
 
+from gsuite_gmail._html import html_to_text
 from gsuite_gmail._testing.properties import (
     QUERY_OPERATORS,
     check_compose_roundtrip,
@@ -25,9 +26,8 @@ from gsuite_gmail._testing.properties import (
     check_query_combinators,
     check_query_single_term,
 )
-from gsuite_gmail.client import _html_to_text
 
-# ---------------------------------------------------------------- _html_to_text
+# ---------------------------------------------------------------- html_to_text
 
 html_fragments = st.sampled_from(
     [
@@ -66,7 +66,7 @@ B1_INPUTS = [
 def test_html_to_text_linear_time_b1():
     for markup in B1_INPUTS:
         start = time.perf_counter()
-        _html_to_text(markup)
+        html_to_text(markup)
         elapsed = time.perf_counter() - start
         assert elapsed < 0.5, f"{markup[:8]!r}*{len(markup)}: {elapsed:.2f}s"
 

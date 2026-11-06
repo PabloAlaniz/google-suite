@@ -58,14 +58,36 @@ async with AsyncSheets(auth) as sheets:
 For tests, `gsuite_sheets.engine.testing.rest_fake.fake_async_sheets(backend.client)`
 returns a real `AsyncSheets` over the in-memory emulator.
 
-## Roadmap: Gmail, Calendar, Drive
+## Gmail
+
+`AsyncGmail` mirrors `Gmail` for messages, threads, labels (`batch_modify`
+included), drafts, send, reply and forward. Filters stay sync-only. Where the
+sync client sends an HTTP batch, the async one runs the requests concurrently
+(`concurrency=10` by default). Message parsing and MIME building are the sync
+client's own code.
+
+```python
+from gsuite_gmail import AsyncGmail
+
+async with AsyncGmail(auth) as gmail:
+    unread = await gmail.get_unread()
+    await gmail.batch_modify([m.id for m in unread], remove_labels=["UNREAD"])
+    await gmail.reply(unread[0], "Thanks!")
+```
+
+Messages from `AsyncGmail` have no sync client behind them, so their fluent
+methods (`message.trash()`, `attachment.download()` for attachments not sent
+inline) raise `TypeError` instead of silently doing nothing; await
+`gmail.trash(id)`, `gmail.batch_modify(...)` or
+`gmail.download_attachment(message_id, attachment_id)` instead.
+
+## Roadmap: Calendar, Drive
 
 They build on `AsyncGoogleClient`; nothing else in the foundation is
 service-specific.
 
 | Service | Scope | Notes |
 |---|---|---|
-| Gmail | list/get (concurrent gets with a semaphore instead of HTTP batch), send/reply/forward (raw MIME from the sync composer), labels, drafts, batchModify | reuse `GmailParser` and the sync `_compose` |
 | Calendar | events list/get/create/update/delete, free/busy, instances | reuse `CalendarParser`, `_rfc3339`, `_time_bodies` |
 | Drive | list/get/metadata ops, export, permissions; downloads and resumable uploads streamed with httpx | uploads are the only new protocol work |
 

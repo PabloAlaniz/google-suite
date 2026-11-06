@@ -6,10 +6,15 @@ import os
 from collections.abc import Sequence
 from dataclasses import dataclass
 from email.message import EmailMessage
+from email.utils import parseaddr
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from gsuite_gmail._html import html_to_text
+from gsuite_gmail.parser import GmailParser
+
+if TYPE_CHECKING:
+    from gsuite_gmail.message import Message
 
 # A file path, or (filename, content) for data already in memory
 OutgoingAttachment = str | os.PathLike[str] | tuple[str, bytes]
@@ -91,3 +96,44 @@ def encode_for_api(message: EmailMessage, thread_id: str | None = None) -> dict[
     if thread_id:
         body["threadId"] = thread_id
     return body
+
+
+def reply_recipients(
+    message: "Message", my_email: str, reply_all: bool = False
+) -> tuple[list[str], list[str]]:
+    """(to, cc) for a reply from ``my_email``.
+
+    Goes to the Reply-To address (or the sender). A reply to a message you sent
+    goes to its recipients instead of back to you. ``reply_all`` adds the other
+    To/Cc recipients as Cc, once each and never yourself.
+    """
+    me = my_email.lower()
+
+    def is_me(address: str) -> bool:
+        return parseaddr(address)[1].lower() == me
+
+    if is_me(message.sender):
+        to = [a for a in GmailParser._addresses(message.recipient) if not is_me(a)]
+    else:
+        to = [message.reply_to or message.sender]
+
+    cc: list[str] = []
+    if reply_all:
+        seen = {parseaddr(a)[1].lower() for a in to}
+        for address in [*GmailParser._addresses(message.recipient), *message.cc]:
+            email = parseaddr(address)[1].lower()
+            if email and email not in seen and not is_me(address):
+                seen.add(email)
+                cc.append(address)
+    return to, cc
+
+
+def forward_text(message: "Message", note: str = "") -> str:
+    """``note`` above the quoted original, the way Gmail's web client forwards."""
+    date = message.date.strftime("%a, %d %b %Y %H:%M") if message.date else ""
+    original = message.plain or html_to_text(message.html or "")
+    return (
+        f"{note}\n\n---------- Forwarded message ---------\n"
+        f"From: {message.sender}\nDate: {date}\nSubject: {message.subject}\n"
+        f"To: {message.recipient}\n\n{original}"
+    ).lstrip()

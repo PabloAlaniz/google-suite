@@ -327,3 +327,38 @@ class TestMarketingScopes:
             Scopes.TAGMANAGER_READONLY,
         ]
         assert all(s.endswith(".readonly") for s in marketing)
+
+
+class TestLoginWithoutBrowser:
+    def _auth(self, authenticated=False):
+        auth = MagicMock()
+        auth.credentials = MagicMock(scopes=["s"]) if authenticated else None
+        auth.is_authenticated.return_value = authenticated
+        auth.start_authorization.return_value = MagicMock(url="https://accounts.google.com/x")
+        auth.finish_authorization.return_value = MagicMock(scopes=["s"])
+        return auth
+
+    def test_prints_the_url_and_finishes_with_what_is_pasted(self):
+        auth = self._auth()
+        with patch("gsuite_cli.auth.GoogleAuth", return_value=auth):
+            result = runner.invoke(
+                app, ["auth", "login", "--no-browser"], input="http://localhost/?code=C\n"
+            )
+
+        assert result.exit_code == 0, result.output
+        assert "https://accounts.google.com/x" in result.output
+        auth.finish_authorization.assert_called_once_with(
+            auth.start_authorization.return_value, "http://localhost/?code=C"
+        )
+        auth.authenticate.assert_not_called()
+
+    def test_existing_login_is_kept_unless_forced(self):
+        auth = self._auth(authenticated=True)
+        with patch("gsuite_cli.auth.GoogleAuth", return_value=auth):
+            assert runner.invoke(app, ["auth", "login", "--no-browser"]).exit_code == 0
+            auth.start_authorization.assert_not_called()
+
+            result = runner.invoke(app, ["auth", "login", "--no-browser", "--force"], input="C\n")
+
+        assert result.exit_code == 0, result.output
+        auth.start_authorization.assert_called_once()

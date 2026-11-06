@@ -364,14 +364,15 @@ class TestGoogleAuth:
         auth_instance._credentials = None
 
         mock_flow_instance = Mock()
-        mock_flow.from_client_secrets_file.return_value = mock_flow_instance
+        mock_flow.from_client_config.return_value = mock_flow_instance
         mock_flow_instance.run_local_server.return_value = mock_credentials
 
         result = auth_instance.authenticate()
 
         assert result == mock_credentials
-        mock_flow.from_client_secrets_file.assert_called_once_with(
-            str(auth_instance.credentials_file),
+        # the credentials file's content
+        mock_flow.from_client_config.assert_called_once_with(
+            {"installed": {"client_id": "test", "client_secret": "secret"}},
             Scopes.default(),
         )
         mock_flow_instance.run_local_server.assert_called_once_with(
@@ -398,7 +399,7 @@ class TestGoogleAuth:
             new_creds.scopes = Scopes.default()
 
             mock_flow_instance = Mock()
-            mock_flow.from_client_secrets_file.return_value = mock_flow_instance
+            mock_flow.from_client_config.return_value = mock_flow_instance
             mock_flow_instance.run_local_server.return_value = new_creds
 
             result = auth_instance.authenticate(force=True)

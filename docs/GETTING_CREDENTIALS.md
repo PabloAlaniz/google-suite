@@ -110,6 +110,48 @@ This will:
 3. Request permission for the scopes you configured
 4. Save the tokens locally for future use
 
+### On a machine without a browser (SSH, a Raspberry Pi, a server)
+
+```bash
+gsuite auth login --no-browser
+```
+
+It prints the consent URL. Open it in any browser, allow access, and paste back
+the address the browser ends on (a `http://localhost/...` page that doesn't
+load; it carries the code). This works with **Desktop app** credentials.
+
+An app that does this from its own UI uses the same two steps, with PKCE:
+
+```python
+from gsuite_core import AuthorizationRequest, GoogleAuth
+
+# Client ID and secret from your settings page, env (GSUITE_CLIENT_ID /
+# GSUITE_CLIENT_SECRET) or a credentials.json, whichever you have
+auth = GoogleAuth.from_client_config(client_id, client_secret, token_store=MyStore())
+
+request = auth.start_authorization()          # show request.url to the user
+saved = request.to_dict()                     # keep it until they come back
+...
+auth.finish_authorization(AuthorizationRequest.from_dict(saved), pasted_code_or_url)
+```
+
+A web client passes its registered URI: `start_authorization("https://app.example/oauth/callback")`.
+
+### Keeping tokens in your app's database
+
+Tokens go to a `TokenStore`: SQLite by default, Secret Manager on Cloud Run,
+or your own. Subclass it and pass it as `token_store`:
+
+```python
+from gsuite_core import TokenStore
+
+class MyStore(TokenStore):
+    def get_token(self, user_id="default"): ...      # the dict saved below, or None
+    def save_token(self, token_data, user_id="default"): ...
+    def delete_token(self, user_id="default"): ...   # True if one was deleted
+    def exists(self, user_id="default"): ...
+```
+
 ## Publishing Your App
 
 While in **testing** mode:

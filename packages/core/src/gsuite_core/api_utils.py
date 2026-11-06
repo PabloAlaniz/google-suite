@@ -22,6 +22,7 @@ from googleapiclient.errors import HttpError
 from gsuite_core.exceptions import (
     APIError,
     GSuiteError,
+    InsufficientScopeError,
     NotFoundError,
     PermissionDeniedError,
     QuotaExceededError,
@@ -36,6 +37,8 @@ T = TypeVar("T")
 # Google reports per-user/per-project throttling as 403 with these reasons
 RATE_LIMIT_REASONS = frozenset({"rateLimitExceeded", "userRateLimitExceeded"})
 QUOTA_REASONS = frozenset({"quotaExceeded", "dailyLimitExceeded"})
+# A 403 a new login with more scopes fixes (classic reason / newer ErrorInfo reason)
+SCOPE_REASONS = frozenset({"insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT"})
 RETRYABLE_STATUSES = frozenset({500, 502, 503, 504})
 # Safe to repeat if the first attempt may have reached the server
 IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "PUT", "DELETE", "OPTIONS"})
@@ -65,12 +68,22 @@ def parse_error_body(body: bytes | str | None) -> Any:
 
 
 def reason_from_body(body: bytes | str | None) -> str | None:
-    """The ``reason`` of the first error in a Google error body, if any."""
+    """The ``reason`` of a Google error body, if any.
+
+    The first entry of ``errors`` (the classic format), or else of ``details``
+    (the newer ``google.rpc.ErrorInfo``, e.g. People API errors).
+    """
     try:
-        reason = parse_error_body(body)["error"]["errors"][0]["reason"]
-    except (KeyError, IndexError, TypeError):
+        error = parse_error_body(body)["error"]
+    except (KeyError, TypeError):
         return None
-    return str(reason)
+    for key in ("errors", "details"):
+        try:
+            reason = next(e["reason"] for e in error[key] if isinstance(e, dict) and "reason" in e)
+        except (KeyError, TypeError, StopIteration):
+            continue
+        return str(reason)
+    return None
 
 
 def parse_retry_after(value: Any) -> int | None:
@@ -128,6 +141,8 @@ def error_for_status(
         # is not an API quota and must not look retryable later.
         if reason in QUOTA_REASONS or (reason is None and "quota" in message.lower()):
             return QuotaExceededError(service)
+        if reason in SCOPE_REASONS:
+            return InsufficientScopeError(service)
         return PermissionDeniedError(service, "operation")
     return APIError(message, service, status, cause=cause)
 

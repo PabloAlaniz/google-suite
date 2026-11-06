@@ -11,6 +11,7 @@ from gsuite_core import Settings
 from gsuite_core.aio import AsyncGoogleClient
 from gsuite_core.exceptions import (
     APIError,
+    InsufficientScopeError,
     NotAuthenticatedError,
     NotFoundError,
     PermissionDeniedError,
@@ -129,7 +130,7 @@ async def test_gives_up_after_max_retries(settings):
     ("response", "expected"),
     [
         (error(404), NotFoundError),
-        (error(403, "insufficientPermissions"), PermissionDeniedError),
+        (error(403, "insufficientPermissions"), InsufficientScopeError),
         (error(403, "storageQuotaExceeded"), PermissionDeniedError),
     ],
 )

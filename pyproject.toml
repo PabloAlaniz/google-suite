@@ -48,12 +48,15 @@ dev = [
 cloudrun = [
     "google-cloud-secret-manager>=2.18.0",
     "google-cloud-logging>=3.9.0",
+    # Shares the REST API rate limit across instances (GSUITE_API_RATE_LIMIT_REDIS_URL)
+    "redis>=5.0",
 ]
 api = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",
     "python-multipart>=0.0.6",
     "email-validator>=2.1.0",
+    "omnilimit>=0.1.1,<0.2",
 ]
 cli = [
     "typer>=0.15.4",

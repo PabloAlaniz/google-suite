@@ -1,20 +1,19 @@
 """FastAPI dependencies."""
 
-import math
 import secrets
 from collections.abc import AsyncIterator
 from functools import lru_cache
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, Request, Security, status
+from fastapi import Depends, HTTPException, Request, Response, Security, status
 from fastapi.security import APIKeyHeader
+from omnilimit import Limiter
 
 from gsuite_analytics import Analytics
 from gsuite_calendar import AsyncCalendar
 from gsuite_contacts import Contacts
 from gsuite_core import GoogleAuth, Settings, SQLiteTokenStore, TokenStore, get_settings
 from gsuite_core.exceptions import NotAuthenticatedError
-from gsuite_core.rate_limit import TokenBucket
 from gsuite_drive import AsyncDrive
 from gsuite_gmail import AsyncGmail
 from gsuite_searchconsole import SearchConsole
@@ -61,25 +60,29 @@ def require_api_key(
         )
 
 
-def enforce_rate_limit(request: Request) -> None:
-    """Reject the request with 429 once the API's request budget is spent.
+def enforce_rate_limit(request: Request, response: Response) -> None:
+    """Reject the request once the API's request budget is spent.
 
-    One token bucket per app (GSUITE_API_RATE_LIMIT requests per second,
-    GSUITE_API_RATE_LIMIT_BURST at once), shared by every client: the API has
-    a single key, and behind a proxy the client address is the proxy's. Off
-    when the rate is unset. Runs after require_api_key, so rejected requests
-    don't spend the budget.
+    Answers 429, or 503 if the shared store is down and configured as "closed". Off when
+    GSUITE_API_RATE_LIMIT is unset. Runs after require_api_key, so rejected requests don't
+    spend the budget. See gsuite_api.rate_limit.
     """
-    bucket: TokenBucket | None = request.app.state.rate_limiter
-    if bucket is None:
+    limiter: Limiter | None = request.app.state.rate_limiter
+    if limiter is None:
         return
-    wait = bucket.try_acquire()
-    if wait > 0:
+    decision = limiter.check("api")
+    if not decision.allowed:
         raise HTTPException(
-            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="API rate limit exceeded",
-            headers={"Retry-After": str(math.ceil(wait))},
+            status_code=decision.status or status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=(
+                "API rate limiter unavailable"
+                if decision.reason == "store_error"
+                else "API rate limit exceeded"
+            ),
+            headers=decision.headers,
         )
+    # FastAPI drops these when a route returns its own Response, as downloads do.
+    response.headers.update(decision.headers)
 
 
 @lru_cache

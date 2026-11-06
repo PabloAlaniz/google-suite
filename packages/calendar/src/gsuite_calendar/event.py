@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import Any
 
 
 @dataclass
@@ -13,6 +14,7 @@ class Attendee:
     response_status: str = "needsAction"  # needsAction, declined, tentative, accepted
     organizer: bool = False
     self_: bool = False
+    resource: bool = False  # a room or other resource, not a person
 
 
 @dataclass
@@ -42,6 +44,13 @@ class Event:
     updated: datetime | None = None
     creator: str | None = None  # email
     recurring_event_id: str | None = None  # parent of an instance of a recurring event
+    # The same across calendars and in .ics exports; with original_start it
+    # identifies one occurrence of a recurring event
+    ical_uid: str | None = None
+    original_start: datetime | None = None  # an instance's start before it was moved
+    organizer_name: str | None = None
+    organizer_self: bool = False  # you organize it
+    raw: dict[str, Any] = field(default_factory=dict, repr=False)
 
     @property
     def duration_minutes(self) -> int | None:

@@ -5,6 +5,7 @@ import uuid
 from datetime import MINYEAR, UTC, date, datetime, timedelta
 from typing import Any
 
+from gsuite_calendar.delta import EventsDelta
 from gsuite_calendar.parser import CalendarParser
 from gsuite_core import get_settings
 from gsuite_core.exceptions import ValidationError
@@ -178,3 +179,27 @@ def parse_free_busy(response: dict[str, Any], requested: list[str]) -> FreeBusy:
             for b in info.get("busy", [])
         ]
     return result
+
+
+SYNC_PAGE_SIZE = 2500
+
+
+def sync_params(single_events: bool, sync_token: str | None) -> dict[str, Any]:
+    """events.list parameters for a sync.
+
+    The API refuses a sync token together with timeMin, timeMax, orderBy or q,
+    so a sync covers the whole calendar; singleEvents must match the first sync.
+    """
+    params: dict[str, Any] = {"singleEvents": single_events, "maxResults": SYNC_PAGE_SIZE}
+    if sync_token:
+        params["syncToken"] = sync_token
+    return params
+
+
+def add_events_page(delta: EventsDelta, page: dict[str, Any], calendar_id: str) -> None:
+    """Fold one events.list page into ``delta``; keep the token from the last one."""
+    for item in page.get("items", []):
+        event = CalendarParser.parse_event(item, calendar_id)
+        (delta.cancelled if event.status == "cancelled" else delta.changed).append(event)
+    if page.get("nextSyncToken"):
+        delta.sync_token = page["nextSyncToken"]

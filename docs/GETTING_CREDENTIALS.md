@@ -152,6 +152,14 @@ class MyStore(TokenStore):
     def exists(self, user_id="default"): ...
 ```
 
+### Signing out
+
+`auth.revoke()` (and `gsuite auth logout`) revokes the grant at Google, so the
+app disappears from the account's permissions, and then deletes the stored
+token. If Google can't be reached it logs a warning and still deletes the local
+token. To only forget the token locally, use `auth.revoke(remote=False)` or
+`gsuite auth logout --local-only`.
+
 ## Publishing Your App
 
 While in **testing** mode:

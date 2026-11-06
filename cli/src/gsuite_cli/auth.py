@@ -131,11 +131,15 @@ def _login_without_browser(auth: GoogleAuth, force: bool) -> Credentials:
 
 
 @app.command()
-def logout() -> None:
-    """Revoke and delete stored credentials."""
+def logout(
+    local_only: bool = typer.Option(
+        False, "--local-only", help="Only delete the stored token; don't revoke it at Google."
+    ),
+) -> None:
+    """Revoke access at Google and delete the stored credentials."""
     auth = GoogleAuth()
 
-    if auth.revoke():
+    if auth.revoke(remote=not local_only):
         console.print("[green]✓ Logged out successfully[/green]")
     else:
         console.print("[yellow]No credentials to revoke[/yellow]")

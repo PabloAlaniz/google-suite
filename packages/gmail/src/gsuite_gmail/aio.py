@@ -28,7 +28,7 @@ from collections.abc import AsyncIterator, Awaitable, Sequence
 from typing import Any, NoReturn, TypeVar
 
 from gsuite_core.aio import AsyncGoogleClient
-from gsuite_core.exceptions import GSuiteError, NotFoundError
+from gsuite_core.exceptions import GSuiteError, NotFoundError, SyncTokenExpiredError
 from gsuite_gmail._labels import LabelResolver, is_system_label
 from gsuite_gmail._mime import (
     MessageSpec,
@@ -40,8 +40,19 @@ from gsuite_gmail._mime import (
     reply_recipients,
     with_signature,
 )
+from gsuite_gmail._requests import (
+    HISTORY_PAGE_SIZE,
+    HistoryType,
+    MessageFormat,
+    add_history_page,
+    finish_history,
+    get_params,
+    history_params,
+    list_params,
+)
 from gsuite_gmail.client import BATCH_MODIFY_LIMIT, BATCH_SIZE
 from gsuite_gmail.draft import Draft
+from gsuite_gmail.history import HistoryDelta
 from gsuite_gmail.label import Label
 from gsuite_gmail.message import Message
 from gsuite_gmail.parser import GmailParser
@@ -214,12 +225,24 @@ class AsyncGmail:
         """Sent messages."""
         return await self.get_messages(query="in:sent", max_results=max_results)
 
-    async def get_message(self, message_id: str) -> Message | None:
-        """A message by ID, or None if it doesn't exist."""
+    async def get_message(
+        self,
+        message_id: str,
+        format: MessageFormat = "full",
+        headers: Sequence[str] | None = None,
+    ) -> Message | None:
+        """A message by ID, or None if it doesn't exist (format/headers as in ``Gmail``)."""
         try:
-            return await self._fetch_message(message_id)
+            data = await self._json(
+                "GET",
+                f"messages/{message_id}",
+                params=get_params(format, headers),
+                resource_type="message",
+                resource_id=message_id,
+            )
         except NotFoundError:
             return None
+        return self._parse(data, include_body=format == "full")
 
     async def download_attachment(self, message_id: str, attachment_id: str) -> bytes:
         """Content of an attachment (``attachment.download()`` for sync messages)."""
@@ -248,27 +271,37 @@ class AsyncGmail:
 
     # ---- threads ----
 
-    def _parse_thread(self, data: dict[str, Any]) -> Thread:
+    def _parse_thread(self, data: dict[str, Any], include_body: bool = True) -> Thread:
         return Thread(
             id=data["id"],
-            messages=[self._parse(m) for m in data.get("messages", [])],
+            messages=[self._parse(m, include_body) for m in data.get("messages", [])],
             snippet=data.get("snippet", ""),
         )
 
-    async def _fetch_thread(self, thread_id: str) -> Thread:
+    async def _fetch_thread(
+        self,
+        thread_id: str,
+        format: MessageFormat = "full",
+        headers: Sequence[str] | None = None,
+    ) -> Thread:
         data = await self._json(
             "GET",
             f"threads/{thread_id}",
-            params={"format": "full"},
+            params=get_params(format, headers),
             resource_type="thread",
             resource_id=thread_id,
         )
-        return self._parse_thread(data)
+        return self._parse_thread(data, include_body=format == "full")
 
-    async def get_thread(self, thread_id: str) -> Thread | None:
-        """A full conversation, or None if it doesn't exist."""
+    async def get_thread(
+        self,
+        thread_id: str,
+        format: MessageFormat = "full",
+        headers: Sequence[str] | None = None,
+    ) -> Thread | None:
+        """A conversation, or None if it doesn't exist (format/headers as in ``Gmail``)."""
         try:
-            return await self._fetch_thread(thread_id)
+            return await self._fetch_thread(thread_id, format, headers)
         except NotFoundError:
             return None
 
@@ -478,6 +511,67 @@ class AsyncGmail:
         return True
 
     # ---- profile and signature ----
+
+    # ---- incremental sync ----
+
+    async def _iter_ids(
+        self, kind: str, query: str | Query | None, labels: list[str] | None, limit: int | None
+    ) -> AsyncIterator[str]:
+        async for ref in self._http.paginate(
+            f"{self._base}/{kind}",
+            kind,
+            service="gmail",
+            params=list_params(query, labels),
+            max_items=limit,
+            max_page_size=500,
+        ):
+            yield ref["id"]
+
+    def iter_message_ids(
+        self,
+        query: str | Query | None = None,
+        labels: list[str] | None = None,
+        max_results: int | None = None,
+    ) -> AsyncIterator[str]:
+        """IDs of the matching messages, without fetching them (500 per request)."""
+        return self._iter_ids("messages", query, labels, max_results)
+
+    def iter_thread_ids(
+        self,
+        query: str | Query | None = None,
+        labels: list[str] | None = None,
+        max_results: int | None = None,
+    ) -> AsyncIterator[str]:
+        """IDs of the matching threads, without fetching them."""
+        return self._iter_ids("threads", query, labels, max_results)
+
+    async def get_history_id(self) -> str:
+        """The mailbox's current history ID: where a first ``history`` call starts."""
+        return str((await self.get_profile())["historyId"])
+
+    async def history(
+        self,
+        start_history_id: str,
+        history_types: Sequence[HistoryType] | None = None,
+        label_id: str | None = None,
+    ) -> HistoryDelta:
+        """Message IDs added, deleted or relabeled since ``start_history_id`` (see ``Gmail``).
+
+        Raises:
+            SyncTokenExpiredError: Gmail no longer has that history; start over.
+        """
+        params = history_params(start_history_id, history_types, label_id)
+        params["maxResults"] = HISTORY_PAGE_SIZE
+        delta = HistoryDelta()
+        while True:
+            try:
+                page = await self._json("GET", "history", params=params, resource_type="history")
+            except NotFoundError as exc:
+                raise SyncTokenExpiredError("gmail") from exc
+            add_history_page(delta, page)
+            if not page.get("nextPageToken"):
+                return finish_history(delta)
+            params["pageToken"] = page["nextPageToken"]
 
     async def get_profile(self) -> dict[str, Any]:
         """The authenticated user's profile."""

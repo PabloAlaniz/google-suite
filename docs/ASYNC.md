@@ -81,14 +81,30 @@ inline) raise `TypeError` instead of silently doing nothing; await
 `gmail.trash(id)`, `gmail.batch_modify(...)` or
 `gmail.download_attachment(message_id, attachment_id)` instead.
 
-## Roadmap: Calendar, Drive
+## Calendar
 
-They build on `AsyncGoogleClient`; nothing else in the foundation is
+`AsyncCalendar` mirrors `Calendar`: events (list, get, create with Meet and
+recurrence, quick add, update, instances, delete), calendars and free/busy,
+with the same arguments and results. Request bodies come from the same code as
+the sync client, so naive datetimes mean the same thing in both
+(`GSUITE_DEFAULT_TIMEZONE` for event times, UTC for query bounds).
+
+```python
+from gsuite_calendar import AsyncCalendar
+
+async with AsyncCalendar(auth) as cal:
+    events = await cal.get_upcoming(days=7)
+    busy = await cal.get_free_busy(start, end, ["me", "ana@example.com"])
+    await cal.create_event("Standup", datetime(2026, 3, 2, 9), meet=True)
+```
+
+## Roadmap: Drive
+
+It builds on `AsyncGoogleClient`; nothing else in the foundation is
 service-specific.
 
 | Service | Scope | Notes |
 |---|---|---|
-| Calendar | events list/get/create/update/delete, free/busy, instances | reuse `CalendarParser`, `_rfc3339`, `_time_bodies` |
 | Drive | list/get/metadata ops, export, permissions; downloads and resumable uploads streamed with httpx | uploads are the only new protocol work |
 
 The pure parts (parsers, MIME composition, request bodies) are shared with

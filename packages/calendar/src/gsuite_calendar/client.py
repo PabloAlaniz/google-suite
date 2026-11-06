@@ -1,44 +1,31 @@
 """Calendar client - high-level interface."""
 
 import logging
-import uuid
 from collections.abc import Iterator
-from datetime import MINYEAR, UTC, date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 from zoneinfo import ZoneInfo
 
+from gsuite_calendar._requests import (
+    FreeBusy,
+    details,
+    free_busy_body,
+    free_busy_ids,
+    list_params,
+    meet_request,
+    parse_free_busy,
+    patch_body,
+    range_params,
+    time_bodies,
+)
 from gsuite_calendar.calendar_entity import CalendarEntity
 from gsuite_calendar.event import Event
 from gsuite_calendar.parser import CalendarParser
 from gsuite_core import GoogleAuth, execute, get_settings, paginate
-from gsuite_core.exceptions import NotFoundError, ValidationError
+from gsuite_core.exceptions import NotFoundError
 from gsuite_core.service import GoogleService
 
 SendUpdates = Literal["all", "externalOnly", "none"]
-
-
-_MIN_UTC = datetime.min.replace(tzinfo=UTC)
-_MAX_UTC = datetime.max.replace(tzinfo=UTC)
-
-
-def _rfc3339(value: datetime) -> str:
-    """UTC timestamp for the API. Naive datetimes are taken as UTC.
-
-    Appending "Z" to isoformat() (as this used to) breaks aware datetimes:
-    "2026-01-01T10:00:00+00:00Z" is rejected by the API.
-
-    Every caller passes a query bound (timeMin/timeMax). A bound whose UTC
-    instant falls outside datetime's range, e.g. ``datetime.min`` in UTC+1
-    used as "since forever", is clamped to the nearest representable UTC
-    instant: the API holds no events out there, so the query is the same.
-    """
-    if value.tzinfo is None:
-        value = value.replace(tzinfo=UTC)
-    try:
-        value = value.astimezone(UTC)
-    except OverflowError:
-        value = _MIN_UTC if value.year == MINYEAR else _MAX_UTC
-    return value.isoformat().replace("+00:00", "Z")
 
 
 logger = logging.getLogger(__name__)
@@ -100,16 +87,7 @@ class Calendar:
         """
         cal_id = calendar_id or self.calendar_id
 
-        params: dict[str, Any] = {
-            "calendarId": cal_id,
-            "timeMin": _rfc3339(time_min or datetime.now(UTC)),
-            "singleEvents": single_events,
-        }
-        # The API only accepts orderBy=startTime for expanded single events
-        if order_by != "startTime" or single_events:
-            params["orderBy"] = order_by
-        if time_max:
-            params["timeMax"] = _rfc3339(time_max)
+        params = {"calendarId": cal_id, **list_params(time_min, time_max, single_events, order_by)}
 
         items = paginate(
             self.service.events().list,
@@ -206,34 +184,6 @@ class Calendar:
 
     # ========== Create/Update ==========
 
-    @staticmethod
-    def _time_bodies(
-        start: datetime | date, end: datetime | date | None, all_day: bool
-    ) -> tuple[dict[str, str], dict[str, str]]:
-        """API start/end objects; end defaults to 1 hour (or the same day)."""
-        if all_day or not isinstance(start, datetime):
-            # datetime is a subclass of date: take .date() first, or an all-day
-            # event built from a datetime sends "2026-01-01T10:00:00" as a date.
-            start_date = start.date() if isinstance(start, datetime) else start
-            end_date = end or start_date
-            if isinstance(end_date, datetime):
-                end_date = end_date.date()
-            # The API's end date is exclusive; `end` here is the last day
-            return (
-                {"date": start_date.isoformat()},
-                {"date": (end_date + timedelta(days=1)).isoformat()},
-            )
-
-        if end is None:
-            end = start + timedelta(hours=1)
-        tz = get_settings().default_timezone
-        # Naive datetimes are wall time in GSUITE_DEFAULT_TIMEZONE; aware ones
-        # carry their own offset.
-        return (
-            {"dateTime": start.isoformat(), "timeZone": tz},
-            {"dateTime": end.isoformat(), "timeZone": tz},
-        )
-
     def create_event(
         self,
         summary: str,
@@ -267,27 +217,16 @@ class Calendar:
             Created Event
         """
         cal_id = calendar_id or self.calendar_id
-        start_body, end_body = self._time_bodies(start, end, all_day)
-
-        event_body: dict[str, Any] = {"summary": summary, "start": start_body, "end": end_body}
-        if description:
-            event_body["description"] = description
-        if location:
-            event_body["location"] = location
-        if attendees:
-            event_body["attendees"] = [{"email": email} for email in attendees]
-        if recurrence:
-            event_body["recurrence"] = recurrence
-
+        start_body, end_body = time_bodies(start, end, all_day)
+        event_body: dict[str, Any] = {
+            "summary": summary,
+            "start": start_body,
+            "end": end_body,
+            **details(description, location, attendees, recurrence),
+        }
         params: dict[str, Any] = {}
         if meet:
-            event_body["conferenceData"] = {
-                "createRequest": {
-                    # Idempotency key: a retried insert won't create a second room
-                    "requestId": uuid.uuid4().hex,
-                    "conferenceSolutionKey": {"type": "hangoutsMeet"},
-                }
-            }
+            event_body["conferenceData"] = meet_request()
             params["conferenceDataVersion"] = 1
 
         created = execute(
@@ -334,21 +273,9 @@ class Calendar:
             The updated Event
         """
         cal_id = calendar_id or self.calendar_id
-        body: dict[str, Any] = {}
-        if summary is not None:
-            body["summary"] = summary
-        if description is not None:
-            body["description"] = description
-        if location is not None:
-            body["location"] = location
-        if attendees is not None:
-            body["attendees"] = [{"email": email} for email in attendees]
-        if start is not None:
-            body["start"], body["end"] = self._time_bodies(start, end, all_day)
-        elif end is not None:
-            raise ValidationError("end", "pass start too when changing the time")
-        if not body:
-            raise ValidationError("event", "nothing to update")
+        body = patch_body(
+            summary, (start, end, all_day), details(description, location, attendees, patch=True)
+        )
 
         updated = execute(
             self.service.events().patch(
@@ -370,11 +297,7 @@ class Calendar:
     ) -> list[Event]:
         """Occurrences of a recurring event (optionally within a time range)."""
         cal_id = calendar_id or self.calendar_id
-        params: dict[str, Any] = {"calendarId": cal_id, "eventId": event_id}
-        if time_min:
-            params["timeMin"] = _rfc3339(time_min)
-        if time_max:
-            params["timeMax"] = _rfc3339(time_max)
+        params = {"calendarId": cal_id, "eventId": event_id, **range_params(time_min, time_max)}
 
         items = paginate(
             self.service.events().instances,
@@ -391,7 +314,7 @@ class Calendar:
         time_min: datetime,
         time_max: datetime,
         calendars: list[str] | None = None,
-    ) -> dict[str, list[dict[str, datetime | None]]]:
+    ) -> FreeBusy:
         """Busy intervals per calendar.
 
         Args:
@@ -403,31 +326,13 @@ class Calendar:
             you can't see comes back with no busy times and a logged warning.
         """
         ids = calendars or [self.calendar_id]
-        query_ids = ["primary" if c == "me" else c for c in ids]
         response = execute(
             self.service.freebusy().query(
-                body={
-                    "timeMin": _rfc3339(time_min),
-                    "timeMax": _rfc3339(time_max),
-                    "items": [{"id": c} for c in query_ids],
-                }
+                body=free_busy_body(time_min, time_max, free_busy_ids(ids))
             ),
             "calendar",
         )
-
-        result: dict[str, list[dict[str, datetime | None]]] = {}
-        for requested, query_id in zip(ids, query_ids, strict=True):
-            info = response.get("calendars", {}).get(query_id, {})
-            if info.get("errors"):
-                logger.warning("Free/busy unavailable for %s: %s", requested, info["errors"])
-            result[requested] = [
-                {
-                    "start": CalendarParser._parse_datetime(b.get("start")),
-                    "end": CalendarParser._parse_datetime(b.get("end")),
-                }
-                for b in info.get("busy", [])
-            ]
-        return result
+        return parse_free_busy(response, ids)
 
     def delete_event(
         self,

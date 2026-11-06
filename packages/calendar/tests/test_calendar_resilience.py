@@ -5,7 +5,8 @@ from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 
-from gsuite_calendar.client import Calendar, _rfc3339
+from gsuite_calendar._requests import rfc3339 as _rfc3339
+from gsuite_calendar.client import Calendar
 from gsuite_core import Settings
 
 

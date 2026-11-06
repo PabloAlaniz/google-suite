@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 
 from gsuite_cli.auth import _resolve_scopes
 from gsuite_cli.main import app
-from gsuite_contacts import Contact
+from gsuite_contacts import Contact, ContactGroup
 from gsuite_core import Scopes
 from gsuite_tasks import Task, TaskList
 
@@ -181,3 +181,42 @@ class TestLoginScopes:
         result = runner.invoke(app, ["auth", "login", "--scopes", "calender"])
         assert result.exit_code == 1
         assert "Unknown scope set: calender" in result.output
+
+
+class TestContactGroups:
+    def test_list_json(self, contacts):
+        contacts.list_groups.return_value = [
+            ContactGroup(resource_name="contactGroups/a1", name="Family", member_count=3)
+        ]
+
+        result = runner.invoke(app, ["contacts", "groups", "list", "-o", "json"])
+
+        assert json.loads(result.output) == [
+            {"id": "a1", "name": "Family", "type": "USER_CONTACT_GROUP", "members": 3}
+        ]
+
+    def test_members_show_the_contacts(self, contacts):
+        contacts.group_members.return_value = ["people/c1"]
+        contacts.get_many.return_value = [_contact()]
+
+        result = runner.invoke(app, ["contacts", "groups", "members", "a1"])
+
+        assert result.exit_code == 0, result.output
+        contacts.get_many.assert_called_once_with(["people/c1"])
+
+    def test_add_reports_skipped(self, contacts):
+        contacts.modify_group.return_value = ["people/c9"]
+
+        result = runner.invoke(app, ["contacts", "groups", "add", "a1", "c1", "c9"])
+
+        assert "1 contact(s)" in result.output
+        assert "people/c9" in result.output
+        contacts.modify_group.assert_called_once_with("a1", add=["c1", "c9"], remove=[])
+
+    def test_delete_keeps_contacts_by_default(self, contacts):
+        contacts.delete_group.return_value = True
+
+        result = runner.invoke(app, ["contacts", "groups", "delete", "a1", "-y"])
+
+        assert result.exit_code == 0
+        contacts.delete_group.assert_called_once_with("a1", delete_contacts=False)

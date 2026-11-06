@@ -71,6 +71,23 @@ contacts.delete(ana.id)
 `update` raises `NotFoundError` for a missing contact and refuses to
 overwrite a concurrent change (etag).
 
+Groups (labels) and keeping a local copy in sync:
+
+```python
+for group in contacts.list_groups():               # system groups have group.is_system
+    print(group.id, group.name, group.member_count)
+work = contacts.create_group("Work")
+contacts.modify_group(work.id, add=["c123"], remove=["c456"])  # returns the IDs Google skipped
+members = contacts.get_many(contacts.group_members(work.id))
+contacts.delete_group(work.id)                     # its contacts stay
+
+delta = contacts.sync()                            # first time: every contact
+delta = contacts.sync(delta.sync_token)            # later: delta.changed, delta.deleted
+```
+
+`sync` raises `SyncTokenExpiredError` when the token is too old (about a week):
+call it again without one.
+
 ## CLI
 
 ```bash
@@ -89,4 +106,10 @@ gsuite contacts list --limit 200 -o json
 gsuite contacts show CONTACT_ID -o json
 gsuite contacts add --given Ana --family Pérez --email ana@example.com --phone "+54 11 5555-5555"
 gsuite contacts delete CONTACT_ID --yes
+gsuite contacts groups list -o json
+gsuite contacts groups create Work
+gsuite contacts groups members GROUP_ID -o json
+gsuite contacts groups add GROUP_ID CONTACT_ID CONTACT_ID
+gsuite contacts groups remove GROUP_ID CONTACT_ID
+gsuite contacts groups delete GROUP_ID --yes
 ```

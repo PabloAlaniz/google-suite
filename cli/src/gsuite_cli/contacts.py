@@ -149,3 +149,93 @@ def remove(
         console.print(f"[red]Contact not found: {contact_id}[/red]")
         raise typer.Exit(1)
     console.print(f"[green]✓ Deleted[/green] {contact_id}")
+
+
+groups_app = typer.Typer(no_args_is_help=True, help="Contact groups (labels)")
+app.add_typer(groups_app, name="groups")
+
+
+@groups_app.command("list")
+def list_groups(
+    output: str = typer.Option("table", "--output", "-o", help="table or json"),
+) -> None:
+    """List contact groups, system groups included."""
+    groups = get_contacts().list_groups()
+    if output == "json":
+        print_json(
+            [
+                {"id": g.id, "name": g.name, "type": g.group_type, "members": g.member_count}
+                for g in groups
+            ]
+        )
+        return
+    table = Table(title=f"Groups ({len(groups)})")
+    table.add_column("Name", style="cyan")
+    table.add_column("Members", justify="right")
+    table.add_column("ID", style="dim")
+    for g in groups:
+        table.add_row(
+            g.name + (" [dim](system)[/dim]" if g.is_system else ""), str(g.member_count), g.id
+        )
+    console.print(table)
+
+
+@groups_app.command("create")
+def create_group(name: str = typer.Argument(..., help="Group name")) -> None:
+    """Create a contact group."""
+    group = get_contacts().create_group(name)
+    console.print(f"[green]✓ Created[/green] {group.name} [dim]{group.id}[/dim]")
+
+
+@groups_app.command("delete")
+def delete_group(
+    group_id: str = typer.Argument(..., help="Group ID"),
+    with_contacts: bool = typer.Option(
+        False, "--with-contacts", help="Also delete the contacts in it"
+    ),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Don't ask for confirmation"),
+) -> None:
+    """Delete a group (its contacts stay unless --with-contacts)."""
+    if not yes:
+        what = "and its contacts " if with_contacts else ""
+        typer.confirm(f"Delete group {group_id} {what}? This can't be undone", abort=True)
+    if not get_contacts().delete_group(group_id, delete_contacts=with_contacts):
+        console.print(f"[red]Group not found: {group_id}[/red]")
+        raise typer.Exit(1)
+    console.print(f"[green]✓ Deleted[/green] {group_id}")
+
+
+@groups_app.command("members")
+def group_members(
+    group_id: str = typer.Argument(..., help="Group ID"),
+    output: str = typer.Option("table", "--output", "-o", help="table or json"),
+) -> None:
+    """The contacts in a group."""
+    client = get_contacts()
+    _print(client.get_many(client.group_members(group_id)), output, f"Group {group_id}")
+
+
+def _modify(group_id: str, add: list[str], remove: list[str]) -> None:
+    skipped = get_contacts().modify_group(group_id, add=add, remove=remove)
+    changed = len(add) + len(remove) - len(skipped)
+    console.print(f"[green]✓ Updated[/green] {changed} contact(s) in {group_id}")
+    if skipped:
+        console.print(f"[yellow]Left as they were:[/yellow] {', '.join(skipped)}")
+
+
+@groups_app.command("add")
+def add_to_group(
+    group_id: str = typer.Argument(..., help="Group ID"),
+    contact_ids: list[str] = typer.Argument(..., help="Contact IDs"),
+) -> None:
+    """Add contacts to a group."""
+    _modify(group_id, contact_ids, [])
+
+
+@groups_app.command("remove")
+def remove_from_group(
+    group_id: str = typer.Argument(..., help="Group ID"),
+    contact_ids: list[str] = typer.Argument(..., help="Contact IDs"),
+) -> None:
+    """Remove contacts from a group (they stay in your contacts)."""
+    _modify(group_id, [], contact_ids)

@@ -25,6 +25,7 @@ from gsuite_core.exceptions import (
     PermissionDeniedError,
     QuotaExceededError,
     RateLimitError,
+    SyncTokenExpiredError,
     ValidationError,
 )
 
@@ -61,6 +62,8 @@ _API_ERROR_STATUS: tuple[tuple[type[APIError], int], ...] = (
     (QuotaExceededError, 429),
     (NotFoundError, 404),
     (PermissionDeniedError, 403),
+    # Gone: the client must sync again from scratch
+    (SyncTokenExpiredError, 410),
 )
 
 

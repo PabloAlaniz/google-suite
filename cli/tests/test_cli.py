@@ -362,3 +362,25 @@ class TestLoginWithoutBrowser:
 
         assert result.exit_code == 0, result.output
         auth.start_authorization.assert_called_once()
+
+
+class TestLogout:
+    def test_revokes_at_google_by_default(self):
+        auth = MagicMock()
+        auth.revoke.return_value = True
+        with patch("gsuite_cli.auth.GoogleAuth", return_value=auth):
+            result = runner.invoke(app, ["auth", "logout"])
+
+        assert result.exit_code == 0, result.output
+        assert "Logged out" in result.output
+        auth.revoke.assert_called_once_with(remote=True)
+
+    def test_local_only_keeps_the_grant_at_google(self):
+        auth = MagicMock()
+        auth.revoke.return_value = False
+        with patch("gsuite_cli.auth.GoogleAuth", return_value=auth):
+            result = runner.invoke(app, ["auth", "logout", "--local-only"])
+
+        assert result.exit_code == 0, result.output
+        assert "No credentials" in result.output
+        auth.revoke.assert_called_once_with(remote=False)

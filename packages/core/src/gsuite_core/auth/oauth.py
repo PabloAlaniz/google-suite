@@ -1,10 +1,12 @@
 """Google OAuth2 authentication."""
 
 import json
+import logging
 from dataclasses import asdict, dataclass
+from http import HTTPStatus
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse
 
 import httplib2
 from google.auth.exceptions import GoogleAuthError, RefreshError, TransportError
@@ -21,6 +23,10 @@ from gsuite_core.exceptions import (
     TokenRefreshError,
 )
 from gsuite_core.storage import SQLiteTokenStore, TokenStore
+
+logger = logging.getLogger(__name__)
+
+REVOKE_URI = "https://oauth2.googleapis.com/revoke"
 
 # Desktop OAuth clients accept any localhost redirect. Without a server
 # listening there, the browser shows an error page whose URL carries the code:
@@ -356,16 +362,29 @@ class GoogleAuth:
         self._save_credentials()
         return self._credentials
 
-    def revoke(self) -> bool:
-        """Revoke and delete stored credentials.
+    def revoke(self, *, remote: bool = True) -> bool:
+        """Sign out: revoke the grant at Google and delete the stored token.
+
+        With ``remote=True`` (the default) the refresh token (or the access
+        token, if there is none) is revoked at Google: the app disappears from
+        the user's account permissions and every token from that grant stops
+        working. Google answering that the token is already invalid counts as
+        done. If Google can't be reached or answers with another error, a
+        warning is logged and the local token is deleted anyway, so signing out
+        never stops halfway. ``remote=False`` only forgets the token locally.
 
         Returns:
-            True if credentials were deleted
+            True if there was a grant to revoke or a stored token to delete.
         """
+        credentials = self.credentials
+        revoked = False
+        if remote and credentials is not None:
+            token = credentials.refresh_token or credentials.token
+            if token:
+                revoked = _revoke_at_google(token)
         self._credentials = None
-        if self.token_store:
-            return self.token_store.delete_token(self.user_id)
-        return False
+        deleted = self.token_store.delete_token(self.user_id) if self.token_store else False
+        return deleted or revoked
 
     def export_token(self) -> dict[str, Any] | None:
         """Export token data for external storage.
@@ -415,3 +434,24 @@ def _installed_config(client_id: str, client_secret: str) -> dict[str, Any]:
             "token_uri": "https://oauth2.googleapis.com/token",
         }
     }
+
+
+def _revoke_at_google(token: str) -> bool:
+    """Revoke ``token`` at Google. False (and a warning) when it couldn't."""
+    try:
+        response = Request()(
+            REVOKE_URI,
+            method="POST",
+            body=urlencode({"token": token}),
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+            timeout=10,
+        )
+    except TransportError as exc:
+        logger.warning("Could not reach Google to revoke the token: %s", exc)
+        return False
+    if response.status == HTTPStatus.OK:
+        return True
+    if response.status == HTTPStatus.BAD_REQUEST and b"invalid_token" in (response.data or b""):
+        return True  # already revoked or expired: nothing left at Google
+    logger.warning("Google refused to revoke the token (HTTP %s)", response.status)
+    return False

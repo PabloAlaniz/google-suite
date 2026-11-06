@@ -415,26 +415,115 @@ class TestGoogleAuth:
         with pytest.raises(CredentialsNotFoundError):
             auth_instance.authenticate()
 
+    @staticmethod
+    def _google(status=200, data=b"", error=None):
+        """Patch the HTTP request used to revoke; returns the mock transport."""
+        response = Mock(status=status, data=data)
+        transport = Mock(side_effect=error) if error else Mock(return_value=response)
+        return patch("gsuite_core.auth.oauth.Request", return_value=transport), transport
+
     def test_revoke(self, auth_instance, mock_credentials, token_store):
-        """Test revoking credentials."""
+        """Revokes the refresh token at Google, then deletes the stored one."""
         auth_instance._credentials = mock_credentials
         token_store.save_token({"token": "test"}, user_id="test_user")
+        patcher, transport = self._google()
 
-        result = auth_instance.revoke()
+        with patcher:
+            result = auth_instance.revoke()
 
         assert result is True
         assert auth_instance._credentials is None
         assert token_store.get_token("test_user") is None
+        (url,), kwargs = transport.call_args
+        assert url == "https://oauth2.googleapis.com/revoke"
+        assert kwargs["method"] == "POST"
+        assert kwargs["body"] == "token=refresh_token_123"
 
-    def test_revoke_no_token_store(self, mock_credentials):
-        """Test revoke when token_store is None."""
+    def test_revoke_without_refresh_token_uses_access_token(self, auth_instance, mock_credentials):
+        mock_credentials.refresh_token = None
+        auth_instance._credentials = mock_credentials
+        patcher, transport = self._google()
+
+        with patcher:
+            assert auth_instance.revoke() is True
+
+        assert transport.call_args.kwargs["body"] == "token=access_token_123"
+
+    def test_revoke_already_invalid_counts_as_done(self, mock_credentials):
         auth = GoogleAuth.__new__(GoogleAuth)
         auth.token_store = None
         auth._credentials = mock_credentials
+        patcher, _ = self._google(400, b'{"error": "invalid_token"}')
 
-        result = auth.revoke()
+        with patcher:
+            assert auth.revoke() is True
 
-        assert result is False
+    def test_revoke_google_unreachable_still_deletes_locally(
+        self, auth_instance, mock_credentials, token_store, caplog
+    ):
+        from google.auth.exceptions import TransportError
+
+        auth_instance._credentials = mock_credentials
+        token_store.save_token({"token": "test"}, user_id="test_user")
+        patcher, _ = self._google(error=TransportError("offline"))
+
+        with patcher, caplog.at_level("WARNING", logger="gsuite_core.auth.oauth"):
+            assert auth_instance.revoke() is True
+
+        assert token_store.get_token("test_user") is None
+        assert "Could not reach Google" in caplog.text
+
+    def test_revoke_google_error_is_logged(self, mock_credentials, caplog):
+        auth = GoogleAuth.__new__(GoogleAuth)
+        auth.token_store = None
+        auth._credentials = mock_credentials
+        patcher, _ = self._google(503)
+
+        with patcher, caplog.at_level("WARNING", logger="gsuite_core.auth.oauth"):
+            assert auth.revoke() is False
+
+        assert "HTTP 503" in caplog.text
+
+    def test_revoke_local_only(self, auth_instance, mock_credentials, token_store):
+        auth_instance._credentials = mock_credentials
+        token_store.save_token({"token": "test"}, user_id="test_user")
+        patcher, transport = self._google()
+
+        with patcher:
+            assert auth_instance.revoke(remote=False) is True
+
+        transport.assert_not_called()
+        assert token_store.get_token("test_user") is None
+
+    def test_revoke_loads_stored_token(self, auth_instance, token_store):
+        """Revokes what's in the store even if nothing was loaded yet."""
+        token_store.save_token({"token": "at", "refresh_token": "rt"}, user_id="test_user")
+        patcher, transport = self._google()
+
+        with patcher:
+            assert auth_instance.revoke() is True
+
+        assert transport.call_args.kwargs["body"] == "token=rt"
+
+    def test_revoke_nothing_to_revoke(self, auth_instance):
+        patcher, transport = self._google()
+
+        with patcher:
+            assert auth_instance.revoke() is False
+
+        transport.assert_not_called()
+
+    def test_revoke_no_token_store(self, mock_credentials):
+        """Without a token store, only the grant at Google is revoked."""
+        auth = GoogleAuth.__new__(GoogleAuth)
+        auth.token_store = None
+        auth._credentials = mock_credentials
+        patcher, transport = self._google()
+
+        with patcher:
+            assert auth.revoke() is True
+
+        transport.assert_called_once()
         assert auth._credentials is None
 
     def test_export_token(self, auth_instance, mock_credentials):

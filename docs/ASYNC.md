@@ -98,15 +98,36 @@ async with AsyncCalendar(auth) as cal:
     await cal.create_event("Standup", datetime(2026, 3, 2, 9), meet=True)
 ```
 
-## Roadmap: Drive
+## Drive
 
-It builds on `AsyncGoogleClient`; nothing else in the foundation is
-service-specific.
+`AsyncDrive` mirrors `Drive`: listing and search, metadata (get, update,
+rename, copy, move), download and export, uploads, folders, trash and delete,
+and permissions.
 
-| Service | Scope | Notes |
-|---|---|---|
-| Drive | list/get/metadata ops, export, permissions; downloads and resumable uploads streamed with httpx | uploads are the only new protocol work |
+```python
+from gsuite_drive import AsyncDrive
 
-The pure parts (parsers, MIME composition, request bodies) are shared with
-the sync clients, the way the Sheets adapters share their request builders,
-so each async client is a thin I/O layer.
+async with AsyncDrive(auth) as drive:
+    files = await drive.search("budget")
+    await drive.download(files[0].id, "budget.xlsx", export_format="xlsx")
+    await drive.upload("report.pdf", parent_id=folder_id, on_progress=print)
+```
+
+Uploads are resumable and go in chunks (`chunk_size`, 8 MiB by default, a
+multiple of 256 KiB). When a chunk fails with a network error, a 5xx or a
+429, the client asks Drive how many bytes it kept and resumes from there
+(up to `GSUITE_MAX_RETRIES` times in a row), so a retry never resends bytes
+Drive already has. Errors a retry can't fix (403, 404, ...) raise at once.
+Downloads and exports are read into memory, as in the sync client.
+
+Files from `AsyncDrive` have no sync client behind them: `file.trash()`,
+`file.download()` and `folder.list_files()` raise `TypeError`; await the
+`AsyncDrive` method instead.
+
+## Shared code
+
+Each async client is a thin I/O layer: parsers, query strings, request
+bodies and MIME building are the sync client's own code (`gsuite_gmail._mime`,
+`gsuite_calendar._requests`, `gsuite_drive._requests`), the way the Sheets
+adapters share their request builders. A behavior fixed in one client is
+fixed in both.

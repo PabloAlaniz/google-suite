@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Collection
 from typing import Any
 
 from gsuite_core.api_utils import (
@@ -135,8 +135,25 @@ class AsyncGoogleClient:
         json: Any = None,
         content: bytes | None = None,
         headers: dict[str, str] | None = None,
+        accept: Collection[int] = (),
+        retry: bool = True,
     ) -> Any:
         """Send a request; returns the ``httpx.Response`` of a successful call.
+
+        Args:
+            method: HTTP method.
+            url: Full URL of the endpoint.
+            service: Service name for errors and logs ("gmail", "drive", ...).
+            resource_type: What the URL addresses, for errors ("file", ...).
+            resource_id: Its ID, for errors.
+            params: Query parameters.
+            json: JSON body.
+            content: Raw body (instead of ``json``).
+            headers: Extra headers; the authorization header is added.
+            accept: Non-2xx statuses to return instead of raising (e.g. 308
+                from a resumable upload).
+            retry: False sends it once, for callers that recover on their own
+                (a resumable upload asks the server where to resume).
 
         Raises:
             GSuiteError: A subclass of it for HTTP errors.
@@ -149,8 +166,9 @@ class AsyncGoogleClient:
         limiter = get_rate_limiter()
         method = method.upper()
 
-        for attempt in range(settings.max_retries + 1):
-            last_attempt = attempt == settings.max_retries
+        max_retries = settings.max_retries if retry else 0
+        for attempt in range(max_retries + 1):
+            last_attempt = attempt == max_retries
             if limiter is not None:
                 await limiter.acquire_async()
 
@@ -174,12 +192,12 @@ class AsyncGoogleClient:
                     type(exc).__name__,
                     wait,
                     attempt + 1,
-                    settings.max_retries,
+                    max_retries,
                 )
                 await asyncio.sleep(wait)
                 continue
 
-            if response.is_success:
+            if response.is_success or response.status_code in accept:
                 return response
 
             reason = reason_from_body(response.content)
@@ -194,7 +212,7 @@ class AsyncGoogleClient:
                     response.status_code,
                     wait,
                     attempt + 1,
-                    settings.max_retries,
+                    max_retries,
                 )
                 await asyncio.sleep(wait)
                 continue

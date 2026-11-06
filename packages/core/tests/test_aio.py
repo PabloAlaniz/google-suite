@@ -253,3 +253,23 @@ async def test_context_manager_closes():
     ) as http:
         assert await http.json("DELETE", URL, service="test") == {}
     assert http._client.is_closed
+
+
+async def test_accepted_status_is_returned_not_raised():
+    http, _ = client_with([httpx.Response(308, headers={"range": "bytes=0-9"})])
+
+    response = await http.request("PUT", URL, service="drive", accept=(308,))
+
+    assert response.status_code == 308
+    await http.aclose()
+
+
+async def test_retry_false_sends_once(no_sleep):
+    http, seen = client_with([error(503), httpx.Response(200, json={})])
+
+    with pytest.raises(APIError):
+        await http.request("PUT", URL, service="drive", retry=False)
+
+    assert len(seen) == 1
+    no_sleep.assert_not_called()
+    await http.aclose()

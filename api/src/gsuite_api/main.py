@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from gsuite_api.dependencies import require_api_key
+from gsuite_api.dependencies import enforce_rate_limit, require_api_key
 from gsuite_api.errors import install_error_handlers
 from gsuite_api.observability import RequestContextMiddleware, configure_logging
 from gsuite_api.routes import (
@@ -23,6 +23,7 @@ from gsuite_api.routes import (
     tasks,
 )
 from gsuite_core import Settings, __version__, get_settings
+from gsuite_core.rate_limit import TokenBucket
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +38,12 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.warning("GSUITE_ALLOW_NO_API_KEY is set: the API accepts requests without a key")
         else:
             logger.warning("GSUITE_API_KEY is not set: every API request will be rejected")
+    if settings.api_rate_limit:
+        logger.info(
+            "API rate limit: %s requests/s, burst %s",
+            settings.api_rate_limit,
+            settings.api_rate_limit_burst or max(1.0, settings.api_rate_limit),
+        )
     logger.info("Google Suite API %s starting", __version__)
     yield
     logger.info("Google Suite API shutting down")
@@ -58,6 +65,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     app.state.settings = settings
+    app.state.rate_limiter = (
+        TokenBucket(settings.api_rate_limit, settings.api_rate_limit_burst)
+        if settings.api_rate_limit
+        else None
+    )
 
     install_error_handlers(app)
 
@@ -76,8 +88,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Added last so it wraps everything, CORS preflights included.
     app.add_middleware(RequestContextMiddleware)
 
-    # The API key is enforced per router, so a new route can't forget it.
-    protected = [Depends(require_api_key)]
+    # The API key and the rate limit are enforced per router, so a new route
+    # can't forget them. Order matters: the key is checked first.
+    protected = [Depends(require_api_key), Depends(enforce_rate_limit)]
     app.include_router(health.router)
     app.include_router(gmail.router, prefix="/gmail", tags=["Gmail"], dependencies=protected)
     app.include_router(

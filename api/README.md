@@ -269,6 +269,27 @@ export GSUITE_CORS_ORIGINS="https://app.example.com,https://admin.example.com"
 
 Cookies/credentials are never allowed; browsers send the API key as a header.
 
+### Rate limiting
+
+Off by default. To cap the API at, say, 5 requests per second with bursts of
+up to 20:
+
+```bash
+export GSUITE_API_RATE_LIMIT=5
+export GSUITE_API_RATE_LIMIT_BURST=20
+```
+
+Requests over the budget get `429` with a `Retry-After` header (seconds) and
+no call reaches Google. The budget is one token bucket shared by every client
+of the process: the API has a single key, and behind a proxy the client
+address is the proxy's. Requests rejected for a missing or wrong key don't
+spend it, and `/health` is never limited.
+
+Each process has its own bucket: with several instances (Cloud Run scaling
+out, several workers) the total is the limit times the number of instances.
+`GSUITE_RATE_LIMIT` is a different setting: it paces this process's calls to
+Google instead of rejecting requests.
+
 ## Configuration
 
 Environment variables:
@@ -280,6 +301,8 @@ Environment variables:
 | `GSUITE_API_KEY` | - | API key required in `X-API-Key` |
 | `GSUITE_ALLOW_NO_API_KEY` | false | Serve without an API key (see above) |
 | `GSUITE_CORS_ORIGINS` | - | Comma-separated allowed origins |
+| `GSUITE_API_RATE_LIMIT` | - | Max API requests per second, all clients together (see above) |
+| `GSUITE_API_RATE_LIMIT_BURST` | max(1, rate) | Requests allowed at once |
 | `GSUITE_LOG_LEVEL` | INFO | Log level |
 | `GSUITE_LOG_FORMAT` | text | `json` for one JSON object per line (Cloud Logging) |
 | `GSUITE_CREDENTIALS_FILE` | credentials.json | OAuth credentials |
@@ -310,7 +333,7 @@ with `Content-Type: application/problem+json`:
 | 403 | Google denied the operation |
 | 404 | Resource or route not found |
 | 422 | Invalid request (`errors` lists each field) |
-| 429 | Google rate limit or quota (`Retry-After` when Google sends one) |
+| 429 | `GSUITE_API_RATE_LIMIT` exceeded, or Google rate limit or quota (`Retry-After` when known) |
 | 502 | Google returned an error the API doesn't map |
 | 500 | Unexpected error; the response never includes internals |
 

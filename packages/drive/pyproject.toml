@@ -16,11 +16,6 @@ dependencies = [
     "gsuite-core>=0.1.0",
 ]
 
-[project.optional-dependencies]
-fsspec = [
-    "fsspec>=2023.0.0",
-]
-
 [project.urls]
 Homepage = "https://github.com/PabloAlaniz/google-suite"
 

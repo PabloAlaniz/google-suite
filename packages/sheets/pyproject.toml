@@ -18,7 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 pandas = [
-    "pandas>=2.0.0",
+    "pandas>=2.2.2",  # first release built for numpy 2
 ]
 
 [project.urls]

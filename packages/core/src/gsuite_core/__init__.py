@@ -32,7 +32,7 @@ from gsuite_core.exceptions import (
     ValidationError,
 )
 from gsuite_core.service import GoogleService
-from gsuite_core.storage import SQLiteTokenStore, TokenStore
+from gsuite_core.storage import SQLiteTokenStore, TokenStore, create_token_store
 
 __all__ = [  # noqa: RUF022 - grouped by area, not alphabetical
     "__version__",
@@ -56,6 +56,7 @@ __all__ = [  # noqa: RUF022 - grouped by area, not alphabetical
     # Storage
     "TokenStore",
     "SQLiteTokenStore",
+    "create_token_store",
     # Exceptions
     "GSuiteError",
     "AuthenticationError",
@@ -80,5 +81,12 @@ try:
     from gsuite_core.storage import SecretManagerTokenStore as SecretManagerTokenStore
 
     __all__.append("SecretManagerTokenStore")
+except ImportError:
+    pass
+
+try:
+    from gsuite_core.storage import KeyringTokenStore as KeyringTokenStore
+
+    __all__.append("KeyringTokenStore")
 except ImportError:
     pass

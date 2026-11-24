@@ -31,6 +31,7 @@ pip install gsuite-sdk
 Optional extras:
 ```bash
 pip install gsuite-sdk[cloudrun]  # Google Cloud Secret Manager support
+pip install gsuite-sdk[keyring]   # Store tokens in the OS keyring
 pip install gsuite-sdk[all]       # All optional dependencies (FastAPI, CLI)
 ```
 
@@ -52,6 +53,24 @@ auth.authenticate()
 # Or with service account
 auth = GoogleAuth.from_service_account("service-account.json")
 ```
+
+### Several accounts
+
+One token store holds any number of logins, each under a name:
+
+```python
+work = GoogleAuth(user_id="work")        # logged in with: gsuite --account work auth login
+home = GoogleAuth(user_id="home")
+Gmail(work).get_unread(); Gmail(home).get_unread()
+
+work.accounts()                          # ["default", "home", "work"]
+```
+
+Without `user_id` the account is `GSUITE_ACCOUNT`, or `default`. The CLI takes
+`--account` before any command, and the REST API the `X-GSuite-Account` header
+(see [api/README.md](api/README.md#several-accounts)). Tokens can live in the
+OS keyring instead of `tokens.db`: `pip install gsuite-sdk[keyring]` and
+`GSUITE_TOKEN_STORAGE=keyring`.
 
 ### Gmail
 
@@ -408,7 +427,8 @@ Environment variables (prefix `GSUITE_`):
 | Variable | Description |
 |----------|-------------|
 | `GSUITE_CREDENTIALS_FILE` | OAuth credentials JSON path |
-| `GSUITE_TOKEN_STORAGE` | `sqlite` or `secretmanager` |
+| `GSUITE_TOKEN_STORAGE` | `sqlite`, `secretmanager` or `keyring` (OS keyring; needs `gsuite-sdk[keyring]`) |
+| `GSUITE_ACCOUNT` | Which stored login to use (default: `default`) |
 | `GSUITE_TOKEN_DB_PATH` | SQLite token database path |
 | `GSUITE_GCP_PROJECT_ID` | GCP project (for Secret Manager) |
 | `GSUITE_API_KEY` | API key for REST endpoints (required unless `GSUITE_ALLOW_NO_API_KEY=true`) |

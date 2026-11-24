@@ -22,7 +22,7 @@ from gsuite_core.exceptions import (
     CredentialsNotFoundError,
     TokenRefreshError,
 )
-from gsuite_core.storage import SQLiteTokenStore, TokenStore
+from gsuite_core.storage import TokenStore, create_token_store
 
 logger = logging.getLogger(__name__)
 
@@ -100,29 +100,30 @@ class GoogleAuth:
         token_store: TokenStore | None = None,
         credentials_file: str | None = None,
         scopes: list[str] | None = None,
-        user_id: str = "default",
+        user_id: str | None = None,
         client_config: dict[str, Any] | None = None,
     ):
         """Initialize OAuth authenticator.
 
         Args:
-            token_store: Storage backend for tokens (default: SQLite)
+            token_store: Storage backend for tokens (default: the one
+                ``GSUITE_TOKEN_STORAGE`` selects, SQLite unless set)
             credentials_file: Path to OAuth credentials JSON
             scopes: OAuth scopes to request (default: Scopes.default(), i.e.
                 Gmail, Calendar, Drive and Sheets)
-            user_id: User identifier for multi-user setups
+            user_id: Name of the stored login to use (the account). One
+                token store holds several: ``GoogleAuth(user_id="work")``.
+                Default: ``GSUITE_ACCOUNT``, or "default"
             client_config: The OAuth client as Google's JSON would hold it
                 ({"installed": {...}} or {"web": {...}}), instead of a file;
                 see ``from_client_config``
         """
         settings = get_settings()
 
-        self.token_store: TokenStore | None = token_store or SQLiteTokenStore(
-            settings.token_db_path
-        )
+        self.token_store: TokenStore | None = token_store or create_token_store(settings)
         self.credentials_file = Path(credentials_file or settings.credentials_file)
         self.scopes = scopes or Scopes.default()
-        self.user_id = user_id
+        self.user_id = user_id or settings.account
         self._credentials: Credentials | None = None
         # An explicit credentials_file wins over GSUITE_CLIENT_ID/SECRET
         env_client = settings.client_id and settings.client_secret
@@ -137,7 +138,7 @@ class GoogleAuth:
         client_secret: str,
         scopes: list[str] | None = None,
         token_store: TokenStore | None = None,
-        user_id: str = "default",
+        user_id: str | None = None,
     ) -> "GoogleAuth":
         """Authenticator for an OAuth client given by ID and secret (no JSON file).
 
@@ -226,6 +227,23 @@ class GoogleAuth:
                 "scopes": list(self._credentials.scopes or self.scopes),
             }
             self.token_store.save_token(token_data, self.user_id)
+
+    def accounts(self) -> list[str]:
+        """Names of the logins in the token store (what ``user_id`` accepts), sorted.
+
+        Raises:
+            NotImplementedError: The token store can't enumerate its tokens
+        """
+        return self.token_store.list_users() if self.token_store else []
+
+    def stored_scopes(self) -> list[str]:
+        """Scopes of this account's stored login; empty if there is none.
+
+        Log in again with these plus new ones to add access without losing
+        any: a login replaces the stored scopes.
+        """
+        token_data = self.token_store.get_token(self.user_id) if self.token_store else None
+        return list((token_data or {}).get("scopes") or [])
 
     def is_authenticated(self) -> bool:
         """Check if we have valid credentials."""

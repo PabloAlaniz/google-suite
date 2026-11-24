@@ -134,3 +134,16 @@ class SecretManagerTokenStore(TokenStore):
     def exists(self, user_id: str = "default") -> bool:
         """Check if token exists in Secret Manager."""
         return self.get_token(user_id) is not None
+
+    def list_users(self) -> list[str]:
+        """The user IDs with a stored token, sorted."""
+        try:
+            response = self.client.access_secret_version(
+                request={"name": self._get_latest_version_path()}
+            )
+        except exceptions.NotFound:
+            return []
+        data: dict[str, Any] = json.loads(response.payload.data.decode("utf-8"))
+        if "token" in data:  # a single token stored flat is the default account's
+            return ["default"]
+        return sorted(data)

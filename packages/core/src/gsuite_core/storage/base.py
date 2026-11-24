@@ -54,3 +54,10 @@ class TokenStore(ABC):
         Returns:
             True if token exists
         """
+
+    def list_users(self) -> list[str]:
+        """The user IDs (accounts) that have a stored token, sorted.
+
+        Backends that can't enumerate their tokens raise NotImplementedError.
+        """
+        raise NotImplementedError(f"{type(self).__name__} cannot list its accounts")

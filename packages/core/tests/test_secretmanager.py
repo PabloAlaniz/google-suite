@@ -48,3 +48,18 @@ def test_get_token_corrupt_payload_propagates(store):
     store.client.access_secret_version.return_value = response
     with pytest.raises(json.JSONDecodeError):
         store.get_token()
+
+
+def test_list_users(store):
+    store.client.access_secret_version.return_value = payload({"work": {}, "alice": {}})
+    assert store.list_users() == ["alice", "work"]
+
+
+def test_list_users_single_flat_token_is_the_default_account(store):
+    store.client.access_secret_version.return_value = payload({"token": "t", "scopes": []})
+    assert store.list_users() == ["default"]
+
+
+def test_list_users_missing_secret(store):
+    store.client.access_secret_version.side_effect = exceptions.NotFound("no secret")
+    assert store.list_users() == []

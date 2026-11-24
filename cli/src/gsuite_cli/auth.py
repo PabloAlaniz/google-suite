@@ -4,6 +4,7 @@ import typer
 from google.oauth2.credentials import Credentials
 from rich.console import Console
 from rich.panel import Panel
+from rich.table import Table
 
 from gsuite_cli.output import print_json
 from gsuite_core import (
@@ -56,7 +57,15 @@ def login(
             "Comma-separated: default, gmail, calendar, drive, sheets, tasks, contacts, "
             "searchconsole, analytics, tagmanager, marketing (the three read-only), all "
             "(e.g. default,tasks or default,marketing). A new login replaces the stored "
-            "scopes, so list every set you still need."
+            "scopes, so list every set you still need, or use --add."
+        ),
+    ),
+    add: bool = typer.Option(
+        False,
+        "--add",
+        help=(
+            "Keep the scopes this account already has and add the ones in --scopes "
+            "(asks for consent again only if something is new)."
         ),
     ),
     no_browser: bool = typer.Option(
@@ -74,6 +83,14 @@ def login(
     URL and asks for what the browser lands on.
     """
     selected_scopes = _resolve_scopes(scopes)
+    if add:
+        stored = GoogleAuth().stored_scopes()
+        new = [s for s in selected_scopes if s not in stored]
+        if stored and not new:
+            console.print("[green]✓ This account already has those scopes[/green]")
+            return
+        selected_scopes = stored + new
+        force = True  # an existing login would be returned as-is, without the new scopes
 
     auth = GoogleAuth(scopes=selected_scopes)
 
@@ -87,6 +104,7 @@ def login(
         console.print(
             Panel.fit(
                 "[green]✓ Authentication successful![/green]\n\n"
+                f"Account: {auth.user_id}\n"
                 f"Scopes: {', '.join(credentials.scopes or [])}",
                 title="Google Suite Auth",
             )
@@ -153,6 +171,7 @@ def status() -> None:
     if auth.is_authenticated():
         email = auth.get_user_email()
         console.print("[green]✓ Authenticated[/green]")
+        console.print(f"  Account: {auth.user_id}")
         if email:
             console.print(f"  User: {email}")
     elif auth.needs_refresh():
@@ -161,6 +180,44 @@ def status() -> None:
     else:
         console.print("[red]✗ Not authenticated[/red]")
         console.print("  Run: gsuite auth login")
+
+
+@app.command("list")
+def list_accounts(
+    as_json: bool = typer.Option(False, "--json", help="Output JSON instead of a table"),
+) -> None:
+    """List the stored logins (accounts). Pick one with `gsuite --account NAME ...`."""
+    auth = GoogleAuth()
+    try:
+        names = auth.accounts()
+    except NotImplementedError as e:
+        console.print(f"[red]✗ {e}[/red]")
+        raise typer.Exit(1) from None
+
+    scopes = {
+        name: GoogleAuth(token_store=auth.token_store, user_id=name).stored_scopes()
+        for name in names
+    }
+    if as_json:
+        print_json(
+            [
+                {"account": name, "active": name == auth.user_id, "scopes": scopes[name]}
+                for name in names
+            ]
+        )
+        return
+    if not names:
+        console.print("[yellow]No stored logins.[/yellow] Run: gsuite auth login")
+        return
+
+    table = Table(title="Accounts")
+    table.add_column("Account", style="cyan")
+    table.add_column("Active")
+    table.add_column("Scopes", style="dim")
+    for name in names:
+        short = ", ".join(scope.rsplit("/", 1)[-1] for scope in scopes[name])
+        table.add_row(name, "✓" if name == auth.user_id else "", short)
+    console.print(table)
 
 
 @app.command()

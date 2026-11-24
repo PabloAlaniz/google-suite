@@ -87,7 +87,14 @@ imagen Docker más chica. 0.6.0 sumó las APIs de marketing en solo lectura
 ### Enterprise
 
 - [ ] **Admin SDK** - usuarios, grupos, settings del dominio
-- [ ] **Multi-cuenta** - varias cuentas, impersonation de service accounts, acceso delegado
+- [x] **Multi-cuenta** - varias cuentas con nombre en un mismo token store
+      (`GoogleAuth(user_id=...)`, `GSUITE_ACCOUNT`, `gsuite --account`, `gsuite auth list`,
+      header `X-GSuite-Account` con allowlist `GSUITE_API_ACCOUNTS`); impersonation de
+      service accounts (`from_service_account(..., subject=...)`)
+  - [x] Tokens en el keyring del sistema operativo (`GSUITE_TOKEN_STORAGE=keyring`)
+  - [x] Login aditivo (`gsuite auth login --add`)
+  - [ ] Parámetro `account` en las tools del servidor MCP
+  - [ ] Una API key por cuenta en la REST API
 
 ### v1.0
 

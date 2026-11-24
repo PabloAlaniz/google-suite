@@ -60,6 +60,38 @@ store = SecretManagerTokenStore(
 auth = GoogleAuth(token_store=store)
 ```
 
+Or keep them in the operating system's keyring (Keychain, Credential Manager,
+Secret Service), encrypted at rest. It needs `gsuite-sdk[keyring]` and a
+desktop session; servers and containers usually have no keyring:
+
+```python
+from gsuite_core import KeyringTokenStore
+
+auth = GoogleAuth(token_store=KeyringTokenStore())   # or GSUITE_TOKEN_STORAGE=keyring
+```
+
+`GoogleAuth()` without a `token_store` uses the backend that
+`GSUITE_TOKEN_STORAGE` selects (`create_token_store()` builds it).
+
+## Accounts
+
+A token store holds several logins, each under a name (`user_id`):
+
+```python
+work = GoogleAuth(user_id="work")
+work.authenticate()              # logs in and stores the token as "work"
+
+home = GoogleAuth(user_id="home")
+work.accounts()                  # ["home", "work"]
+work.stored_scopes()             # scopes granted to "work"
+```
+
+Without `user_id`, the account is `GSUITE_ACCOUNT` (default: `default`). A
+login replaces the account's stored scopes; to add access, log in with
+`stored_scopes()` plus the new ones (`gsuite auth login --add --scopes tasks`
+does exactly that). A custom `TokenStore` implements `list_users()` to support
+`accounts()`.
+
 ## Configuration
 
 Environment variables (prefix `GSUITE_`):
@@ -67,7 +99,9 @@ Environment variables (prefix `GSUITE_`):
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `GSUITE_CREDENTIALS_FILE` | credentials.json | OAuth credentials |
-| `GSUITE_TOKEN_STORAGE` | sqlite | sqlite or secretmanager |
+| `GSUITE_TOKEN_STORAGE` | sqlite | sqlite, secretmanager or keyring |
+| `GSUITE_ACCOUNT` | default | Which stored login to use when `user_id` isn't given |
+| `GSUITE_KEYRING_SERVICE` | gsuite-sdk | Keyring service the tokens are filed under |
 | `GSUITE_TOKEN_DB_PATH` | tokens.db | SQLite path |
 | `GSUITE_GCP_PROJECT_ID` | - | For Secret Manager |
 | `GSUITE_REQUEST_TIMEOUT` | 30 | Seconds before a Google API request times out |

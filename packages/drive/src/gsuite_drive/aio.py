@@ -39,18 +39,22 @@ from urllib.parse import quote
 from gsuite_core import get_settings
 from gsuite_core.aio import AsyncGoogleClient
 from gsuite_core.api_utils import _backoff
+from gsuite_core.channels import Channel, channel_body, parse_channel, stop_body
 from gsuite_core.exceptions import APIError, NotFoundError, RateLimitError
 from gsuite_drive._requests import (
     FILE_FIELDS,
     FOLDER_MIME_TYPE,
     PERMISSION_FIELDS,
+    changes_params,
     export_mime_type,
     files_query,
     metadata_body,
     name_query,
     new_file_body,
     permission_request,
+    split_changes,
 )
+from gsuite_drive.changes import ChangesDelta
 from gsuite_drive.file import File, Folder
 from gsuite_drive.parser import DriveParser
 from gsuite_drive.permission import Permission
@@ -229,6 +233,58 @@ class AsyncDrive:
     async def search(self, name: str, exact: bool = False) -> list[File]:
         """Files whose name contains (or equals) ``name``."""
         return await self.list_files(query=name_query(name, exact))
+
+    # ---- changes ----
+
+    async def get_start_page_token(self) -> str:
+        """The page token for "from now on": where a first ``changes`` call starts."""
+        data = await self._json(
+            "GET", "changes/startPageToken", params=_ALL_DRIVES, resource_type="changes"
+        )
+        return str(data["startPageToken"])
+
+    async def changes(self, page_token: str) -> ChangesDelta:
+        """Files changed or removed since ``page_token`` (see ``Drive.changes``)."""
+        params = changes_params(page_token)
+        delta = ChangesDelta()
+        while True:
+            page = await self._json("GET", "changes", params=params, resource_type="changes")
+            changed, removed = split_changes(page)
+            delta.changed += [self._parse(data) for data in changed]
+            delta.removed += removed
+            if not page.get("nextPageToken"):
+                delta.page_token = page.get("newStartPageToken")
+                return delta
+            params["pageToken"] = page["nextPageToken"]
+
+    async def watch_changes(
+        self,
+        address: str,
+        token: str,
+        page_token: str | None = None,
+        channel_id: str | None = None,
+        ttl: int | None = None,
+    ) -> Channel:
+        """Have Google POST to ``address`` when files change (see ``Drive.watch_changes``)."""
+        body = channel_body(address, token, channel_id, ttl)
+        data = await self._json(
+            "POST",
+            "changes/watch",
+            params={
+                "pageToken": page_token or await self.get_start_page_token(),
+                "includeItemsFromAllDrives": True,
+                **_ALL_DRIVES,
+            },
+            json=body,
+            resource_type="channel",
+        )
+        return parse_channel(data, token)
+
+    async def stop_channel(self, channel: Channel | str, resource_id: str | None = None) -> None:
+        """Stop a notification channel (the Channel, or its ID and resource ID)."""
+        await self._json(
+            "POST", "channels/stop", json=stop_body(channel, resource_id), resource_type="channel"
+        )
 
     # ---- files ----
 

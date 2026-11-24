@@ -9,3 +9,5 @@
 ::: gsuite_gmail.HistoryDelta
 
 ::: gsuite_gmail.IdPage
+
+::: gsuite_gmail.MailboxWatch

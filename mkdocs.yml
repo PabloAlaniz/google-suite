@@ -93,6 +93,7 @@ nav:
       - MCP server: services/mcp.md
   - Guides:
       - Async: ASYNC.md
+      - Push notifications: PUSH.md
       - Migrating from GSpreadManager: MIGRATING_FROM_GSPREADMANAGER.md
       - Architecture: ARCHITECTURE.md
   - API reference:

@@ -11,6 +11,7 @@ FILE_FIELDS = (
 )
 PERMISSION_FIELDS = "id, type, role, emailAddress, domain, displayName"
 FOLDER_MIME_TYPE = "application/vnd.google-apps.folder"
+CHANGES_PAGE_SIZE = 1000
 
 # Short names accepted by export(); values are the MIME types Drive exports to.
 EXPORT_FORMATS = {
@@ -120,3 +121,34 @@ def permission_request(
     if type in ("user", "group"):
         params["sendNotificationEmail"] = notify
     return body, params
+
+
+def changes_params(page_token: str) -> dict[str, Any]:
+    """changes.list parameters (paging aside): My Drive and shared drives, removals included."""
+    if not str(page_token).strip():
+        raise ValidationError("page_token", "a page token is required (get_start_page_token)")
+    return {
+        "pageToken": str(page_token),
+        "pageSize": CHANGES_PAGE_SIZE,
+        "includeRemoved": True,
+        "supportsAllDrives": True,
+        "includeItemsFromAllDrives": True,
+        "fields": (
+            f"nextPageToken, newStartPageToken, changes(fileId, removed, file({FILE_FIELDS}))"
+        ),
+    }
+
+
+def split_changes(page: dict[str, Any]) -> tuple[list[dict[str, Any]], list[str]]:
+    """One changes.list page as (file resources that changed, IDs of removed files)."""
+    changed: list[dict[str, Any]] = []
+    removed: list[str] = []
+    for change in page.get("changes", []):
+        file_id = change.get("fileId")
+        if not file_id:
+            continue  # a change to a shared drive itself, not to a file
+        if change.get("removed") or not change.get("file"):
+            removed.append(str(file_id))
+        else:
+            changed.append(change["file"])
+    return changed, removed

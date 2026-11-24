@@ -13,6 +13,7 @@ from gsuite_core.api_utils import (
 )
 from gsuite_core.auth.oauth import AuthorizationRequest, GoogleAuth
 from gsuite_core.auth.scopes import Scopes
+from gsuite_core.channels import Channel
 from gsuite_core.config import Settings, get_settings
 from gsuite_core.exceptions import (
     APIError,
@@ -53,6 +54,7 @@ __all__ = [  # noqa: RUF022 - grouped by area, not alphabetical
     "authorized_http",
     "drive_query_literal",
     "GoogleService",
+    "Channel",
     # Storage
     "TokenStore",
     "SQLiteTokenStore",

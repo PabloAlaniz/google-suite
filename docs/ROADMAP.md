@@ -76,6 +76,15 @@ imagen Docker más chica. 0.6.0 sumó las APIs de marketing en solo lectura
   - [x] `AsyncCalendar`
   - [x] `AsyncDrive`
 
+- [ ] **Notificaciones push** ([docs/PUSH.md](./PUSH.md))
+  - [x] `Gmail.watch` / `stop_watch` (Pub/Sub), sync y async
+  - [x] `Calendar.watch` / `stop_channel`, sync y async
+  - [x] `Drive.get_start_page_token` / `changes` / `watch_changes` / `stop_channel`, sync y async
+  - [ ] Receptor verificado e idempotente en la REST API (`/webhooks/*`), sobre
+        [omniwebhook](https://github.com/PabloAlaniz/omniwebhook) (esquemas `google-channel` y
+        `google-pubsub`, a partir de su 0.5.0)
+  - [ ] Renovación de watches y estado por cuenta
+
 - [ ] **Caching**
   - [x] Caché de lecturas de Sheets (`Sheets(auth, cache=True)`)
   - [ ] Caché de metadata de archivos de Drive

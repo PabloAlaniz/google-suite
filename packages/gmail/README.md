@@ -253,6 +253,18 @@ for thread in threads:
         print(f"  - {msg.subject}")
 ```
 
+## Push Notifications
+
+```python
+watch = gmail.watch("projects/my-project/topics/gmail", label_ids=["INBOX"])
+# ...Gmail publishes to the Pub/Sub topic when the mailbox changes...
+delta = gmail.history(watch.history_id)   # what changed since
+gmail.stop_watch()
+```
+
+The watch lasts about a week (`watch.expiration`): call `watch` again before
+then. See the [push notifications guide](../../docs/PUSH.md).
+
 ## Error Handling
 
 ```python

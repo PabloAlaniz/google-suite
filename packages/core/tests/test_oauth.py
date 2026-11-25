@@ -90,6 +90,8 @@ class TestGoogleAuth:
             settings = Mock()
             settings.token_db_path = "default.db"
             settings.credentials_file = "credentials.json"
+            settings.token_storage = "sqlite"
+            settings.account = "default"
             mock_settings.return_value = settings
 
             auth = GoogleAuth()

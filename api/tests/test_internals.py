@@ -40,26 +40,41 @@ class TestAuthenticatedAuth:
 class TestGetAuth:
     @pytest.fixture(autouse=True)
     def _fresh_cache(self):
-        dependencies.get_auth.cache_clear()
+        dependencies._token_store.cache_clear()
+        dependencies.auth_for.cache_clear()
         yield
-        dependencies.get_auth.cache_clear()
+        dependencies._token_store.cache_clear()
+        dependencies.auth_for.cache_clear()
 
     def test_sqlite_store(self, tmp_path):
         settings = Settings(token_db_path=str(tmp_path / "tokens.db"), _env_file=None)
         with patch.object(dependencies, "get_settings", return_value=settings):
-            auth = dependencies.get_auth()
+            auth = dependencies.get_auth("default")
 
         assert auth.token_store.db_path == tmp_path / "tokens.db"
+        assert auth.user_id == "default"
+
+    def test_accounts_share_the_store_and_are_cached(self, tmp_path):
+        settings = Settings(token_db_path=str(tmp_path / "tokens.db"), _env_file=None)
+        with patch.object(dependencies, "get_settings", return_value=settings):
+            work = dependencies.get_auth("work")
+            home = dependencies.get_auth("home")
+
+            assert dependencies.get_auth("work") is work
+        assert (work.user_id, home.user_id) == ("work", "home")
+        assert work.token_store is home.token_store
 
     def test_secret_manager_store(self):
         settings = Settings(token_storage="secretmanager", gcp_project_id="proj", _env_file=None)
         with (
             patch.object(dependencies, "get_settings", return_value=settings),
-            patch("gsuite_core.SecretManagerTokenStore") as store,
+            patch("gsuite_core.storage.secretmanager.SecretManagerTokenStore") as store,
         ):
-            dependencies.get_auth()
+            dependencies.get_auth("default")
 
-        store.assert_called_once_with(project_id="proj", secret_name="gsuite-token")
+        store.assert_called_once_with(
+            project_id="proj", secret_name="gsuite-token", auto_create=False
+        )
 
     def test_secret_manager_requires_project(self):
         settings = Settings(token_storage="secretmanager", _env_file=None)
@@ -67,7 +82,7 @@ class TestGetAuth:
             patch.object(dependencies, "get_settings", return_value=settings),
             pytest.raises(ValueError, match="GSUITE_GCP_PROJECT_ID"),
         ):
-            dependencies.get_auth()
+            dependencies.get_auth("default")
 
 
 @pytest.mark.parametrize(

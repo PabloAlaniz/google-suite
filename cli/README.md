@@ -49,6 +49,20 @@ gsuite auth logout
 gsuite auth export > token.json
 ```
 
+### Several accounts
+
+`--account` (or `GSUITE_ACCOUNT`) goes before the command and picks which
+stored login it uses; without it the account is `default`:
+
+```bash
+gsuite --account work auth login          # a second login, stored as "work"
+gsuite --account work gmail list
+gsuite auth list                          # every stored login and its scopes
+
+# Add scopes to a login without listing the ones it already has
+gsuite --account work auth login --add --scopes tasks,contacts
+```
+
 ## Gmail Commands
 
 ```bash

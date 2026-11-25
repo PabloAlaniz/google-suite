@@ -1,10 +1,12 @@
 """Gmail API request parameters and response folding, shared by the sync and async clients."""
 
+import re
 from collections.abc import Sequence
 from typing import Any, Literal
 
+from gsuite_core.channels import parse_expiration
 from gsuite_core.exceptions import ValidationError
-from gsuite_gmail.history import HistoryDelta
+from gsuite_gmail.history import HistoryDelta, MailboxWatch
 from gsuite_gmail.query import Query
 
 MessageFormat = Literal["full", "metadata", "minimal"]
@@ -76,3 +78,30 @@ def finish_history(delta: HistoryDelta) -> HistoryDelta:
     delta.labels_changed = [m for m in delta.labels_changed if m not in gone]
     delta.added_labels = {m: labels for m, labels in delta.added_labels.items() if m not in gone}
     return delta
+
+
+LabelFilter = Literal["include", "exclude"]
+_TOPIC = re.compile(r"projects/[^/\s]+/topics/[^/\s]+")
+
+
+def watch_body(
+    topic: str, label_ids: Sequence[str] | None, label_filter: LabelFilter
+) -> dict[str, Any]:
+    """The body of users.watch."""
+    if not _TOPIC.fullmatch(topic):
+        raise ValidationError("topic", 'expected "projects/<project>/topics/<topic>"')
+    if label_filter not in ("include", "exclude"):
+        raise ValidationError("label_filter", '"include" or "exclude"')
+    body: dict[str, Any] = {"topicName": topic}
+    if label_ids:
+        body["labelIds"] = list(label_ids)
+        body["labelFilterBehavior"] = label_filter.upper()
+    return body
+
+
+def parse_watch(data: dict[str, Any]) -> MailboxWatch:
+    """A users.watch response."""
+    return MailboxWatch(
+        history_id=str(data.get("historyId", "")),
+        expiration=parse_expiration(data.get("expiration")),
+    )

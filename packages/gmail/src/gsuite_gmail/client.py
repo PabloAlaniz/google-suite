@@ -23,15 +23,18 @@ from gsuite_gmail._mime import (
 from gsuite_gmail._requests import (
     HISTORY_PAGE_SIZE,
     HistoryType,
+    LabelFilter,
     MessageFormat,
     add_history_page,
     finish_history,
     get_params,
     history_params,
     list_params,
+    parse_watch,
+    watch_body,
 )
 from gsuite_gmail.draft import Draft
-from gsuite_gmail.history import HistoryDelta, IdPage
+from gsuite_gmail.history import HistoryDelta, IdPage, MailboxWatch
 from gsuite_gmail.label import Label
 from gsuite_gmail.message import Message
 from gsuite_gmail.parser import GmailParser
@@ -854,6 +857,37 @@ class Gmail:
             if not page.get("nextPageToken"):
                 return finish_history(delta)
             params["pageToken"] = page["nextPageToken"]
+
+    def watch(
+        self,
+        topic: str,
+        label_ids: Sequence[str] | None = None,
+        label_filter: LabelFilter = "include",
+    ) -> MailboxWatch:
+        """Have Gmail publish to a Pub/Sub topic whenever the mailbox changes.
+
+        Each notification says only that something changed, with a history ID:
+        ask ``history()`` for the changes since the one you kept. The topic
+        must let ``gmail-api-push@system.gserviceaccount.com`` publish. Gmail
+        stops after about a week: call this again before
+        ``watch.expiration`` (calling it early is fine, e.g. daily).
+
+        Args:
+            topic: ``projects/<project>/topics/<topic>``
+            label_ids: Only notify about (or, with "exclude", ignore) messages
+                with these label IDs; default: every change
+            label_filter: "include" or "exclude" ``label_ids``
+
+        Returns:
+            The mailbox's current history ID and when the watch expires
+        """
+        body = watch_body(topic, label_ids, label_filter)
+        data = execute(self.service.users().watch(userId=self.user_id, body=body), "gmail", "watch")
+        return parse_watch(data)
+
+    def stop_watch(self) -> None:
+        """Stop the notifications ``watch`` started for this mailbox."""
+        execute(self.service.users().stop(userId=self.user_id), "gmail", "watch")
 
     def get_profile(self) -> dict[str, Any]:
         """Get authenticated user's profile."""

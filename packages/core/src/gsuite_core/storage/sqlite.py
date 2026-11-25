@@ -90,3 +90,9 @@ class SQLiteTokenStore(TokenStore):
         with self._connect() as conn:
             cursor = conn.execute("SELECT 1 FROM tokens WHERE user_id = ?", (user_id,))
             return cursor.fetchone() is not None
+
+    def list_users(self) -> list[str]:
+        """The user IDs with a stored token, sorted."""
+        with self._connect() as conn:
+            rows = conn.execute("SELECT user_id FROM tokens ORDER BY user_id").fetchall()
+        return [str(row[0]) for row in rows]

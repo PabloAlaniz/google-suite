@@ -51,6 +51,11 @@ cloudrun = [
     # Shares the REST API rate limit across instances (GSUITE_API_RATE_LIMIT_REDIS_URL)
     "redis>=5.0",
 ]
+# Tokens in the OS keyring (GSUITE_TOKEN_STORAGE=keyring); not in "all": it
+# needs a desktop session, which servers and containers don't have
+keyring = [
+    "keyring>=24.0",
+]
 api = [
     "fastapi>=0.109.0",
     "uvicorn[standard]>=0.27.0",

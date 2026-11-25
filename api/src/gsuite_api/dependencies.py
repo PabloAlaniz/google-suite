@@ -1,5 +1,6 @@
 """FastAPI dependencies."""
 
+import re
 import secrets
 from collections.abc import AsyncIterator
 from functools import lru_cache
@@ -12,7 +13,8 @@ from omnilimit import Limiter
 from gsuite_analytics import Analytics
 from gsuite_calendar import AsyncCalendar
 from gsuite_contacts import Contacts
-from gsuite_core import GoogleAuth, Settings, SQLiteTokenStore, TokenStore, get_settings
+from gsuite_core import GoogleAuth, Settings, TokenStore, create_token_store, get_settings
+from gsuite_core.config import ACCOUNT_PATTERN
 from gsuite_core.exceptions import NotAuthenticatedError
 from gsuite_drive import AsyncDrive
 from gsuite_gmail import AsyncGmail
@@ -22,6 +24,13 @@ from gsuite_tagmanager import TagManager
 from gsuite_tasks import Tasks
 
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+# Declared as a security scheme so /docs offers it once, for every route
+account_header = APIKeyHeader(
+    name="X-GSuite-Account",
+    scheme_name="Account",
+    description="Which stored Google login to act as (must be in GSUITE_API_ACCOUNTS)",
+    auto_error=False,
+)
 
 
 def get_app_settings(request: Request) -> Settings:
@@ -85,27 +94,45 @@ def enforce_rate_limit(request: Request, response: Response) -> None:
     response.headers.update(decision.headers)
 
 
-@lru_cache
-def get_auth() -> GoogleAuth:
-    """Get shared GoogleAuth instance."""
-    settings = get_settings()
+def get_account(
+    account: Annotated[str | None, Security(account_header)],
+    settings: SettingsDep,
+) -> str:
+    """The stored login the request acts as: X-GSuite-Account, or the default.
 
-    token_store: TokenStore
-    # "secretmanager" is a storage backend name, not a credential
-    if settings.token_storage == "secretmanager":  # noqa: S105
-        settings.validate_for_secretmanager()
-        if not settings.gcp_project_id:  # validate_for_secretmanager already raised
-            raise ValueError("GSUITE_GCP_PROJECT_ID is required when using secretmanager storage")
-        from gsuite_core import SecretManagerTokenStore
-
-        token_store = SecretManagerTokenStore(
-            project_id=settings.gcp_project_id,
-            secret_name=settings.token_secret_name,
+    Fails closed: a caller may only name accounts listed in
+    GSUITE_API_ACCOUNTS ('*' for any). Answers 400 for a malformed name and
+    403 for one that isn't allowed, without saying whether it exists.
+    """
+    if account is None or account == settings.account:
+        return settings.account
+    if not re.match(ACCOUNT_PATTERN, account):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid X-GSuite-Account"
         )
-    else:
-        token_store = SQLiteTokenStore(settings.token_db_path)
+    allowed = settings.api_account_list
+    if "*" not in allowed and account not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This account is not enabled for the API (GSUITE_API_ACCOUNTS)",
+        )
+    return account
 
-    return GoogleAuth(token_store=token_store)
+
+@lru_cache(maxsize=1)
+def _token_store() -> TokenStore:
+    return create_token_store(get_settings())
+
+
+@lru_cache(maxsize=256)
+def auth_for(account: str) -> GoogleAuth:
+    """The shared GoogleAuth of one account (they all read the same token store)."""
+    return GoogleAuth(token_store=_token_store(), user_id=account)
+
+
+def get_auth(account: Annotated[str, Depends(get_account)]) -> GoogleAuth:
+    """GoogleAuth for the account the request selected."""
+    return auth_for(account)
 
 
 AuthDep = Annotated[GoogleAuth, Depends(get_auth)]

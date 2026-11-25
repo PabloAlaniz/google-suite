@@ -25,6 +25,7 @@ from gsuite_calendar.delta import EventsDelta
 from gsuite_calendar.event import Event
 from gsuite_calendar.parser import CalendarParser
 from gsuite_core import GoogleAuth, execute, get_settings, paginate
+from gsuite_core.channels import Channel, channel_body, parse_channel, stop_body
 from gsuite_core.exceptions import NotFoundError
 from gsuite_core.service import GoogleService
 
@@ -188,6 +189,50 @@ class Calendar:
             if not page.get("nextPageToken"):
                 return delta
             params["pageToken"] = page["nextPageToken"]
+
+    def watch(
+        self,
+        address: str,
+        token: str,
+        calendar_id: str | None = None,
+        channel_id: str | None = None,
+        ttl: int | None = None,
+    ) -> Channel:
+        """Have Google POST to ``address`` whenever an event of the calendar changes.
+
+        The notification has no body: call ``sync()`` with the token you kept
+        to get what changed. Google sends ``token`` back in
+        ``X-Goog-Channel-Token``; check it, the notification isn't signed.
+        Channels expire (``channel.expiration``) and aren't renewed: watch
+        again before then and stop the old channel.
+
+        Args:
+            address: HTTPS URL that receives the notifications
+            token: Secret to verify them with
+            calendar_id: Calendar to watch (default: the client's)
+            channel_id: Your ID for the channel (default: a random UUID)
+            ttl: Seconds the channel should live (Google caps it)
+        """
+        body = channel_body(address, token, channel_id, ttl)
+        data = execute(
+            self.service.events().watch(calendarId=calendar_id or self.calendar_id, body=body),
+            "calendar",
+            "channel",
+        )
+        return parse_channel(data, token)
+
+    def stop_channel(self, channel: Channel | str, resource_id: str | None = None) -> None:
+        """Stop a notification channel.
+
+        Args:
+            channel: The Channel ``watch`` returned, or its ID
+            resource_id: The channel's ``resource_id``, when passing the ID
+        """
+        execute(
+            self.service.channels().stop(body=stop_body(channel, resource_id)),
+            "calendar",
+            "channel",
+        )
 
     def get_event(self, event_id: str, calendar_id: str | None = None) -> Event | None:
         """Get a specific event by ID."""

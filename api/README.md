@@ -259,6 +259,23 @@ explicitly with `GSUITE_ALLOW_NO_API_KEY=true`.
 `GET /health/admin/logs` uses a separate key in the `X-Admin-Key` header
 (`ADMIN_API_KEY` env var). Keys are not accepted in query strings.
 
+### Several accounts
+
+The token store can hold several Google logins (`gsuite --account work auth
+login`). Requests act as the default one (`GSUITE_ACCOUNT`, or `default`)
+unless they name another in the `X-GSuite-Account` header:
+
+```bash
+export GSUITE_API_ACCOUNTS=work,ana@example.com    # or * for any stored account
+gsuite serve
+curl -H "X-API-Key: $KEY" -H "X-GSuite-Account: work" http://localhost:8080/gmail/messages
+```
+
+Only accounts listed in `GSUITE_API_ACCOUNTS` can be selected: any other name
+gets a 403 (400 if it is malformed), and an allowed account without a stored
+login gets the usual 401. The API key is shared, so everyone who holds it can
+act as every listed account.
+
 ### CORS
 
 CORS is disabled unless you list origins:
@@ -322,7 +339,9 @@ Environment variables:
 | `GSUITE_LOG_LEVEL` | INFO | Log level |
 | `GSUITE_LOG_FORMAT` | text | `json` for one JSON object per line (Cloud Logging) |
 | `GSUITE_CREDENTIALS_FILE` | credentials.json | OAuth credentials |
-| `GSUITE_TOKEN_STORAGE` | sqlite | Token storage backend |
+| `GSUITE_TOKEN_STORAGE` | sqlite | Token storage backend (`sqlite`, `secretmanager`, `keyring`) |
+| `GSUITE_ACCOUNT` | default | Stored login used when a request names none |
+| `GSUITE_API_ACCOUNTS` | - | Accounts selectable with `X-GSuite-Account` (comma-separated, or `*`) |
 | `GSUITE_TOKEN_DB_PATH` | tokens.db | SQLite token path |
 | `GSUITE_GCP_PROJECT_ID` | - | GCP project for Secret Manager |
 

@@ -8,6 +8,10 @@ from pydantic_settings import BaseSettings
 
 from gsuite_core._version import __version__
 
+# An account name is a label for a stored login ("work", "ana@example.com"): safe
+# to use as a storage key, in an HTTP header and on a command line.
+ACCOUNT_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._@+-]{0,127}$"
+
 
 class Settings(BaseSettings):
     """Application settings loaded from environment variables.
@@ -57,8 +61,27 @@ class Settings(BaseSettings):
     client_secret: str | None = Field(default=None, description="OAuth client secret")
 
     # Token storage backend
-    token_storage: Literal["sqlite", "secretmanager"] = Field(
+    token_storage: Literal["sqlite", "secretmanager", "keyring"] = Field(
         default="sqlite", description="Token storage backend"
+    )
+
+    # Which stored login to use; one token store holds several
+    account: str = Field(
+        default="default",
+        pattern=ACCOUNT_PATTERN,
+        description="Name of the stored login (account) used when none is given",
+    )
+    api_accounts: str = Field(
+        default="",
+        description=(
+            "Comma-separated accounts REST API callers may select with the "
+            "X-GSuite-Account header, besides the default one; '*' allows any stored account"
+        ),
+    )
+
+    # OS keyring (GSUITE_TOKEN_STORAGE=keyring)
+    keyring_service: str = Field(
+        default="gsuite-sdk", description="Keyring service the tokens are filed under"
     )
 
     # SQLite storage
@@ -137,6 +160,11 @@ class Settings(BaseSettings):
     def cors_origin_list(self) -> list[str]:
         """CORS origins parsed from the comma-separated setting."""
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def api_account_list(self) -> list[str]:
+        """Accounts selectable through the REST API, parsed from the comma-separated setting."""
+        return [a.strip() for a in self.api_accounts.split(",") if a.strip()]
 
     def validate_for_secretmanager(self) -> None:
         """Validate settings when using Secret Manager."""

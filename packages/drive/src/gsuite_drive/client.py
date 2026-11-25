@@ -16,6 +16,7 @@ from gsuite_core import (
     map_http_error,
     paginate,
 )
+from gsuite_core.channels import Channel, channel_body, parse_channel, stop_body
 from gsuite_core.exceptions import NotFoundError
 from gsuite_core.service import GoogleService
 from gsuite_drive._requests import (
@@ -23,6 +24,7 @@ from gsuite_drive._requests import (
     FILE_FIELDS,
     FOLDER_MIME_TYPE,
     PERMISSION_FIELDS,
+    changes_params,
     default_export_format,
     export_mime_type,
     files_query,
@@ -30,7 +32,9 @@ from gsuite_drive._requests import (
     name_query,
     new_file_body,
     permission_request,
+    split_changes,
 )
+from gsuite_drive.changes import ChangesDelta
 from gsuite_drive.file import File, Folder
 from gsuite_drive.parser import DriveParser
 from gsuite_drive.permission import Permission
@@ -568,6 +572,82 @@ class Drive:
             return False
         logger.info("Removed permission %s from %s", permission_id, file_id)
         return True
+
+    # ========== Changes ==========
+
+    def get_start_page_token(self) -> str:
+        """The page token for "from now on": where a first ``changes`` call starts."""
+        data = execute(
+            self.service.changes().getStartPageToken(supportsAllDrives=True), "drive", "changes"
+        )
+        return str(data["startPageToken"])
+
+    def changes(self, page_token: str) -> ChangesDelta:
+        """Files changed or removed since ``page_token``, in My Drive and shared drives.
+
+        Follows every page; keep ``delta.page_token`` for the next call.
+
+        Args:
+            page_token: From ``get_start_page_token()`` or the previous delta
+        """
+        params = changes_params(page_token)
+        delta = ChangesDelta()
+        while True:
+            page = execute(self.service.changes().list(**params), "drive", "changes")
+            changed, removed = split_changes(page)
+            delta.changed += [self._parse_file(data) for data in changed]
+            delta.removed += removed
+            if not page.get("nextPageToken"):
+                delta.page_token = page.get("newStartPageToken")
+                return delta
+            params["pageToken"] = page["nextPageToken"]
+
+    def watch_changes(
+        self,
+        address: str,
+        token: str,
+        page_token: str | None = None,
+        channel_id: str | None = None,
+        ttl: int | None = None,
+    ) -> Channel:
+        """Have Google POST to ``address`` whenever a file the user can see changes.
+
+        The notification has no body: call ``changes()`` with the page token
+        you kept to get what changed. Google sends ``token`` back in
+        ``X-Goog-Channel-Token``; check it, the notification isn't signed.
+        Channels expire (``channel.expiration``, a day by default, a week at
+        most) and aren't renewed: watch again before then.
+
+        Args:
+            address: HTTPS URL that receives the notifications
+            token: Secret to verify them with
+            page_token: Notify about changes after this token (default: from now)
+            channel_id: Your ID for the channel (default: a random UUID)
+            ttl: Seconds the channel should live (Google caps it)
+        """
+        body = channel_body(address, token, channel_id, ttl)
+        data = execute(
+            self.service.changes().watch(
+                pageToken=page_token or self.get_start_page_token(),
+                supportsAllDrives=True,
+                includeItemsFromAllDrives=True,
+                body=body,
+            ),
+            "drive",
+            "channel",
+        )
+        return parse_channel(data, token)
+
+    def stop_channel(self, channel: Channel | str, resource_id: str | None = None) -> None:
+        """Stop a notification channel.
+
+        Args:
+            channel: The Channel ``watch_changes`` returned, or its ID
+            resource_id: The channel's ``resource_id``, when passing the ID
+        """
+        execute(
+            self.service.channels().stop(body=stop_body(channel, resource_id)), "drive", "channel"
+        )
 
     # ========== Parsing ==========
 

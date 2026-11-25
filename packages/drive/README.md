@@ -195,6 +195,24 @@ folder.list_files()                 # direct children
 folder.list_files(recursive=True)   # whole tree, breadth-first
 ```
 
+## Changes and Push Notifications
+
+```python
+page_token = drive.get_start_page_token()             # "from now on"
+delta = drive.changes(page_token)                     # later: what changed since
+for file in delta.changed:                            # files as they are now (trashed ones too)
+    print(file.name, file.trashed)
+print(delta.removed)                                  # IDs deleted for good or no longer shared
+page_token = delta.page_token
+
+# Or be told when to ask: Google POSTs to the URL on every change
+channel = drive.watch_changes("https://example.com/webhooks/drive", token="a-secret", page_token=page_token)
+drive.stop_channel(channel)
+```
+
+Channels expire (`channel.expiration`) and aren't renewed. See the
+[push notifications guide](../../docs/PUSH.md).
+
 ## Error Handling
 
 ```python

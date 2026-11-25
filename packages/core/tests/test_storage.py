@@ -110,3 +110,12 @@ def test_connections_are_closed(tmp_path, monkeypatch):
         with pytest.raises(sqlite3.ProgrammingError):
             conn.execute("SELECT 1")  # closed
     db.unlink()  # fails on Windows while a connection is open
+
+    def test_list_users(self, store):
+        """Accounts are listed sorted, and only while they have a token."""
+        assert store.list_users() == []
+        store.save_token({"token": "w"}, "work")
+        store.save_token({"token": "d"})
+        assert store.list_users() == ["default", "work"]
+        store.delete_token("work")
+        assert store.list_users() == ["default"]

@@ -1,5 +1,8 @@
 """Main CLI entry point using Typer."""
 
+import os
+import re
+
 import typer
 from rich.console import Console
 from rich.table import Table
@@ -16,6 +19,8 @@ from gsuite_cli import (
     tagmanager,
     tasks,
 )
+from gsuite_core import get_settings
+from gsuite_core.config import ACCOUNT_PATTERN
 
 console = Console()
 app = typer.Typer(
@@ -23,6 +28,33 @@ app = typer.Typer(
     help="Google Suite CLI - Unified access to Gmail, Calendar, Drive, Sheets, Tasks, Contacts",
     no_args_is_help=True,
 )
+
+
+@app.callback()
+def _root(
+    account: str | None = typer.Option(
+        None,
+        "--account",
+        "-a",
+        help=(
+            "Which stored login to use (see `gsuite auth list`); "
+            "default: GSUITE_ACCOUNT, or 'default'"
+        ),
+    ),
+) -> None:
+    """Options that apply to every command."""
+    if account is None:
+        return
+    if not re.match(ACCOUNT_PATTERN, account):
+        console.print(
+            f"[red]Invalid account name: {account!r}.[/red] "
+            "Use letters, digits and . _ @ + - (e.g. work, ana@example.com)"
+        )
+        raise typer.Exit(1)
+    # Every command builds its own GoogleAuth(), which reads the account from settings
+    os.environ["GSUITE_ACCOUNT"] = account
+    get_settings.cache_clear()
+
 
 # Register sub-commands
 app.add_typer(auth.app, name="auth", help="Authentication management")
@@ -52,6 +84,7 @@ def status() -> None:
     table.add_row("Version", __version__)
     table.add_row("Credentials File", settings.credentials_file)
     table.add_row("Token Storage", settings.token_storage)
+    table.add_row("Account", auth.user_id)
     table.add_row("Authenticated", "✓ Yes" if auth.is_authenticated() else "✗ No")
 
     if auth.is_authenticated():

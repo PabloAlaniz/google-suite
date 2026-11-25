@@ -3,6 +3,7 @@
 __version__ = "0.1.0"
 
 from gsuite_drive.aio import AsyncDrive
+from gsuite_drive.changes import ChangesDelta
 from gsuite_drive.client import EXPORT_FORMATS, Drive
 from gsuite_drive.file import File, Folder
 from gsuite_drive.permission import Permission
@@ -10,6 +11,7 @@ from gsuite_drive.permission import Permission
 __all__ = [
     "EXPORT_FORMATS",
     "AsyncDrive",
+    "ChangesDelta",
     "Drive",
     "File",
     "Folder",

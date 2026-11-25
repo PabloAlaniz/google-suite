@@ -1,6 +1,7 @@
 """What changed in a mailbox since a history ID (incremental sync)."""
 
 from dataclasses import dataclass, field
+from datetime import datetime
 
 
 @dataclass
@@ -29,3 +30,16 @@ class IdPage:
 
     ids: list[str] = field(default_factory=list)
     next_page_token: str | None = None
+
+
+@dataclass
+class MailboxWatch:
+    """A mailbox being watched: Gmail publishes to a Pub/Sub topic when it changes.
+
+    ``history_id`` is where the first ``Gmail.history`` call after a
+    notification starts. Gmail stops publishing at ``expiration`` (about a week
+    later): call ``watch`` again before then, e.g. once a day.
+    """
+
+    history_id: str
+    expiration: datetime | None = None

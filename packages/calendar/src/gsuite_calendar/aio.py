@@ -45,6 +45,7 @@ from gsuite_calendar.event import Event
 from gsuite_calendar.parser import CalendarParser
 from gsuite_core import get_settings
 from gsuite_core.aio import AsyncGoogleClient
+from gsuite_core.channels import Channel, channel_body, parse_channel, stop_body
 from gsuite_core.exceptions import NotFoundError
 
 API = "https://www.googleapis.com/calendar/v3"
@@ -172,6 +173,32 @@ class AsyncCalendar:
             if not page.get("nextPageToken"):
                 return delta
             params["pageToken"] = page["nextPageToken"]
+
+    async def watch(
+        self,
+        address: str,
+        token: str,
+        calendar_id: str | None = None,
+        channel_id: str | None = None,
+        ttl: int | None = None,
+    ) -> Channel:
+        """Have Google POST to ``address`` when the calendar changes (see ``Calendar.watch``)."""
+        data = await self._json(
+            "POST",
+            self._events_url(calendar_id or self.calendar_id, "watch"),
+            json=channel_body(address, token, channel_id, ttl),
+            resource_type="channel",
+        )
+        return parse_channel(data, token)
+
+    async def stop_channel(self, channel: Channel | str, resource_id: str | None = None) -> None:
+        """Stop a notification channel (the Channel, or its ID and resource ID)."""
+        await self._json(
+            "POST",
+            f"{API}/channels/stop",
+            json=stop_body(channel, resource_id),
+            resource_type="channel",
+        )
 
     async def get_event(self, event_id: str, calendar_id: str | None = None) -> Event | None:
         """An event by ID, or None if it doesn't exist."""

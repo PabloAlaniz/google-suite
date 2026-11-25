@@ -8,6 +8,8 @@
 
 ::: gsuite_core.GoogleService
 
+::: gsuite_core.Channel
+
 ::: gsuite_core.exceptions
 
 ::: gsuite_core.aio.AsyncGoogleClient

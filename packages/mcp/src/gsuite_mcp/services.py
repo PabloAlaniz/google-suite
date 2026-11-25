@@ -25,8 +25,9 @@ if TYPE_CHECKING:
 def login_hint() -> str:
     settings = get_settings()
     token_db = Path(settings.token_db_path).resolve()
+    account = "" if settings.account == "default" else f" --account {settings.account}"
     return (
-        f"No valid Google login in {token_db}. Run `gsuite auth login` (add "
+        f"No valid Google login in {token_db}. Run `gsuite{account} auth login` (add "
         "`--scopes default,tasks,contacts` for Tasks and Contacts, "
         "`,marketing` for Search Console, Analytics and Tag Manager) in the directory "
         "this server runs from, or set GSUITE_TOKEN_DB_PATH and GSUITE_CREDENTIALS_FILE "

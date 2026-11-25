@@ -213,6 +213,19 @@ events = calendar.get_events(
 )
 ```
 
+## Push Notifications
+
+```python
+sync_token = calendar.sync().sync_token
+channel = calendar.watch("https://example.com/webhooks/calendar", token="a-secret")
+# ...Google POSTs to that URL (with the token in X-Goog-Channel-Token) on every change...
+delta = calendar.sync(sync_token)         # what changed since
+calendar.stop_channel(channel)
+```
+
+Channels expire (`channel.expiration`) and aren't renewed. See the
+[push notifications guide](../../docs/PUSH.md).
+
 ## Error Handling
 
 ```python

@@ -43,16 +43,19 @@ from gsuite_gmail._mime import (
 from gsuite_gmail._requests import (
     HISTORY_PAGE_SIZE,
     HistoryType,
+    LabelFilter,
     MessageFormat,
     add_history_page,
     finish_history,
     get_params,
     history_params,
     list_params,
+    parse_watch,
+    watch_body,
 )
 from gsuite_gmail.client import BATCH_MODIFY_LIMIT, BATCH_SIZE
 from gsuite_gmail.draft import Draft
-from gsuite_gmail.history import HistoryDelta, IdPage
+from gsuite_gmail.history import HistoryDelta, IdPage, MailboxWatch
 from gsuite_gmail.label import Label
 from gsuite_gmail.message import Message
 from gsuite_gmail.parser import GmailParser
@@ -590,6 +593,20 @@ class AsyncGmail:
             if not page.get("nextPageToken"):
                 return finish_history(delta)
             params["pageToken"] = page["nextPageToken"]
+
+    async def watch(
+        self,
+        topic: str,
+        label_ids: Sequence[str] | None = None,
+        label_filter: LabelFilter = "include",
+    ) -> MailboxWatch:
+        """Have Gmail publish to a Pub/Sub topic when the mailbox changes (see ``Gmail.watch``)."""
+        body = watch_body(topic, label_ids, label_filter)
+        return parse_watch(await self._json("POST", "watch", json=body, resource_type="watch"))
+
+    async def stop_watch(self) -> None:
+        """Stop the notifications ``watch`` started for this mailbox."""
+        await self._json("POST", "stop", resource_type="watch")
 
     async def get_profile(self) -> dict[str, Any]:
         """The authenticated user's profile."""

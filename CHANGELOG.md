@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.15.0](https://github.com/PabloAlaniz/google-suite/compare/v0.14.0...v0.15.0) (2026-11-25)
+
+
+### Features
+
+* multiple accounts and push notifications ([#127](https://github.com/PabloAlaniz/google-suite/issues/127)) ([94206c5](https://github.com/PabloAlaniz/google-suite/commit/94206c53d64957258e4ed4ae4ef94f38ce2885b7))
+
 ## [0.14.0](https://github.com/PabloAlaniz/google-suite/compare/v0.13.0...v0.14.0) (2026-11-06)
 
 
